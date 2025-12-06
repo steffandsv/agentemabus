@@ -11,14 +11,15 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.SSH_KEY }}
-          port: 2222
+          host: ${{ secrets.HOST }}     # Deve ser o IP 45.172.145.202
+          username: ${{ secrets.USERNAME }} # Agora é 'steffan'
+          password: ${{ secrets.PASSWORD }} # Usando a senha 'a2312steff' do cofre
+          # key: ${{ secrets.SSH_KEY }}   <-- REMOVA ESTA LINHA
+          port: 2222                    # Mantém a porta correta
           script: |
-            # Garante que a pasta existe
-            sudo mkdir -p /opt/agente-mabus
-            sudo chown -R $USER:$USER /opt/agente-mabus
+            # Garante que a pasta existe (usa -S para aceitar senha no sudo se precisar)
+            echo "${{ secrets.PASSWORD }}" | sudo -S mkdir -p /opt/agente-mabus
+            echo "${{ secrets.PASSWORD }}" | sudo -S chown -R $USER:$USER /opt/agente-mabus
             
             # Entra na pasta
             cd /opt/agente-mabus
@@ -30,13 +31,11 @@ jobs:
               git pull origin main
             fi
             
-            # GERA O ARQUIVO .ENV DINAMICAMENTE
-            # Isso garante que a chave mais atual do GitHub Secrets seja usada
+            # Gera o .env
             echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
             
-            # Reconstrói os containers para aplicar mudanças de código e variáveis
-            docker compose down
-            docker compose up -d --build --remove-orphans
-            
-            # Limpeza automática de imagens antigas para não lotar o VPS
-            docker image prune -f
+            # Reconstrói
+            # Adicionei 'sudo -S' pois seu usuário provavelmente precisa de senha para rodar docker
+            echo "${{ secrets.PASSWORD }}" | sudo -S docker compose down
+            echo "${{ secrets.PASSWORD }}" | sudo -S docker compose up -d --build --remove-orphans
+            echo "${{ secrets.PASSWORD }}" | sudo -S docker image prune -f
