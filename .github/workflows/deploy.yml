@@ -14,7 +14,7 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          port: 22
+          port: 2222
           script: |
             # Garante que a pasta existe
             sudo mkdir -p /opt/agente-mabus
