@@ -15,7 +15,8 @@ function initGemini() {
     }
     try {
         genAI = new GoogleGenerativeAI(apiKey);
-        model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        // User requested specifically gemini-3-pro-preview
+        model = genAI.getGenerativeModel({ model: "gemini-3-pro-preview" });
         return true;
     } catch (e) {
         console.error("Error initializing Gemini:", e);
