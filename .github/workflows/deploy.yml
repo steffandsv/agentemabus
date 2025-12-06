@@ -1,0 +1,42 @@
+name: Deploy Agente Mabus
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            # Garante que a pasta existe
+            sudo mkdir -p /opt/agente-mabus
+            sudo chown -R $USER:$USER /opt/agente-mabus
+            
+            # Entra na pasta
+            cd /opt/agente-mabus
+            
+            # Inicializa git se não existir, ou atualiza
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/steffandsv/agentemabus.git .
+            else
+              git pull origin main
+            fi
+            
+            # GERA O ARQUIVO .ENV DINAMICAMENTE
+            # Isso garante que a chave mais atual do GitHub Secrets seja usada
+            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+            
+            # Reconstrói os containers para aplicar mudanças de código e variáveis
+            docker compose down
+            docker compose up -d --build --remove-orphans
+            
+            # Limpeza automática de imagens antigas para não lotar o VPS
+            docker image prune -f
