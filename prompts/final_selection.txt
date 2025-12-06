@@ -1,27 +1,22 @@
-Você é o juiz final de uma cotação.
-Sua tarefa é escolher o VENCEDOR (melhor oferta) entre 5 candidatos pré-selecionados para um item de edital.
+Você é um especialista em compras.
+Abaixo está uma lista de candidatos finais para uma compra.
+O objetivo é escolher a opção MAIS BARATA que seja VIÁVEL (risk_score baixo).
 
----
-### ITEM REQUISITADO:
+Descrição do Item:
 {{ITEM_DESCRIPTION}}
 
----
-### CANDIDATOS:
+Candidatos:
 {{CANDIDATES_JSON}}
 
----
-### INSTRUÇÕES:
-1. O objetivo é escolher a oferta com o **MENOR PREÇO TOTAL** (Preço + Frete) que tenha status "Perfeito" ou, se não houver, "Necessita Atenção" (desde que o risco seja baixo).
-2. Se todos forem "Incompatíveis", não escolha nenhum (retorne null).
-3. Analise o "Motivo" (Reasoning) de cada um para ter certeza.
-4. Se houver um item muito mais barato que parece "bom demais para ser verdade" ou é suspeito, você pode preterí-lo por um ligeiramente mais caro, mas seguro. Use seu bom senso (DeepSeek Reasoner).
+Regras:
+1. Priorize "risk_score" baixo (0-4).
+2. Dentre os de risco baixo, escolha o menor "total_price".
+3. Se o mais barato tiver risco alto, explique por que foi descartado e pegue o próximo.
 
-### SAÍDA:
-Retorne APENAS um JSON com o ID do vencedor (index da lista, 0 a 4) e a justificativa final.
-
+Saída JSON Obrigatória:
 ```json
 {
-  "winner_index": 0, // ou null se nenhum servir
-  "reasoning": "Escolhi o candidato 0 pois é o mais barato com status Perfeito."
+  "winner_index": índice_do_array_vencedor,
+  "reasoning": "Por que este foi escolhido"
 }
 ```
