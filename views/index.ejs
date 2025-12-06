@@ -1,0 +1,53 @@
+<%- include('partials/header') %>
+
+<h1 class="mb-4">🚀 Painel de Controle</h1>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nome da Tarefa</th>
+                        <th>Status</th>
+                        <th>Criado em</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% tasks.forEach(task => { %>
+                        <tr>
+                            <td>
+                                <div class="fw-bold"><%= task.name %></div>
+                                <small class="text-muted"><%= task.id %></small>
+                            </td>
+                            <td>
+                                <% if (task.status === 'completed') { %>
+                                    <span class="badge bg-success">Concluído</span>
+                                <% } else if (task.status === 'running') { %>
+                                    <span class="badge bg-primary spinner-grow-sm">Rodando</span>
+                                <% } else if (task.status === 'failed') { %>
+                                    <span class="badge bg-danger">Falhou</span>
+                                <% } else { %>
+                                    <span class="badge bg-secondary">Pendente</span>
+                                <% } %>
+                            </td>
+                            <td><%= new Date(task.created_at).toLocaleString('pt-BR') %></td>
+                            <td>
+                                <a href="/task/<%= task.id %>" class="btn btn-sm btn-outline-info">🔍 Detalhes</a>
+                                <% if (task.status === 'completed') { %>
+                                    <a href="/download/<%= task.id %>" class="btn btn-sm btn-success">📥 Excel</a>
+                                <% } %>
+                            </td>
+                        </tr>
+                    <% }) %>
+                    <% if (tasks.length === 0) { %>
+                        <tr><td colspan="4" class="text-center py-4">Nenhuma missão encontrada. Bora criar a primeira! ✨</td></tr>
+                    <% } %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %>

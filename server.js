@@ -1,0 +1,128 @@
+const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
+const { initDB, createTask, getTasks, getTaskById } = require('./src/database');
+const { addJob } = require('./src/worker');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Trust Proxy for Docker/Nginx
+app.set('trust proxy', 1);
+
+// Setup Storage
+const upload = multer({ dest: 'uploads/' });
+
+// Ensure dirs
+['uploads', 'outputs', 'logs', 'public'].forEach(dir => {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+});
+
+// Create Template CSV
+const templatePath = path.join(__dirname, 'public', 'template.csv');
+if (!fs.existsSync(templatePath)) {
+    fs.writeFileSync(templatePath, 'ID,Descricao\n1,Exemplo Item 1\n2,Exemplo Item 2');
+}
+
+// Database
+initDB();
+
+// Middleware
+app.set('view engine', 'ejs');
+app.use(express.static('public'));
+app.use(express.urlencoded({ extended: true }));
+
+// Routes
+app.get('/', async (req, res) => {
+    try {
+        const tasks = await getTasks();
+        res.render('index', { tasks });
+    } catch (e) {
+        res.status(500).send(e.message);
+    }
+});
+
+app.get('/create', (req, res) => {
+    res.render('create');
+});
+
+app.post('/create', upload.single('csvFile'), async (req, res) => {
+    const { name, cep, csvText } = req.body;
+    let filePath = req.file ? req.file.path : null;
+
+    // Handle Text Paste
+    if (!filePath && csvText && csvText.trim().length > 0) {
+        const fileName = `paste_${Date.now()}.csv`;
+        filePath = path.join('uploads', fileName);
+        fs.writeFileSync(filePath, csvText);
+    }
+
+    if (!filePath || !name || !cep) {
+        return res.status(400).send('Dados incompletos. Envie um arquivo ou cole o texto.');
+    }
+
+    const taskId = uuidv4();
+    const task = {
+        id: taskId,
+        name,
+        cep,
+        input_file: filePath,
+        log_file: path.join('logs', `${taskId}.txt`)
+    };
+
+    try {
+        await createTask(task);
+        // Add to Queue
+        await addJob({
+            taskId,
+            cep,
+            filePath: task.input_file,
+            logPath: task.log_file
+        });
+        res.redirect('/');
+    } catch (e) {
+        res.status(500).send(e.message);
+    }
+});
+
+app.get('/task/:id', async (req, res) => {
+    try {
+        const task = await getTaskById(req.params.id);
+        if (!task) return res.status(404).send('Task not found');
+        res.render('detail', { task });
+    } catch (e) {
+        res.status(500).send(e.message);
+    }
+});
+
+app.get('/api/logs/:id', (req, res) => {
+    const logPath = path.join('logs', `${req.params.id}.txt`);
+    if (fs.existsSync(logPath)) {
+        res.sendFile(path.resolve(logPath));
+    } else {
+        res.send('');
+    }
+});
+
+app.get('/download/:id', async (req, res) => {
+    try {
+        const task = await getTaskById(req.params.id);
+        if (task && task.output_file && fs.existsSync(task.output_file)) {
+            res.download(task.output_file);
+        } else {
+            res.status(404).send('File not found');
+        }
+    } catch (e) {
+        res.status(500).send(e.message);
+    }
+});
+
+app.get('/download-template', (req, res) => {
+    res.download(path.join(__dirname, 'public', 'template.csv'), 'modelo_importacao.csv');
+});
+
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+});

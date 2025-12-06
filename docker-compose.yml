@@ -1,0 +1,42 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    container_name: cotador_app
+    restart: always
+    shm_size: '4gb' # Prevent Chrome crashes
+    ports:
+      - "127.0.0.1:3001:3000" # Localhost exposure for safety/proxy
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+      - NODE_OPTIONS=--max-old-space-size=8192
+      - UV_THREADPOOL_SIZE=128
+      - PORT=3000
+      # PROXY_URL is now optional/fallback if proxies.txt is missing
+      # - PROXY_URL=
+    volumes:
+      - ./logs:/app/logs
+      - ./outputs:/app/outputs
+      - ./prompts:/app/prompts
+      - ./cookies.json:/app/cookies.json
+      - ./proxies.txt:/app/proxies.txt
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        limits:
+          cpus: '8.0'
+          memory: 16G
+
+  redis:
+    image: redis:alpine
+    container_name: cotador_redis
+    command: redis-server --save 60 1 --loglevel warning
+    restart: always
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:

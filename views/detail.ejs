@@ -1,0 +1,166 @@
+<%- include('partials/header') %>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Detalhes da Missão: <%= task.name %></h1>
+    <div>
+        <% if (task.status === 'completed') { %>
+            <a href="/download/<%= task.id %>" class="btn btn-success">📥 Baixar Excel</a>
+        <% } %>
+        <a href="/" class="btn btn-secondary">Voltar</a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Info Panel -->
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header bg-light">Informações</div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item"><strong>ID:</strong> <small><%= task.id %></small></li>
+                <li class="list-group-item"><strong>Status:</strong> 
+                    <span id="status-badge" class="badge bg-<%= task.status === 'completed' ? 'success' : (task.status === 'running' ? 'primary' : (task.status === 'failed' ? 'danger' : 'secondary')) %>">
+                        <%= task.status === 'completed' ? 'Concluído' : (task.status === 'running' ? 'Em Andamento' : (task.status === 'pending' ? 'Pendente' : 'Falha')) %>
+                    </span>
+                </li>
+                <li class="list-group-item"><strong>CEP:</strong> <%= task.cep %></li>
+                <li class="list-group-item"><strong>Criado em:</strong> <%= new Date(task.created_at).toLocaleString('pt-BR') %></li>
+            </ul>
+        </div>
+        
+        <!-- Thought Threads (Accordion) -->
+        <div class="card mb-3 border-info">
+            <div class="card-header bg-info text-white">💭 Raciocínio da I.A. (Threads)</div>
+            <div class="card-body p-0">
+                <div class="accordion accordion-flush" id="thoughtsAccordion">
+                    <!-- Items will be injected here -->
+                    <div class="text-center p-3 text-muted" id="no-thoughts-msg">
+                        <small>Aguardando insights neurais...</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Real-time Logs -->
+    <div class="col-md-8">
+        <div class="card bg-dark text-white">
+            <div class="card-header border-secondary d-flex justify-content-between">
+                <span>🖥️ Logs do Sistema (Tempo Real)</span>
+                <% if (task.status === 'running' || task.status === 'pending') { %>
+                    <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+                <% } %>
+            </div>
+            <div class="card-body p-0">
+                <pre id="logs" class="p-3 m-0" style="height: 600px; overflow-y: auto; font-family: monospace; font-size: 0.85em;"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const taskId = '<%= task.id %>';
+    const logsEl = document.getElementById('logs');
+    const accordionEl = document.getElementById('thoughtsAccordion');
+    const noThoughtsMsg = document.getElementById('no-thoughts-msg');
+    
+    let autoScroll = true;
+    // Track which messages we've already added to avoid duplicates if re-parsing full log
+    // A simple way is to re-render the accordion from scratch or use a robust diff. 
+    // Since logs append, we can maintain state of "last read position" or just clear/rebuild efficiently.
+    // Given the expected volume, clearing and rebuilding the DOM structure based on parsed objects is safer for correctness,
+    // though less efficient. Let's optimize by tracking unique keys (timestamp + item + stage).
+    
+    let knownThoughts = new Set(); 
+
+    function createAccordionItem(itemId) {
+        const idClean = itemId.replace(/[^a-zA-Z0-9]/g, '');
+        const html = `
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="heading${idClean}">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${idClean}">
+                        📦 Item ${itemId}
+                    </button>
+                </h2>
+                <div id="collapse${idClean}" class="accordion-collapse collapse" data-bs-parent="#thoughtsAccordion">
+                    <div class="accordion-body bg-light chat-container" id="chat${idClean}">
+                        <!-- Chat bubbles go here -->
+                    </div>
+                </div>
+            </div>
+        `;
+        return html;
+    }
+
+    function appendThought(thought) {
+        if (noThoughtsMsg) noThoughtsMsg.style.display = 'none';
+        
+        const key = `${thought.itemId}-${thought.timestamp}-${thought.stage}`;
+        if (knownThoughts.has(key)) return;
+        knownThoughts.add(key);
+
+        const idClean = thought.itemId.replace(/[^a-zA-Z0-9]/g, '');
+        let chatContainer = document.getElementById(`chat${idClean}`);
+        
+        if (!chatContainer) {
+            // Create accordion item
+            accordionEl.insertAdjacentHTML('beforeend', createAccordionItem(thought.itemId));
+            chatContainer = document.getElementById(`chat${idClean}`);
+        }
+
+        const bubbleHtml = `
+            <div class="chat-bubble">
+                <div class="chat-meta">
+                    <span class="badge bg-primary">${thought.stage}</span>
+                    <span class="text-muted ms-2">${thought.timestamp}</span>
+                </div>
+                <div class="chat-content mt-1">
+                    ${thought.content.replace(/\n/g, '<br>')}
+                </div>
+            </div>
+        `;
+        chatContainer.insertAdjacentHTML('beforeend', bubbleHtml);
+    }
+
+    function parseLogs(text) {
+        const lines = text.split('\n');
+        let cleanLogs = "";
+
+        lines.forEach(line => {
+            if (line.includes('[PENSAMENTO]')) {
+                try {
+                    const jsonStr = line.substring(line.indexOf('[PENSAMENTO]') + 12);
+                    const thought = JSON.parse(jsonStr);
+                    appendThought(thought);
+                } catch (e) {}
+                // Don't add to main log view
+            } else {
+                cleanLogs += line + '\n';
+            }
+        });
+        
+        return cleanLogs;
+    }
+
+    function fetchLogs() {
+        fetch('/api/logs/' + taskId)
+            .then(r => r.text())
+            .then(text => {
+                const cleanText = parseLogs(text);
+                if (logsEl.textContent !== cleanText) {
+                    logsEl.textContent = cleanText;
+                    if (autoScroll) logsEl.scrollTop = logsEl.scrollHeight;
+                }
+            });
+    }
+
+    setInterval(fetchLogs, 2000);
+    fetchLogs();
+
+    setInterval(() => {
+         if (logsEl.textContent.includes('Missão Cumprida') && !window.location.search.includes('done')) {
+             window.location.search = '?done=true';
+         }
+    }, 5000);
+</script>
+
+<%- include('partials/footer') %>
