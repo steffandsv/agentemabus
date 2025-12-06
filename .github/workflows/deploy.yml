@@ -30,8 +30,10 @@ jobs:
               git pull origin main
             fi
             
-            # Gera o .env
+            # GERA O ARQUIVO .ENV DINAMICAMENTE
             echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+            echo "GOOGLE_SEARCH_API_KEY=${{ secrets.GOOGLE_SEARCH_API_KEY }}" >> .env
+            echo "GOOGLE_SEARCH_CX=${{ secrets.GOOGLE_SEARCH_CX }}" >> .env
             # Decodifica a secret e cria o arquivo físico no servidor
             echo "${{ secrets.COOKIES_B64 }}" | base64 -d > cookies.json            
             # Reconstrói

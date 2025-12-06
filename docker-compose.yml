@@ -2,7 +2,7 @@ version: '3.8'
 services:
   app:
     build: .
-    container_name: agente_app  # <--- MUDAMOS DE 'cotador_app' PARA 'agente_app'
+    container_name: agente_app
     restart: always
     shm_size: '4gb'
     ports:
@@ -10,6 +10,8 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_SEARCH_API_KEY=${GOOGLE_SEARCH_API_KEY}
+      - GOOGLE_SEARCH_CX=${GOOGLE_SEARCH_CX}
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
       - NODE_OPTIONS=--max-old-space-size=8192
       - UV_THREADPOOL_SIZE=128
