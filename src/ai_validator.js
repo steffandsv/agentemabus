@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { askGemini, googleSearch } = require('./google_services');
 
 // Helper: Simple template engine
 function renderTemplate(template, data) {
@@ -8,7 +9,7 @@ function renderTemplate(template, data) {
     });
 }
 
-// Helper: Extract JSON from markdown code block if present
+// Helper: Clean JSON markdown
 function extractJson(text) {
     const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
     if (jsonMatch) {
@@ -22,115 +23,69 @@ function extractJson(text) {
     return text;
 }
 
-// Generic DeepSeek Caller
-async function callDeepSeek(messages, model = "deepseek-chat") {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) return null; 
-
-    // Endpoint switching based on user request for "DeepSeek V3.2" special beta endpoint
-    let apiEndpoint = 'https://api.deepseek.com/chat/completions'; // Default
-    
-    // User requested special endpoint for V3.2 agents reasoning
-    if (model === 'deepseek-reasoner' || model === 'deepseek-v3.2') {
-        // Assuming the user meant this specific URL for the 'reasoner' logic
-        apiEndpoint = 'https://api.deepseek.com/v3.2_speciale_expires_on_20251215/chat/completions';
-    }
-
-    // Allow override via ENV
-    if (process.env.DEEPSEEK_API_URL) {
-        apiEndpoint = process.env.DEEPSEEK_API_URL;
-    }
-
-    try {
-        const response = await fetch(apiEndpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model: model === 'deepseek-v3.2' ? 'deepseek-reasoner' : model, // Fallback if name differs
-                messages: messages,
-                stream: false
-            })
-        });
-
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(`API Error ${response.status}: ${errText}`);
-        }
-
-        const json = await response.json();
-        // Return object with content and reasoning (if available)
-        return {
-            content: json.choices[0].message.content,
-            reasoning_content: json.choices[0].message.reasoning_content || null
-        };
-    } catch (error) {
-        console.error(`DeepSeek API Error (${model}) at ${apiEndpoint}:`, error.message);
-        throw error;
-    }
-}
-
-// 1. Generate Query
-async function generateSearchQuery(description) {
-    const templatePath = path.join(__dirname, '../prompts/query_generation.txt');
+// 1. Discover Models (Enhanced with Google Search)
+async function discoverModels(description) {
+    const templatePath = path.join(__dirname, '../prompts/model_discovery.txt');
     let template;
     try {
         template = fs.readFileSync(templatePath, 'utf-8');
     } catch (e) {
-        return description.split(' ').slice(0, 4).join(' '); 
+        console.error("Error reading model_discovery template:", e);
+        return [description.substring(0, 50)];
     }
 
-    const prompt = renderTemplate(template, { DESCRIPTION: description });
-    const result = await callDeepSeek([{ role: "user", content: prompt }], "deepseek-chat");
-
-    if (!result || !result.content) {
-        console.log('Mocking Query Gen...');
-        return description.split(';')[0].substring(0, 50).trim(); 
-    }
-    return result.content.trim().replace(/^"|"$/g, '');
-}
-
-// 2. Filter Titles
-async function filterCandidatesByTitle(requiredSpecs, candidates) {
-    const templatePath = path.join(__dirname, '../prompts/title_filtering.txt');
-    let template;
+    // Context Retrieval: Search Google to get up-to-date suggestions
+    let webContext = "N/A";
     try {
-        template = fs.readFileSync(templatePath, 'utf-8');
-    } catch (e) { 
-        return { selected_indices: candidates.map((_, i) => i), reasoning_content: "Erro ao ler template." }; 
+        // Query Google for "best budget [description] 2024" or similar
+        const googleQuery = `melhor custo beneficio ${description.substring(0, 60)} 2024 review`;
+        console.log(`[AI] Buscando contexto no Google: "${googleQuery}"...`);
+
+        const searchResults = await googleSearch(googleQuery);
+        if (searchResults && searchResults.length > 0) {
+            webContext = searchResults.map(r => `- ${r.title}: ${r.snippet}`).join('\n');
+        }
+    } catch (err) {
+        console.warn("[AI] Falha na busca Google (continuando sem contexto):", err.message);
     }
 
-    const candidatesList = candidates.map((c, i) => `[${i}] ${c.title} - R$ ${c.price}`).join('\n');
     const prompt = renderTemplate(template, {
-        REQUIRED_SPECS: requiredSpecs,
-        CANDIDATES_LIST: candidatesList
+        DESCRIPTION: description,
+        WEB_CONTEXT: webContext
     });
 
-    const result = await callDeepSeek([{ role: "user", content: prompt }], "deepseek-reasoner");
-
-    if (!result || !result.content) {
-        return { 
-            selected_indices: [0, 1, 2, 3, 4].filter(i => i < candidates.length),
-            reasoning_content: "Mock AI: Filtragem simulada."
-        };
-    }
+    const resultText = await askGemini(prompt);
 
     try {
-        const jsonStr = extractJson(result.content);
+        const jsonStr = extractJson(resultText);
         const parsed = JSON.parse(jsonStr);
-        return {
-            selected_indices: parsed.selected_indices || [],
-            reasoning_content: result.reasoning_content
-        };
+        // Ensure we always return an array of strings
+        if (Array.isArray(parsed.search_terms)) {
+            return parsed.search_terms;
+        }
+        return [description.substring(0, 50)];
     } catch (e) {
-        console.error('Error parsing title filter response:', e);
-        return {
-            selected_indices: [0, 1, 2, 3, 4].filter(i => i < candidates.length),
-            reasoning_content: "Erro ao parsear JSON da IA."
-        };
+        console.error("Error parsing discoverModels response:", e);
+        // Fallback: use the description itself if AI fails
+        return [description.substring(0, 50)];
     }
+}
+
+// 2. Filter Titles (Simplified for Gemini - Optional now if we trust model search, but kept for safety)
+// We might skip this step if we are searching specific models, but let's keep it available.
+async function filterTitles(description, candidates) {
+    // Basic heuristic filter is often faster/cheaper than AI for this step,
+    // but if we use AI, let's just reuse the validation logic later or do a quick pass.
+    // For now, let's assume we pass all search results to validation if we have bandwidth (12 threads),
+    // OR implement a very lightweight check.
+
+    // For this refactor, I'll bypass this explicit "filterTitles" AI step to save tokens/time,
+    // relying on the specific search queries + keyword matching in logic.js + final validation.
+    // So this just returns all indices.
+    return {
+        selected_indices: candidates.map((_, i) => i),
+        reasoning_content: "Skipping explicit AI title filter to prioritize full validation."
+    };
 }
 
 // 3. Final Validation
@@ -139,7 +94,9 @@ async function validateProductWithAI(requiredSpecs, productDetails) {
     let template;
     try {
         template = fs.readFileSync(templatePath, 'utf-8');
-    } catch (e) { return { status: "Erro", reasoning: "Template error", brand_model: "N/A", risk_score: 10 }; }
+    } catch (e) {
+        return { status: "Erro", reasoning: "Template error", brand_model: "N/A", risk_score: 10 };
+    }
 
     const data = {
         REQUIRED_SPECS: requiredSpecs,
@@ -149,57 +106,43 @@ async function validateProductWithAI(requiredSpecs, productDetails) {
     };
 
     const prompt = renderTemplate(template, data);
-    const result = await callDeepSeek([{ role: "user", content: prompt }], "deepseek-reasoner");
-
-    if (!result || !result.content) {
-        // Mock
-        const rand = Math.random();
-        let status = "Incompatível";
-        let risk = 10;
-        if (rand > 0.6) { status = "Perfeito"; risk = 0; }
-        else if (rand > 0.3) { status = "Necessita Atenção"; risk = 3; }
-        
-        return {
-            status: status,
-            reasoning: `Mock AI (Reasoner): Simulação de status ${status}.`,
-            brand_model: "Marca Mock / Modelo Mock",
-            risk_score: risk,
-            reasoning_content: "Este é um pensamento simulado. Na vida real, eu estaria analisando cada volt e byte deste produto com a precisão de um cirurgião digital."
-        };
-    }
+    const resultText = await askGemini(prompt);
 
     try {
-        const jsonStr = extractJson(result.content);
+        const jsonStr = extractJson(resultText);
         const parsed = JSON.parse(jsonStr);
         return {
             status: parsed.status || "Incompatível", 
-            reasoning: parsed.reasoning,
+            reasoning: parsed.reasoning || "Sem explicação",
             brand_model: parsed.brand_model || "Não identificado",
-            risk_score: typeof parsed.risk_score === 'number' ? parsed.risk_score : 10,
-            reasoning_content: result.reasoning_content 
+            risk_score: typeof parsed.risk_score === 'number' ? parsed.risk_score : 10
         };
     } catch (e) {
         console.error('Error parsing validation response:', e);
-        return { status: "Erro", reasoning: "AI Error: Invalid JSON response.", brand_model: "Erro", risk_score: 10, reasoning_content: null };
+        return {
+            status: "Erro",
+            reasoning: "AI Error: Invalid JSON response.",
+            brand_model: "Erro",
+            risk_score: 10
+        };
     }
 }
 
-// 4. Select Best Candidate (The "Judge")
+// 4. Select Best Candidate
 async function selectBestCandidate(description, candidates) {
     const templatePath = path.join(__dirname, '../prompts/final_selection.txt');
     let template;
     try {
         template = fs.readFileSync(templatePath, 'utf-8');
-    } catch (e) { return { winner_index: 0, reasoning_content: "Template error" }; }
+    } catch (e) { return { winner_index: 0, reasoning: "Template error" }; }
 
-    // Simplify candidates for prompt
     const candidatesSimple = candidates.map((c, i) => ({
         index: i,
         title: c.title,
         total_price: c.totalPrice,
         ai_status: c.aiMatch,
-        ai_risk: c.risk_score, // New field
-        ai_reasoning: c.aiReasoning
+        ai_risk: c.risk_score,
+        brand_model: c.brand_model
     }));
 
     const prompt = renderTemplate(template, {
@@ -207,28 +150,32 @@ async function selectBestCandidate(description, candidates) {
         CANDIDATES_JSON: JSON.stringify(candidatesSimple, null, 2)
     });
 
-    const result = await callDeepSeek([{ role: "user", content: prompt }], "deepseek-reasoner");
-
-    if (!result || !result.content) {
-        return { winner_index: 0, reasoning_content: "Mock AI: Seleção simulada." }; 
-    }
+    const resultText = await askGemini(prompt);
 
     try {
-        const jsonStr = extractJson(result.content);
+        const jsonStr = extractJson(resultText);
         const parsed = JSON.parse(jsonStr);
         return {
             winner_index: parsed.winner_index,
-            reasoning_content: result.reasoning_content
+            reasoning: parsed.reasoning
         };
     } catch (e) {
         console.error('Error parsing selection response:', e);
-        return { winner_index: 0, reasoning_content: "Erro ao parsear seleção." };
+        // Fallback: Pick the one with lowest risk and price
+        const sorted = candidatesSimple.sort((a,b) => {
+            if (a.ai_risk !== b.ai_risk) return a.ai_risk - b.ai_risk;
+            return a.total_price - b.total_price;
+        });
+        return {
+            winner_index: sorted[0].index,
+            reasoning: "Fallback logic: Lowest risk & price."
+        };
     }
 }
 
 module.exports = { 
-    generateSearchQuery, 
-    filterTitles: filterCandidatesByTitle, 
+    discoverModels,
+    filterTitles,
     validateProductWithAI,
     selectBestCandidate 
 };
