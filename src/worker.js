@@ -43,11 +43,10 @@ function Logger(logPath) {
         if (!content) return;
         const payload = {
             itemId: itemId,
-            stage: stage, // 'discovery', 'filter', 'validation', 'selection'
-            content: content, // Can be object or string
+            stage: stage, // 'discovery', 'filter', 'validation', 'selection', 'error'
+            content: content,
             timestamp: new Date().toLocaleTimeString('pt-BR')
         };
-        // Use a special prefix for the UI/Parser to pick up
         const line = `[PENSAMENTO]${JSON.stringify(payload)}\n`;
         try {
             fs.appendFileSync(logPath, line);
@@ -70,8 +69,18 @@ scrapeQueue.process(async (job) => {
     try {
         if (!fs.existsSync(filePath)) throw new Error(`Input file not found: ${filePath}`);
         
+        // 1. Read Input
         const items = await readInput(filePath);
         logger.log(`📄 Itens para processar: ${items.length}`);
+
+        // --- ADDED: Empty Item Check ---
+        if (items.length === 0) {
+            const msg = "ERRO CRÍTICO: Nenhum item encontrado no CSV. Verifique se o separador é ';' e se as colunas 'ID', 'Descricao' existem.";
+            logger.log(msg);
+            logger.thought('global', 'error', msg); // Global error thought
+            await updateTaskStatus(taskId, 'failed');
+            return;
+        }
 
         logger.log('🌐 Abrindo navegador...');
         browser = await initBrowser();
@@ -99,7 +108,6 @@ scrapeQueue.process(async (job) => {
                 logger.log(`🤖 [Item ${id}] Consultando Gemini...`);
                 const searchQueries = await discoverModels(description);
 
-                // Log separate thoughts for the UI side panel
                 searchQueries.forEach(q => {
                     logger.thought(id, 'discovery', {
                         term: q.term || q,
@@ -120,7 +128,6 @@ scrapeQueue.process(async (job) => {
 
                     if (predictedRisk === 10) continue;
 
-                    // Search (Paginated)
                     const searchResults = await searchAndScrape(itemPage, query);
                     for (const res of searchResults) {
                         if (!res.price) continue;
@@ -144,24 +151,21 @@ scrapeQueue.process(async (job) => {
                 logger.log(`🧠 [Item ${id}] Filtrando ${allCandidates.length} títulos...`);
                 const filterResult = await filterTitles(description, allCandidates);
 
-                logger.thought(id, 'filter', filterResult); // Log filter reasoning
+                logger.thought(id, 'filter', filterResult);
 
                 const selectedIndices = new Set(filterResult.selected_indices);
                 const filteredCandidates = allCandidates.filter((_, i) => selectedIndices.has(i));
                 logger.log(`📉 [Item ${id}] Restaram ${filteredCandidates.length} candidatos.`);
 
                 // PHASE 3: BATCH VALIDATION (DeepSeek)
-                // Limit to top 15 filtered
                 const candidatesToCheck = filteredCandidates.slice(0, 15);
                 const validatedCandidates = [];
                 
-                // Batch process: chunks of 5
                 const BATCH_SIZE = 5;
                 for (let i = 0; i < candidatesToCheck.length; i += BATCH_SIZE) {
                     const batch = candidatesToCheck.slice(i, i + BATCH_SIZE);
                     logger.log(`🕵️ [Item ${id}] Validando lote ${i+1}-${i+batch.length}...`);
 
-                    // Enrich details first
                     for (const candidate of batch) {
                          const details = await getProductDetails(itemPage, candidate.link, cep);
                          candidate.shippingCost = details.shippingCost;
@@ -170,10 +174,8 @@ scrapeQueue.process(async (job) => {
                          candidate.totalPrice = candidate.price + candidate.shippingCost;
                     }
 
-                    // Send batch to AI
                     const batchResults = await validateBatchWithDeepSeek(description, batch);
 
-                    // Merge results back
                     for (let j = 0; j < batch.length; j++) {
                         const candidate = batch[j];
                         const res = batchResults.find(r => r.index === j) || { status: 'Erro', risk_score: 10 };
@@ -183,7 +185,6 @@ scrapeQueue.process(async (job) => {
                         candidate.brand_model = res.brand_model;
                         candidate.risk_score = res.risk_score;
 
-                        // Log validation thought for each item
                         logger.thought(id, 'validation', {
                             title: candidate.title,
                             risk: candidate.risk_score,
@@ -201,7 +202,7 @@ scrapeQueue.process(async (job) => {
                      logger.log(`👨‍⚖️ [Item ${id}] Escolhendo o vencedor...`);
                      const selectionResult = await selectBestCandidate(description, viable, maxPrice, quantity);
 
-                     logger.thought(id, 'selection', selectionResult); // Log selection reasoning
+                     logger.thought(id, 'selection', selectionResult);
 
                      const winnerObj = viable[selectionResult.winner_index];
                      let winnerIndex = -1;
