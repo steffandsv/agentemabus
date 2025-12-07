@@ -11,19 +11,20 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.HOST }}      # IP: 45.172.145.202
-          username: ${{ secrets.USERNAME }} # User: steffan
-          password: ${{ secrets.PASSWORD }} # Pass: a2312steff
-          port: 2222                    # Porta SSH customizada
-script: |
-            # 1. Prepara diretório e permissões
+          host: ${{ secrets.HOST }}             # IP: 45.172.145.202
+          username: ${{ secrets.USERNAME }}     # User: steffan
+          password: ${{ secrets.PASSWORD }}     # Pass: a2312steff
+          port: 2222                            # Porta SSH customizada do Mabus
+          script: |
+            # --- 1. PREPARAÇÃO DO AMBIENTE ---
+            # Cria diretório e garante permissões (sudo -S para input de senha)
             echo "${{ secrets.PASSWORD }}" | sudo -S mkdir -p /opt/agente-mabus
             echo "${{ secrets.PASSWORD }}" | sudo -S chown -R $USER:$USER /opt/agente-mabus
             
-            # 2. Navega para a pasta
+            # Entra no diretório de trabalho
             cd /opt/agente-mabus
             
-            # 3. Atualiza o código
+            # --- 2. ATUALIZAÇÃO DO CÓDIGO (GIT) ---
             if [ ! -d ".git" ]; then
               git clone https://github.com/steffandsv/agentemabus.git .
             else
@@ -31,19 +32,27 @@ script: |
               git reset --hard origin/main
             fi
             
-            # 4. Gera o arquivo .env (Adicionado COOKIES_B64 aqui também para silenciar o aviso do Docker)
+            # --- 3. GERAÇÃO DE ARQUIVOS DE CONFIGURAÇÃO ---
+            
+            # Gera o arquivo .env com TODAS as variáveis necessárias para o docker-compose
             echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
             echo "GOOGLE_SEARCH_API_KEY=${{ secrets.GOOGLE_SEARCH_API_KEY }}" >> .env
             echo "GOOGLE_SEARCH_CX=${{ secrets.GOOGLE_SEARCH_CX }}" >> .env
             echo "DEEPSEEK_API_KEY=${{ secrets.DEEPSEEK_API_KEY }}" >> .env
+            # Adiciona COOKIES_B64 no .env pois seu docker-compose o utiliza no 'command'
             echo "COOKIES_B64=${{ secrets.COOKIES_B64 }}" >> .env
             
-            # 5. Gera o arquivo físico de cookies (Decodifica Base64) - Mantido conforme requisito
+            # Gera o arquivo físico cookies.json decodificando do segredo (para o volume mount)
             echo "${{ secrets.COOKIES_B64 }}" | base64 -d > cookies.json            
             
-            # 6. Reinicia os containers
-            echo "${{ secrets.PASSWORD }}" | sudo -S docker compose down
-            echo "${{ secrets.PASSWORD }}" | sudo -S docker compose up -d --build --remove-orphans
+            # --- 4. EXECUÇÃO DO DOCKER ---
             
-            # 7. Limpeza
+            # Derruba containers antigos
+            echo "${{ secrets.PASSWORD }}" | sudo -S docker compose down
+            
+            # Sobe a nova versão (Force recreate para garantir leitura das novas envs/cookies)
+            echo "${{ secrets.PASSWORD }}" | sudo -S docker compose up -d --build --force-recreate --remove-orphans
+            
+            # --- 5. LIMPEZA ---
+            # Remove imagens antigas (dangling) para liberar espaço no SSD do VPS
             echo "${{ secrets.PASSWORD }}" | sudo -S docker image prune -f
