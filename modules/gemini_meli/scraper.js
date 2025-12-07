@@ -2,7 +2,6 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs');
 const path = require('path');
-const { validateProductWithAI } = require('./ai_validator');
 
 puppeteer.use(StealthPlugin());
 
