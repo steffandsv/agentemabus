@@ -5,107 +5,103 @@ const path = require('path');
 async function writeOutput(results, filePath) {
     const workbook = new ExcelJS.Workbook();
     
-    // Check if the original file exists to preserve structure
-    // If we were editing the original file in place, we would load it.
-    // However, the task says "transformamos os itens... na primeira aba chamada 'Planilha de Cadastro - Previsão'".
-    // It's safer to create a new file based on the template logic or just overwrite if that's the intention.
-    // Let's assume we are writing to a new file 'cotacao_final.xlsx' or updating 'planilha-modelo.xlsx' copy.
-    // The user said "gera no arquivo final...". I will stick to creating/overwriting the target file with the correct tabs.
-    
-    // But wait, the user said "na primeira aba chamada 'Planilha de Cadastro - Previsão', as demais abas servirão para outras etapas".
-    // This implies I should ideally load the 'planilha-modelo.xlsx' if it exists and fill it.
-
-    let templatePath = 'planilha-modelo.xlsx';
-    if (fs.existsSync(templatePath)) {
-        try {
-            await workbook.xlsx.readFile(templatePath);
-        } catch (e) {
-            console.warn("Could not read template, starting fresh.", e);
-        }
-    }
-
-    // 1. Get or Create "Planilha de Cadastro - Previsão"
-    let sheet = workbook.getWorksheet('Planilha de Cadastro - Previsão');
-    if (!sheet) {
-        sheet = workbook.addWorksheet('Planilha de Cadastro - Previsão');
-    }
-
-    // Define columns if they don't exist (or just assume they do and append? Better to be safe)
-    // Based on user desc: "valor de compra, marca e modelo".
-    // I will try to map to standard headers if I can find them, or set them.
-    // Let's set a standard header row at row 1 if empty.
-    if (sheet.rowCount < 1) {
-        sheet.columns = [
-            { header: 'ID', key: 'id', width: 10 },
-            { header: 'Descrição', key: 'desc', width: 40 },
-            { header: 'Marca', key: 'brand', width: 20 },
-            { header: 'Modelo', key: 'model', width: 20 },
-            { header: 'Valor Unitário', key: 'price', width: 15 },
-            { header: 'Link', key: 'link', width: 50 },
-            { header: 'Risco IA', key: 'risk', width: 10 },
-            { header: 'Obs', key: 'obs', width: 30 }
-        ];
-    } else {
-        // If sheet exists, I'll just append rows at the end or try to match IDs?
-        // Simpler: Just clear and rewrite or append?
-        // User: "preenchendo na planilha o valor de compra...".
-        // Implies updating. But without complex logic, I will append results for now.
-        // Or better: Iterate results and add them.
-    }
-
-    // Clear data rows (keep header) if we want a fresh start for this run
-    // sheet.spliceRows(2, sheet.rowCount - 1);
-
-    results.forEach(item => {
-        const best = item.result;
-
-        // Extract Brand/Model from AI string "Brand - Model" or similar
-        let brand = '';
-        let model = '';
-        if (best && best.brand_model) {
-            const parts = best.brand_model.split('-');
-            if (parts.length > 1) {
-                brand = parts[0].trim();
-                model = parts.slice(1).join('-').trim();
-            } else {
-                model = best.brand_model;
-            }
-        }
-
-        sheet.addRow({
-            id: item.id,
-            desc: item.description,
-            brand: brand || (best ? 'Genérica' : '-'),
-            model: model || (best ? best.title : '-'),
-            price: best ? best.totalPrice : 0,
-            link: best ? best.link : '-',
-            risk: best ? best.risk_score : '10',
-            obs: best ? best.reasoning : 'Não encontrado'
-        });
-    });
-
-    // 2. Create "Dados Brutos" tab for debugging/logging
-    let rawSheet = workbook.getWorksheet('Dados Brutos');
-    if (rawSheet) {
-        workbook.removeWorksheet(rawSheet.id);
-    }
-    rawSheet = workbook.addWorksheet('Dados Brutos');
+    // --- SHEET 1: DADOS BRUTOS (RANKING) ---
+    const rawSheet = workbook.addWorksheet('Dados Brutos');
 
     rawSheet.columns = [
-        { header: 'ID', key: 'id' },
-        { header: 'Desc', key: 'desc' },
-        { header: 'Modelos Tentados', key: 'tried' },
-        { header: 'Melhor Link', key: 'link' },
-        { header: 'Score', key: 'score' }
+        { header: 'Lote', key: 'id', width: 10 },
+        { header: 'Descrição', key: 'desc', width: 40 },
+        { header: 'Status', key: 'status', width: 15 },
+        { header: 'Risco', key: 'risk', width: 10 },
+        { header: 'Preço Encontrado', key: 'price', width: 15 },
+        { header: 'Preço Venda (Max)', key: 'sell_price', width: 15 },
+        { header: 'Qtd', key: 'qtd', width: 8 },
+        { header: 'Lucro Est. (Total)', key: 'profit', width: 15 },
+        { header: 'Link', key: 'link', width: 50 },
+        { header: 'Motivo / Obs', key: 'reasoning', width: 50 }
     ];
 
     results.forEach(item => {
-        rawSheet.addRow({
+        // For "Dados Brutos", we might want to list ALL candidates or just the winner?
+        // The user said: "resumo dos itens que viu e dos selecionados".
+        // Usually "Dados Brutos" implies detailed list.
+        // Let's list the winner first, then maybe others if we had a flat list structure.
+        // Current `results` structure is per-item with a winner index.
+        // Let's just list the chosen one for now to keep it clean, OR list all candidates if the user wants "rankings".
+        // User said "Adicione o Ranking (aba Dados Brutos)". Ranking implies list of candidates.
+
+        // Let's iterate ALL offers for the ranking sheet
+        if (item.offers && item.offers.length > 0) {
+            item.offers.forEach((offer, idx) => {
+                let profit = 0;
+                if (item.valor_venda) {
+                    profit = (item.valor_venda - offer.totalPrice) * (item.quantidade || 1);
+                }
+
+                rawSheet.addRow({
+                    id: item.id,
+                    desc: item.description,
+                    status: (idx === item.winnerIndex) ? 'VENCEDOR' : 'Candidato',
+                    risk: offer.risk_score,
+                    price: offer.totalPrice,
+                    sell_price: item.valor_venda || 0,
+                    qtd: item.quantidade || 1,
+                    profit: profit.toFixed(2),
+                    link: offer.link,
+                    reasoning: offer.aiReasoning || offer.reasoning || '-'
+                });
+            });
+        } else {
+            // No offers found
+            rawSheet.addRow({
+                id: item.id,
+                desc: item.description,
+                status: 'Não Encontrado',
+                risk: '-',
+                price: 0,
+                sell_price: item.valor_venda || 0,
+                qtd: item.quantidade || 1,
+                profit: 0,
+                link: '-',
+                reasoning: 'Nenhum item compatível encontrado.'
+            });
+        }
+    });
+
+    // --- SHEET 2: RESUMO (CONSOLIDADO) ---
+    const summarySheet = workbook.addWorksheet('Resumo');
+
+    summarySheet.columns = [
+        { header: 'ID', key: 'id', width: 10 },
+        { header: 'Descrição Original', key: 'desc', width: 40 },
+        { header: 'Marca/Modelo Escolhido', key: 'model', width: 25 },
+        { header: 'Valor Unitário Compra', key: 'buy_price', width: 15 },
+        { header: 'Valor Unitário Venda', key: 'sell_price', width: 15 },
+        { header: 'Quantidade', key: 'qty', width: 10 },
+        { header: 'Lucro Total Previsto', key: 'profit', width: 15 },
+        { header: 'Link', key: 'link', width: 50 }
+    ];
+
+    results.forEach(item => {
+        let best = null;
+        if (item.winnerIndex >= 0 && item.offers && item.offers.length > item.winnerIndex) {
+            best = item.offers[item.winnerIndex];
+        }
+
+        let profit = 0;
+        if (best && item.valor_venda) {
+            profit = (item.valor_venda - best.totalPrice) * (item.quantidade || 1);
+        }
+
+        summarySheet.addRow({
             id: item.id,
             desc: item.description,
-            tried: item.models_tried ? item.models_tried.join(', ') : '',
-            link: item.result ? item.result.link : 'N/A',
-            score: item.result ? item.result.risk_score : 'N/A'
+            model: best ? (best.brand_model || best.title) : 'N/A',
+            buy_price: best ? best.totalPrice : 0,
+            sell_price: item.valor_venda || 0,
+            qty: item.quantidade || 1,
+            profit: profit.toFixed(2),
+            link: best ? best.link : '-'
         });
     });
 
