@@ -11,33 +11,39 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.HOST }}     # Deve ser o IP 45.172.145.202
-          username: ${{ secrets.USERNAME }} # Agora é 'steffan'
-          password: ${{ secrets.PASSWORD }} # Usando a senha 'a2312steff' do cofre
-          port: 2222                    # Mantém a porta correta
+          host: ${{ secrets.HOST }}      # IP: 45.172.145.202
+          username: ${{ secrets.USERNAME }} # User: steffan
+          password: ${{ secrets.PASSWORD }} # Pass: a2312steff
+          port: 2222                    # Porta SSH customizada
           script: |
-            # Garante que a pasta existe (usa -S para aceitar senha no sudo se precisar)
+            # 1. Prepara diretório e permissões
             echo "${{ secrets.PASSWORD }}" | sudo -S mkdir -p /opt/agente-mabus
             echo "${{ secrets.PASSWORD }}" | sudo -S chown -R $USER:$USER /opt/agente-mabus
             
-            # Entra na pasta
+            # 2. Navega para a pasta
             cd /opt/agente-mabus
             
-            # Inicializa git se não existir, ou atualiza
+            # 3. Atualiza o código (Reset hard garante que a versão do servidor seja idêntica ao git)
             if [ ! -d ".git" ]; then
               git clone https://github.com/steffandsv/agentemabus.git .
             else
-              git pull origin main
+              git fetch origin
+              git reset --hard origin/main
             fi
             
-            # GERA O ARQUIVO .ENV DINAMICAMENTE
+            # 4. Gera o arquivo .env
             echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
             echo "GOOGLE_SEARCH_API_KEY=${{ secrets.GOOGLE_SEARCH_API_KEY }}" >> .env
             echo "GOOGLE_SEARCH_CX=${{ secrets.GOOGLE_SEARCH_CX }}" >> .env
-            # Decodifica a secret e cria o arquivo físico no servidor
+            echo "DEEPSEEK_API_KEY=${{ secrets.DEEPSEEK_API_KEY }}" >> .env
+            
+            # 5. Gera o arquivo de cookies (Decodifica Base64)
             echo "${{ secrets.COOKIES_B64 }}" | base64 -d > cookies.json            
-            # Reconstrói
-            # Adicionei 'sudo -S' pois seu usuário provavelmente precisa de senha para rodar docker
+            
+            # 6. Reinicia os containers com a nova build
+            # Usa sudo -S para passar a senha via pipe
             echo "${{ secrets.PASSWORD }}" | sudo -S docker compose down
             echo "${{ secrets.PASSWORD }}" | sudo -S docker compose up -d --build --remove-orphans
+            
+            # 7. Limpeza de imagens antigas para economizar espaço no VPS
             echo "${{ secrets.PASSWORD }}" | sudo -S docker image prune -f
