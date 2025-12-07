@@ -198,7 +198,7 @@ async function validateProductWithAI(requiredSpecs, productDetails) {
 }
 
 // 4. Select Best Candidate (DEEPSEEK PREFERRED)
-async function selectBestCandidate(description, candidates) {
+async function selectBestCandidate(description, candidates, maxPrice = null, quantity = 1) {
     const templatePath = path.join(__dirname, '../prompts/final_selection.txt');
     let template;
     try {
@@ -216,6 +216,8 @@ async function selectBestCandidate(description, candidates) {
 
     const prompt = renderTemplate(template, {
         ITEM_DESCRIPTION: description,
+        MAX_PRICE: maxPrice ? maxPrice.toFixed(2) : "Não informado",
+        QUANTITY: quantity,
         CANDIDATES_JSON: JSON.stringify(candidatesSimple, null, 2)
     });
 
