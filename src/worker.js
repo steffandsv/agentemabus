@@ -73,11 +73,10 @@ scrapeQueue.process(async (job) => {
         const items = await readInput(filePath);
         logger.log(`📄 Itens para processar: ${items.length}`);
 
-        // --- ADDED: Empty Item Check ---
         if (items.length === 0) {
             const msg = "ERRO CRÍTICO: Nenhum item encontrado no CSV. Verifique se o separador é ';' e se as colunas 'ID', 'Descricao' existem.";
             logger.log(msg);
-            logger.thought('global', 'error', msg); // Global error thought
+            logger.thought('global', 'error', msg);
             await updateTaskStatus(taskId, 'failed');
             return;
         }
@@ -87,7 +86,15 @@ scrapeQueue.process(async (job) => {
         let page = await browser.newPage();
         
         logger.log(`📍 Configurando CEP: ${cep}...`);
-        await setCEP(page, cep);
+        try {
+            await setCEP(page, cep);
+        } catch (e) {
+            logger.log(`❌ ERRO FATAL AO CONFIGURAR CEP/COOKIES: ${e.message}`);
+            logger.thought('global', 'error', `Falha crítica ao configurar acesso: ${e.message}`);
+            await updateTaskStatus(taskId, 'failed');
+            await browser.close();
+            return; // ABORT MISSION
+        }
 
         const finalResults = [];
         const itemConcurrency = pLimit(12);
@@ -128,13 +135,22 @@ scrapeQueue.process(async (job) => {
 
                     if (predictedRisk === 10) continue;
 
-                    const searchResults = await searchAndScrape(itemPage, query);
-                    for (const res of searchResults) {
-                        if (!res.price) continue;
-                        if (!uniqueUrls.has(res.link)) {
-                            uniqueUrls.add(res.link);
-                            allCandidates.push(res);
+                    try {
+                        const searchResults = await searchAndScrape(itemPage, query);
+                        for (const res of searchResults) {
+                            if (!res.price) continue;
+                            if (!uniqueUrls.has(res.link)) {
+                                uniqueUrls.add(res.link);
+                                allCandidates.push(res);
+                            }
                         }
+                    } catch (err) {
+                        if (err.message === 'BLOCKED_BY_PORTAL') {
+                            logger.log(`⛔ [Item ${id}] BLOQUEADO pelo Mercado Livre. Abortando item.`);
+                            logger.thought(id, 'error', "Acesso bloqueado pelo portal durante a busca.");
+                            throw err; // Escalate to stop worker or handle
+                        }
+                        logger.log(`⚠️ [Item ${id}] Erro na busca de "${query}": ${err.message}`);
                     }
                 }
 
@@ -218,8 +234,15 @@ scrapeQueue.process(async (job) => {
                 }
 
             } catch (err) {
-                logger.log(`💥 [Item ${id}] Erro: ${err.message}`);
-                console.error(err);
+                if (err.message === 'BLOCKED_BY_PORTAL') {
+                    logger.log(`⛔ [Item ${id}] Processo interrompido por bloqueio.`);
+                    // We might want to stop everything, but 'p-limit' continues others.
+                    // To stop ALL, we'd need to reject and handle in Promise.all or set a global flag.
+                    // For now, let's just log and fail this item.
+                } else {
+                    logger.log(`💥 [Item ${id}] Erro: ${err.message}`);
+                    console.error(err);
+                }
                 finalResults.push({ id, description, offers: [] });
             } finally {
                 if (itemPage) await itemPage.close();

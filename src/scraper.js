@@ -49,8 +49,36 @@ async function simulateHumanInteraction(page) {
 
 async function setCEP(page, cep) {
     console.log(`[Scraper] Setting CEP: ${cep}`);
+
+    // Cookie Loading & Validation
+    const cookiePath = path.resolve('cookies.json');
+    if (fs.existsSync(cookiePath)) {
+        try {
+            const cookiesString = fs.readFileSync(cookiePath, 'utf8');
+            if (cookiesString && cookiesString.trim()) {
+                const cookies = JSON.parse(cookiesString);
+                console.log(`[Scraper] Loading ${cookies.length} cookies from ${cookiePath}...`);
+
+                await page.setCookie(...cookies);
+                console.log(`[Scraper] Cookies successfully loaded into browser context.`);
+            } else {
+                console.warn(`[Scraper] Warning: cookies.json is empty.`);
+            }
+        } catch (e) {
+            console.error(`[Scraper] CRITICAL: Failed to parse cookies.json: ${e.message}`);
+        }
+    } else {
+        console.warn(`[Scraper] Warning: cookies.json not found! Scraper might be blocked.`);
+    }
+
     try {
         await page.goto('https://www.mercadolivre.com.br/', { waitUntil: 'networkidle2' });
+
+        if (await checkForBlock(page)) {
+            const msg = "[Scraper] BLOCK DETECTED immediately after load. Aborting.";
+            console.error(msg);
+            throw new Error("BLOCKED_BY_PORTAL");
+        }
 
         const addressSelector = '.nav-menu-cp'; 
         if (await page.$(addressSelector) !== null) {
@@ -67,6 +95,7 @@ async function setCEP(page, cep) {
             console.log('[Scraper] CEP input skipped or not found.');
         }
     } catch (error) {
+        if (error.message === 'BLOCKED_BY_PORTAL') throw error;
         console.error('[Scraper] Error setting CEP:', error.message);
     }
 }
@@ -184,8 +213,8 @@ async function searchAndScrape(page, query) {
         await simulateHumanInteraction(page);
 
         if (await checkForBlock(page)) {
-            console.warn('[Scraper] BLOCKED: Mercado Livre detected suspicious traffic.');
-            return getMockResults(query);
+            console.error('[Scraper] BLOCKED detected on search page.');
+            throw new Error("BLOCKED_BY_PORTAL");
         }
 
         const cookieBtn = await page.$('button[data-testid="action:understood-button"]');
@@ -200,7 +229,6 @@ async function searchAndScrape(page, query) {
         allResults = [...allResults, ...results];
 
         // Page 2 Check
-        // If we have fewer than 40 items, try next page to give AI more options
         if (allResults.length < 40) {
              console.log('[Scraper] Checking next page...');
              const nextButton = await page.$('a.andes-pagination__link[title="Seguinte"]');
@@ -220,8 +248,9 @@ async function searchAndScrape(page, query) {
         return allResults;
 
     } catch (e) {
+        if (e.message === 'BLOCKED_BY_PORTAL') throw e;
         console.error('[Scraper] Scraping error:', e.message);
-        return allResults; // Return whatever we found
+        return allResults;
     }
 }
 
@@ -313,8 +342,8 @@ async function getProductDetails(page, url) {
         await simulateHumanInteraction(page);
 
         if (await checkForBlock(page)) {
-             console.warn('[Scraper] BLOCKED on Product Page.');
-             return { shippingCost: 0, attributes: {}, description: "Bloqueado." };
+             console.error('[Scraper] BLOCKED on Product Page.');
+             throw new Error("BLOCKED_BY_PORTAL");
         }
         
         // Shipping Logic
@@ -352,6 +381,8 @@ async function getProductDetails(page, url) {
 
         return { attributes: data.attrs, description: data.description, shippingCost };
     } catch (e) {
+        if (e.message === 'BLOCKED_BY_PORTAL') throw e;
+        // Generic detail error just returns empty
         return { attributes: {}, description: "", shippingCost: 0 };
     }
 }

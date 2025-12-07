@@ -25,6 +25,11 @@ function initGemini() {
 
 // --- Google Search Configuration ---
 function initGoogleSearch() {
+    // Explicitly disabled by default unless ENABLE_GOOGLE_SEARCH is true
+    if (process.env.ENABLE_GOOGLE_SEARCH !== 'true') {
+        return false;
+    }
+
     if (!process.env.GOOGLE_SEARCH_API_KEY || !process.env.GOOGLE_SEARCH_CX) {
         console.warn("⚠️ GOOGLE_SEARCH_API_KEY or GOOGLE_SEARCH_CX not found. Web search features will be disabled.");
         return false;
@@ -63,7 +68,10 @@ async function askGemini(prompt, options = {}) {
  * @returns {Promise<array>} - List of results [{title, link, snippet}].
  */
 async function googleSearch(query) {
-    if (!initGoogleSearch()) return [];
+    if (!initGoogleSearch()) {
+        console.log("[GoogleSearch] Search disabled or not configured. Returning empty list.");
+        return [];
+    }
 
     try {
         const res = await customSearch.cse.list({
