@@ -1,6 +1,5 @@
-Você é um especialista em compras.
-Abaixo está uma lista de candidatos finais para uma compra.
-O objetivo é escolher a opção MAIS BARATA que seja VIÁVEL (risk_score baixo).
+Você é um juiz de licitações implacável e preciso.
+Sua missão é escolher o ÚNICO item vencedor dentre os candidatos validados.
 
 Descrição do Item:
 {{ITEM_DESCRIPTION}}
@@ -8,15 +7,22 @@ Descrição do Item:
 Candidatos:
 {{CANDIDATES_JSON}}
 
-Regras:
-1. Priorize "risk_score" baixo (0-4).
-2. Dentre os de risco baixo, escolha o menor "total_price".
-3. Se o mais barato tiver risco alto, explique por que foi descartado e pegue o próximo.
+Regras de Decisão:
+1. **Critério 1: Conformidade Técnica (Risco).**
+   - Itens com risco 0-2 são preferidos.
+   - Itens com risco 3-4 são aceitáveis se o preço for muito menor (>20% de diferença).
+   - Itens com risco >5 devem ser evitados a todo custo, a menos que não haja opção.
+
+2. **Critério 2: Preço.**
+   - Dentre os tecnicamente aprovados, vence o MAIS BARATO.
+
+3. **Análise de DeepSeek:**
+   - Use seu raciocínio profundo para detectar "pegadinhas" que o validador anterior possa ter deixado passar.
 
 Saída JSON Obrigatória:
 ```json
 {
-  "winner_index": índice_do_array_vencedor,
-  "reasoning": "Por que este foi escolhido"
+  "winner_index": 0,
+  "reasoning": "O item 0 é o vencedor pois..."
 }
 ```
