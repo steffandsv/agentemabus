@@ -1,0 +1,29 @@
+[33me223e56[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Merge branch 'fix-scraper-and-enhance-discovery'
+[33mc6d3dc0[m[33m ([m[1;31morigin/fix-scraper-and-enhance-discovery[m[33m, [m[1;32mfix-scraper-and-enhance-discovery[m[33m)[m Simplify Excel output and improve CSV/Error handling.
+[33m21d00e3[m Merge branch 'fix-scraper-and-enhance-discovery'
+[33m9088112[m Update Excel output structure and integrate profit optimization logic.
+[33mdb843c5[m Merge remote-tracking branch 'origin/fix-scraper-and-enhance-discovery'
+[33m731f91c[m Finalize hybrid Gemini/DeepSeek workflow with batching and logging improvements.
+[33ma8eb0c9[m Merge pull request #4 from steffandsv/fix-scraper-and-enhance-discovery
+[33me263b27[m Complete fix for scraper crash and enhanced item discovery.
+[33m27f2622[m Fix searchAndScrape, enhance discovery, and add title filtering.
+[33m0643bc7[m Merge pull request #3 from steffandsv/fix-scraper-and-enhance-discovery
+[33mde2bf14[m Fix searchAndScrape error and enhance model discovery logic.
+[33m4b0f824[m Merge branch 'main' of https://github.com/steffandsv/agentemabus
+[33m72be3bd[m Gemini version
+[33mc02f986[m Merge pull request #2 from steffandsv/architect-optimization-v1
+[33mf5dded9[m Refactor quotation system: Discovery -> Sniper -> Validation pipeline with p-limit concurrency.
+[33m7d2efb2[m Google Search
+[33m4f886cb[m Merge branch 'main' of https://github.com/steffandsv/agentemabus
+[33m901949b[m Correção para deploy
+[33mcf2b762[m Update deploy.yml
+[33me8a5bb0[m Update deploy.yml
+[33m2db33c0[m Update deploy.yml
+[33mca3e531[m Workflow
+[33m082bfc6[m Configuração para VPS
+[33m1176372[m Merge pull request #1 from steffandsv/feature/gemini-refactor-smart-search
+[33mb278cf9[m[33m ([m[1;31morigin/feature/gemini-refactor-smart-search[m[33m)[m Refactor scraping engine to use Gemini AI and Google Search for smart model discovery, optimizing concurrency and search logic.
+[33m9f72413[m Planilha Modelo
+[33m9877556[m Docs
+[33m3868204[m Init
+[33m50f7605[m Initial commit
