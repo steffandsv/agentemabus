@@ -9,10 +9,7 @@ const { addJob } = require('./src/worker');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Trust Proxy for Docker/Nginx
 app.set('trust proxy', 1);
-
-// Setup Storage
 const upload = multer({ dest: 'uploads/' });
 
 // Ensure dirs
@@ -20,21 +17,25 @@ const upload = multer({ dest: 'uploads/' });
     if (!fs.existsSync(dir)) fs.mkdirSync(dir);
 });
 
-// Create Template CSV
+// Template
 const templatePath = path.join(__dirname, 'public', 'template.csv');
 if (!fs.existsSync(templatePath)) {
-    fs.writeFileSync(templatePath, 'ID,Descricao\n1,Exemplo Item 1\n2,Exemplo Item 2');
+    fs.writeFileSync(templatePath, 'ID;Descricao;valor_venda;quantidade\n1;Notebook;3000;1');
 }
 
-// Database
+// Discover Modules
+function getModules() {
+    const modulesDir = path.join(__dirname, 'modules');
+    if (!fs.existsSync(modulesDir)) return [];
+    return fs.readdirSync(modulesDir).filter(f => fs.statSync(path.join(modulesDir, f)).isDirectory());
+}
+
 initDB();
 
-// Middleware
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
 app.get('/', async (req, res) => {
     try {
         const tasks = await getTasks();
@@ -45,14 +46,14 @@ app.get('/', async (req, res) => {
 });
 
 app.get('/create', (req, res) => {
-    res.render('create');
+    const modules = getModules();
+    res.render('create', { modules });
 });
 
 app.post('/create', upload.single('csvFile'), async (req, res) => {
-    const { name, cep, csvText } = req.body;
+    const { name, cep, csvText, moduleName } = req.body;
     let filePath = req.file ? req.file.path : null;
 
-    // Handle Text Paste
     if (!filePath && csvText && csvText.trim().length > 0) {
         const fileName = `paste_${Date.now()}.csv`;
         filePath = path.join('uploads', fileName);
@@ -60,7 +61,7 @@ app.post('/create', upload.single('csvFile'), async (req, res) => {
     }
 
     if (!filePath || !name || !cep) {
-        return res.status(400).send('Dados incompletos. Envie um arquivo ou cole o texto.');
+        return res.status(400).send('Dados incompletos.');
     }
 
     const taskId = uuidv4();
@@ -74,12 +75,12 @@ app.post('/create', upload.single('csvFile'), async (req, res) => {
 
     try {
         await createTask(task);
-        // Add to Queue
         await addJob({
             taskId,
             cep,
             filePath: task.input_file,
-            logPath: task.log_file
+            logPath: task.log_file,
+            moduleName: moduleName || 'gemini_meli'
         });
         res.redirect('/');
     } catch (e) {
