@@ -12,6 +12,8 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GOOGLE_SEARCH_API_KEY=${GOOGLE_SEARCH_API_KEY}
       - GOOGLE_SEARCH_CX=${GOOGLE_SEARCH_CX}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - COOKIES_B64=${COOKIES_B64}
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
       - NODE_OPTIONS=--max-old-space-size=8192
       - UV_THREADPOOL_SIZE=128
@@ -24,6 +26,7 @@ services:
       - ./proxies.txt:/app/proxies.txt
     depends_on:
       - redis
+    command: sh -c "echo \"$COOKIES_B64\" | base64 -d > cookies.json && npm start"
     deploy:
       resources:
         limits:
@@ -32,11 +35,11 @@ services:
 
   redis:
     image: redis:alpine
-    container_name: agente_redis  # <--- MUDAMOS DE 'cotador_redis' PARA 'agente_redis'
+    container_name: agente_redis
     command: redis-server --save 60 1 --loglevel warning
     restart: always
     volumes:
-      - agente_redis_data:/data # <--- MUDAMOS O NOME DO VOLUME TAMBÉM
+      - agente_redis_data:/data
 
 volumes:
-  agente_redis_data: # <--- VOLUME RENOMEADO PARA NÃO MISTURAR DADOS COM O ANTIGO
+  agente_redis_data:

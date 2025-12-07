@@ -64,21 +64,15 @@
     const noThoughtsMsg = document.getElementById('no-thoughts-msg');
     
     let autoScroll = true;
-    // Track which messages we've already added to avoid duplicates if re-parsing full log
-    // A simple way is to re-render the accordion from scratch or use a robust diff. 
-    // Since logs append, we can maintain state of "last read position" or just clear/rebuild efficiently.
-    // Given the expected volume, clearing and rebuilding the DOM structure based on parsed objects is safer for correctness,
-    // though less efficient. Let's optimize by tracking unique keys (timestamp + item + stage).
-    
     let knownThoughts = new Set(); 
 
     function createAccordionItem(itemId) {
-        const idClean = itemId.replace(/[^a-zA-Z0-9]/g, '');
+        const idClean = itemId ? itemId.replace(/[^a-zA-Z0-9]/g, '') : 'Global';
         const html = `
             <div class="accordion-item">
                 <h2 class="accordion-header" id="heading${idClean}">
                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${idClean}">
-                        📦 Item ${itemId}
+                        📦 Item ${itemId || 'Global'}
                     </button>
                 </h2>
                 <div id="collapse${idClean}" class="accordion-collapse collapse" data-bs-parent="#thoughtsAccordion">
@@ -91,30 +85,57 @@
         return html;
     }
 
+    function formatContent(content) {
+        if (typeof content === 'string') {
+            return content.replace(/\n/g, '<br>');
+        }
+        if (typeof content === 'object') {
+            // Pretty print objects
+            try {
+                // If it looks like a Gemini term object
+                if (content.term && content.risk !== undefined) {
+                    return `<strong>${content.term}</strong> (Risco: ${content.risk})<br><em>${content.reasoning}</em>`;
+                }
+                // If it looks like a validation result
+                if (content.title && content.risk !== undefined) {
+                    return `<strong>${content.title}</strong><br>Risco: ${content.risk}<br><em>${content.reasoning}</em>`;
+                }
+                // Fallback for generic objects
+                return '<pre>' + JSON.stringify(content, null, 2) + '</pre>';
+            } catch (e) {
+                return JSON.stringify(content);
+            }
+        }
+        return String(content);
+    }
+
     function appendThought(thought) {
         if (noThoughtsMsg) noThoughtsMsg.style.display = 'none';
         
-        const key = `${thought.itemId}-${thought.timestamp}-${thought.stage}`;
+        // Ensure itemId exists
+        const itemId = thought.itemId || 'Global';
+
+        const key = `${itemId}-${thought.timestamp}-${thought.stage}-${JSON.stringify(thought.content).substring(0, 20)}`;
         if (knownThoughts.has(key)) return;
         knownThoughts.add(key);
 
-        const idClean = thought.itemId.replace(/[^a-zA-Z0-9]/g, '');
+        const idClean = itemId.replace(/[^a-zA-Z0-9]/g, '');
         let chatContainer = document.getElementById(`chat${idClean}`);
         
         if (!chatContainer) {
             // Create accordion item
-            accordionEl.insertAdjacentHTML('beforeend', createAccordionItem(thought.itemId));
+            accordionEl.insertAdjacentHTML('beforeend', createAccordionItem(itemId));
             chatContainer = document.getElementById(`chat${idClean}`);
         }
 
         const bubbleHtml = `
-            <div class="chat-bubble">
-                <div class="chat-meta">
-                    <span class="badge bg-primary">${thought.stage}</span>
-                    <span class="text-muted ms-2">${thought.timestamp}</span>
+            <div class="chat-bubble mb-2 p-2 border rounded bg-white">
+                <div class="chat-meta small text-muted d-flex justify-content-between">
+                    <span class="badge bg-secondary">${thought.stage}</span>
+                    <span>${thought.timestamp}</span>
                 </div>
                 <div class="chat-content mt-1">
-                    ${thought.content.replace(/\n/g, '<br>')}
+                    ${formatContent(thought.content)}
                 </div>
             </div>
         `;
@@ -131,8 +152,9 @@
                     const jsonStr = line.substring(line.indexOf('[PENSAMENTO]') + 12);
                     const thought = JSON.parse(jsonStr);
                     appendThought(thought);
-                } catch (e) {}
-                // Don't add to main log view
+                } catch (e) {
+                    console.error("Failed to parse thought:", e);
+                }
             } else {
                 cleanLogs += line + '\n';
             }
@@ -157,8 +179,8 @@
     fetchLogs();
 
     setInterval(() => {
-         if (logsEl.textContent.includes('Missão Cumprida') && !window.location.search.includes('done')) {
-             window.location.search = '?done=true';
+         if (logsEl.textContent.includes('Finalizado com Sucesso') && !window.location.search.includes('done')) {
+             // Optional: reload or notify
          }
     }, 5000);
 </script>
