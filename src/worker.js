@@ -108,14 +108,29 @@ scrapeQueue.process(async (job) => {
                 // Ask AI for best models
                 logger.log(`🤖 [Item ${id}] Consultando Gemini sobre Marcas/Modelos...`);
                 const searchQueries = await discoverModels(description);
+
+                // searchQueries is now an array of objects: { term, risk, reasoning }
+                // or potentially strings if fallback occurred (but I tried to handle it in discoverModels)
+
                 logger.log(`🔍 [Item ${id}] Termos sugeridos: ${JSON.stringify(searchQueries)}`);
 
                 // PHASE 2: SEARCH & DEDUPLICATION
                 const uniqueUrls = new Set();
                 let allCandidates = [];
 
-                for (const query of searchQueries) {
-                    logger.log(`📡 [Item ${id}] Buscando: "${query}"...`);
+                for (const queryObj of searchQueries) {
+                    const query = typeof queryObj === 'string' ? queryObj : queryObj.term;
+                    const predictedRisk = typeof queryObj === 'string' ? null : queryObj.risk;
+
+                    // If predicted risk is high (10), maybe skip?
+                    // User said: "return list... risk level...".
+                    // If risk is 10, it's "incompatible". We shouldn't search.
+                    if (predictedRisk === 10) {
+                         logger.log(`⚠️ [Item ${id}] Pulando termo "${query}" (Risco 10 - Incompatível).`);
+                         continue;
+                    }
+
+                    logger.log(`📡 [Item ${id}] Buscando: "${query}" (Risco Previsto: ${predictedRisk})...`);
 
                     // We search only top 10 per query to be fast, relying on specificity
                     const searchResults = await searchAndScrape(itemPage, query);
@@ -123,12 +138,9 @@ scrapeQueue.process(async (job) => {
                     for (const res of searchResults) {
                         if (!res.price) continue;
 
-                        // Simple deduplication by link
-                        // Sometimes links differ by tracking params, so we might want to clean them,
-                        // but usually ML links are clean enough or distinct enough.
-                        // We can also dedup by ID if we extracted it, but URL is safe for now.
                         if (!uniqueUrls.has(res.link)) {
                             uniqueUrls.add(res.link);
+                            // Attach discovery reasoning/risk if useful, but validation will override
                             allCandidates.push(res);
                         }
                     }
@@ -146,7 +158,6 @@ scrapeQueue.process(async (job) => {
                 allCandidates.sort((a, b) => a.price - b.price);
 
                 // Check top 15 candidates total (Global Limit)
-                // We don't want to check infinite items.
                 const candidatesToCheck = allCandidates.slice(0, 15);
                 
                 const validatedCandidates = [];

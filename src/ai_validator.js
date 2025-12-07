@@ -31,7 +31,7 @@ async function discoverModels(description) {
         template = fs.readFileSync(templatePath, 'utf-8');
     } catch (e) {
         console.error("Error reading model_discovery template:", e);
-        return [description.substring(0, 50)];
+        return [{ term: description.substring(0, 50), risk: 0, reasoning: "Template Error" }];
     }
 
     // Context Retrieval: Search Google to get up-to-date suggestions
@@ -59,29 +59,25 @@ async function discoverModels(description) {
     try {
         const jsonStr = extractJson(resultText);
         const parsed = JSON.parse(jsonStr);
-        // Ensure we always return an array of strings
+
+        // Handle new Object structure
         if (Array.isArray(parsed.search_terms)) {
+            // Check if it's an array of strings (legacy) or objects
+            if (typeof parsed.search_terms[0] === 'string') {
+                return parsed.search_terms.map(t => ({ term: t, risk: 0, reasoning: "Legacy format" }));
+            }
             return parsed.search_terms;
         }
-        return [description.substring(0, 50)];
+        return [{ term: description.substring(0, 50), risk: 0, reasoning: "Fallback" }];
     } catch (e) {
         console.error("Error parsing discoverModels response:", e);
         // Fallback: use the description itself if AI fails
-        return [description.substring(0, 50)];
+        return [{ term: description.substring(0, 50), risk: 0, reasoning: "Parse Error" }];
     }
 }
 
 // 2. Filter Titles (Simplified for Gemini - Optional now if we trust model search, but kept for safety)
-// We might skip this step if we are searching specific models, but let's keep it available.
 async function filterTitles(description, candidates) {
-    // Basic heuristic filter is often faster/cheaper than AI for this step,
-    // but if we use AI, let's just reuse the validation logic later or do a quick pass.
-    // For now, let's assume we pass all search results to validation if we have bandwidth (12 threads),
-    // OR implement a very lightweight check.
-
-    // For this refactor, I'll bypass this explicit "filterTitles" AI step to save tokens/time,
-    // relying on the specific search queries + keyword matching in logic.js + final validation.
-    // So this just returns all indices.
     return {
         selected_indices: candidates.map((_, i) => i),
         reasoning_content: "Skipping explicit AI title filter to prioritize full validation."
