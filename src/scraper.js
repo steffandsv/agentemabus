@@ -120,8 +120,50 @@ function getMockResults(query) {
     ];
 }
 
+async function scrapeCurrentPage(page) {
+    return page.evaluate(() => {
+        const items = [];
+        const productCards = document.querySelectorAll('li.ui-search-layout__item');
+        const listItems = document.querySelectorAll('.ui-search-result__content');
+        const cards = productCards.length > 0 ? productCards : listItems;
+
+        cards.forEach(card => {
+            let titleEl = card.querySelector('.poly-component__title');
+            let linkEl = titleEl;
+
+            if (!titleEl) {
+                titleEl = card.querySelector('h2.ui-search-item__title') || card.querySelector('.ui-search-item__title');
+                linkEl = card.querySelector('a.ui-search-link') || (titleEl ? titleEl.closest('a') : null) || card.querySelector('a');
+            }
+
+            let priceEl = card.querySelector('.poly-price__current .andes-money-amount__fraction');
+            if (!priceEl) {
+                priceEl = card.querySelector('.ui-search-price__second-line .andes-money-amount__fraction') ||
+                          card.querySelector('span.andes-money-amount__fraction');
+            }
+
+            const imageEl = card.querySelector('img.poly-component__picture') || card.querySelector('img');
+            const isFull = !!(card.querySelector('.poly-component__shipped-from svg[aria-label="FULL"]') || card.querySelector('.ui-search-item__fulfillment'));
+            const isInternational = (card.innerText || "").includes('Compra Internacional');
+
+            if (titleEl && priceEl && linkEl) {
+                items.push({
+                    title: titleEl.innerText,
+                    price: parseFloat(priceEl.innerText.replace(/\./g, '').replace(',', '.')),
+                    link: linkEl.href,
+                    image: imageEl ? (imageEl.dataset.src || imageEl.src) : null,
+                    isFull: isFull,
+                    isInternational: isInternational
+                });
+            }
+        });
+        return items;
+    });
+}
+
 /**
  * Searches and scrapes a list of products.
+ * Supports pagination (up to 2 pages).
  */
 async function searchAndScrape(page, query) {
     console.log(`[Scraper] Searching for: ${query}`);
@@ -132,25 +174,20 @@ async function searchAndScrape(page, query) {
         return getMockResults(query);
     }
 
-    // Force price ascending sort if not already in query (though ML url structure differs usually,
-    // simply searching the term is safer for general queries.
-    // However, if we want cheapest, we should append sort param if possible.
-    // For now, let's stick to default relevance or let 'query' contain params if passed.
-    // But usually simple search is best for "Discovery" unless we force it.
-    // The previous app used simply `lista.mercadolivre.com.br/${encodeURIComponent(query)}`.
-
     const searchUrl = `https://lista.mercadolivre.com.br/${encodeURIComponent(query)}_Ord_PRICE_ASC`;
 
+    let allResults = [];
+
     try {
+        // Page 1
         await page.goto(searchUrl, { waitUntil: 'networkidle2' });
         await simulateHumanInteraction(page);
 
         if (await checkForBlock(page)) {
             console.warn('[Scraper] BLOCKED: Mercado Livre detected suspicious traffic.');
-            return getMockResults(query); // Fallback
+            return getMockResults(query);
         }
 
-        // Handle Cookies banner
         const cookieBtn = await page.$('button[data-testid="action:understood-button"]');
         if (cookieBtn) {
             await cookieBtn.click();
@@ -159,51 +196,32 @@ async function searchAndScrape(page, query) {
 
         await autoScroll(page);
 
-        // Extract
-        const results = await page.evaluate(() => {
-            const items = [];
-            const productCards = document.querySelectorAll('li.ui-search-layout__item');
-            const listItems = document.querySelectorAll('.ui-search-result__content');
-            const cards = productCards.length > 0 ? productCards : listItems;
+        let results = await scrapeCurrentPage(page);
+        allResults = [...allResults, ...results];
 
-            cards.forEach(card => {
-                let titleEl = card.querySelector('.poly-component__title');
-                let linkEl = titleEl;
+        // Page 2 Check
+        // If we have fewer than 40 items, try next page to give AI more options
+        if (allResults.length < 40) {
+             console.log('[Scraper] Checking next page...');
+             const nextButton = await page.$('a.andes-pagination__link[title="Seguinte"]');
+             if (nextButton) {
+                 await nextButton.click();
+                 await page.waitForNavigation({ waitUntil: 'networkidle2' }).catch(() => {});
+                 await simulateHumanInteraction(page);
+                 await autoScroll(page);
 
-                if (!titleEl) {
-                    titleEl = card.querySelector('h2.ui-search-item__title') || card.querySelector('.ui-search-item__title');
-                    linkEl = card.querySelector('a.ui-search-link') || (titleEl ? titleEl.closest('a') : null) || card.querySelector('a');
-                }
+                 const page2Results = await scrapeCurrentPage(page);
+                 console.log(`[Scraper] Page 2 found ${page2Results.length} items.`);
+                 allResults = [...allResults, ...page2Results];
+             }
+        }
 
-                let priceEl = card.querySelector('.poly-price__current .andes-money-amount__fraction');
-                if (!priceEl) {
-                    priceEl = card.querySelector('.ui-search-price__second-line .andes-money-amount__fraction') ||
-                              card.querySelector('span.andes-money-amount__fraction');
-                }
-
-                const imageEl = card.querySelector('img.poly-component__picture') || card.querySelector('img');
-                const isFull = !!(card.querySelector('.poly-component__shipped-from svg[aria-label="FULL"]') || card.querySelector('.ui-search-item__fulfillment'));
-                const isInternational = (card.innerText || "").includes('Compra Internacional');
-
-                if (titleEl && priceEl && linkEl) {
-                    items.push({
-                        title: titleEl.innerText,
-                        price: parseFloat(priceEl.innerText.replace(/\./g, '').replace(',', '.')),
-                        link: linkEl.href,
-                        image: imageEl ? (imageEl.dataset.src || imageEl.src) : null,
-                        isFull: isFull,
-                        isInternational: isInternational
-                    });
-                }
-            });
-            return items;
-        });
-
-        return results;
+        console.log(`[Scraper] Total items found for "${query}": ${allResults.length}`);
+        return allResults;
 
     } catch (e) {
         console.error('[Scraper] Scraping error:', e.message);
-        return [];
+        return allResults; // Return whatever we found
     }
 }
 

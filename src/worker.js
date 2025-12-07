@@ -5,7 +5,7 @@ const pLimit = require('p-limit');
 const { readInput } = require('./input');
 const { initBrowser, setCEP, searchAndScrape, getProductDetails } = require('./scraper');
 const { writeOutput } = require('./output');
-const { discoverModels, validateProductWithAI, selectBestCandidate } = require('./ai_validator');
+const { discoverModels, filterTitles, validateProductWithAI, selectBestCandidate } = require('./ai_validator');
 const { updateTaskStatus } = require('./database');
 
 console.log('[Worker] Initializing Queue...');
@@ -105,12 +105,8 @@ scrapeQueue.process(async (job) => {
 
             try {
                 // PHASE 1: DISCOVERY
-                // Ask AI for best models
                 logger.log(`🤖 [Item ${id}] Consultando Gemini sobre Marcas/Modelos...`);
                 const searchQueries = await discoverModels(description);
-
-                // searchQueries is now an array of objects: { term, risk, reasoning }
-                // or potentially strings if fallback occurred (but I tried to handle it in discoverModels)
 
                 logger.log(`🔍 [Item ${id}] Termos sugeridos: ${JSON.stringify(searchQueries)}`);
 
@@ -122,9 +118,6 @@ scrapeQueue.process(async (job) => {
                     const query = typeof queryObj === 'string' ? queryObj : queryObj.term;
                     const predictedRisk = typeof queryObj === 'string' ? null : queryObj.risk;
 
-                    // If predicted risk is high (10), maybe skip?
-                    // User said: "return list... risk level...".
-                    // If risk is 10, it's "incompatible". We shouldn't search.
                     if (predictedRisk === 10) {
                          logger.log(`⚠️ [Item ${id}] Pulando termo "${query}" (Risco 10 - Incompatível).`);
                          continue;
@@ -132,7 +125,7 @@ scrapeQueue.process(async (job) => {
 
                     logger.log(`📡 [Item ${id}] Buscando: "${query}" (Risco Previsto: ${predictedRisk})...`);
 
-                    // We search only top 10 per query to be fast, relying on specificity
+                    // Search (Paginated)
                     const searchResults = await searchAndScrape(itemPage, query);
 
                     for (const res of searchResults) {
@@ -140,7 +133,6 @@ scrapeQueue.process(async (job) => {
 
                         if (!uniqueUrls.has(res.link)) {
                             uniqueUrls.add(res.link);
-                            // Attach discovery reasoning/risk if useful, but validation will override
                             allCandidates.push(res);
                         }
                     }
@@ -154,11 +146,21 @@ scrapeQueue.process(async (job) => {
                      return;
                 }
 
-                // Sort by price (ascending) to prioritize checking cheap items first
+                // Sort by price
                 allCandidates.sort((a, b) => a.price - b.price);
 
-                // Check top 15 candidates total (Global Limit)
-                const candidatesToCheck = allCandidates.slice(0, 15);
+                // PHASE 2.5: AI FILTERING (New Step)
+                // Filter titles before deep scraping
+                logger.log(`🧠 [Item ${id}] Filtrando ${allCandidates.length} títulos com IA...`);
+
+                const filterResult = await filterTitles(description, allCandidates);
+                const selectedIndices = new Set(filterResult.selected_indices);
+
+                const filteredCandidates = allCandidates.filter((_, i) => selectedIndices.has(i));
+                logger.log(`📉 [Item ${id}] Filtrado: ${filteredCandidates.length} candidatos restantes.`);
+
+                // Check top 15 of the FILTERED list
+                const candidatesToCheck = filteredCandidates.slice(0, 15);
                 
                 const validatedCandidates = [];
                 
@@ -186,7 +188,6 @@ scrapeQueue.process(async (job) => {
                 }
 
                 // PHASE 4: SELECTION
-                // Filter viable
                 const viable = validatedCandidates.filter(c => c.risk_score < 10);
 
                 if (viable.length > 0) {

@@ -76,12 +76,41 @@ async function discoverModels(description) {
     }
 }
 
-// 2. Filter Titles (Simplified for Gemini - Optional now if we trust model search, but kept for safety)
-async function filterTitles(description, candidates) {
-    return {
-        selected_indices: candidates.map((_, i) => i),
-        reasoning_content: "Skipping explicit AI title filter to prioritize full validation."
-    };
+// 2. Filter Titles
+async function filterTitles(requiredSpecs, candidates) {
+    const templatePath = path.join(__dirname, '../prompts/title_filtering.txt');
+    let template;
+    try {
+        template = fs.readFileSync(templatePath, 'utf-8');
+    } catch (e) {
+        console.error("Error reading title_filtering template:", e);
+        return { selected_indices: candidates.map((_, i) => i), reasoning: "Template Error" };
+    }
+
+    // Format candidates list
+    const candidatesList = candidates.map((c, i) => `[${i}] ${c.title} - R$ ${c.price}`).join('\n');
+
+    const prompt = renderTemplate(template, {
+        REQUIRED_SPECS: requiredSpecs,
+        CANDIDATES_LIST: candidatesList
+    });
+
+    try {
+        const resultText = await askGemini(prompt);
+        const jsonStr = extractJson(resultText);
+        const parsed = JSON.parse(jsonStr);
+
+        return {
+            selected_indices: parsed.selected_indices || candidates.map((_, i) => i), // Fallback to all if parse fails
+            reasoning: parsed.reasoning || "Filtered by AI"
+        };
+    } catch (e) {
+        console.error("Error in filterTitles:", e);
+        return {
+            selected_indices: candidates.map((_, i) => i),
+            reasoning: "Error in AI filtering"
+        };
+    }
 }
 
 // 3. Final Validation
