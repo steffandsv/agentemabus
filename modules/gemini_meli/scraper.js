@@ -28,7 +28,6 @@ async function initBrowser() {
         '--disable-gpu'
     ];
 
-    // Simple proxy support via env or file
     let proxy = process.env.PROXY_URL;
     if (proxy) args.push(`--proxy-server=${proxy}`);
 
@@ -50,7 +49,7 @@ async function simulateHumanInteraction(page) {
 async function setCEP(page, cep) {
     console.log(`[Scraper] Setting CEP: ${cep}`);
 
-    // Cookie Loading & Validation
+    // Cookie Loading
     const cookiePath = path.resolve('cookies.json');
     if (fs.existsSync(cookiePath)) {
         try {
@@ -58,41 +57,69 @@ async function setCEP(page, cep) {
             if (cookiesString && cookiesString.trim()) {
                 const cookies = JSON.parse(cookiesString);
                 console.log(`[Scraper] Loading ${cookies.length} cookies from ${cookiePath}...`);
-
                 await page.setCookie(...cookies);
-                console.log(`[Scraper] Cookies successfully loaded into browser context.`);
-            } else {
-                console.warn(`[Scraper] Warning: cookies.json is empty.`);
             }
         } catch (e) {
-            console.error(`[Scraper] CRITICAL: Failed to parse cookies.json: ${e.message}`);
+            console.error(`[Scraper] Failed to parse cookies.json: ${e.message}`);
         }
-    } else {
-        console.warn(`[Scraper] Warning: cookies.json not found! Scraper might be blocked.`);
     }
 
     try {
         await page.goto('https://www.mercadolivre.com.br/', { waitUntil: 'networkidle2' });
 
         if (await checkForBlock(page)) {
-            const msg = "[Scraper] BLOCK DETECTED immediately after load. Aborting.";
-            console.error(msg);
+            console.error("[Scraper] BLOCK DETECTED immediately after load.");
             throw new Error("BLOCKED_BY_PORTAL");
         }
 
-        const addressSelector = '.nav-menu-cp';
-        if (await page.$(addressSelector) !== null) {
-           await page.click(addressSelector);
-           await new Promise(r => setTimeout(r, 1000));
+        // Try standard address selector (usually top bar)
+        let addressSelector = '.nav-menu-cp';
+        let addressEl = await page.$(addressSelector);
+
+        // If not found, try finding by text or aria-label (ML changes classes often)
+        if (!addressEl) {
+             console.log('[Scraper] Standard CEP selector not found. Trying fallback...');
+             // Sometimes it's a link with text like "Informe seu CEP" or address pin icon
+             const link = await page.evaluateHandle(() => {
+                 const anchors = Array.from(document.querySelectorAll('a'));
+                 return anchors.find(a => a.innerText.includes('Informe seu CEP') || a.innerText.includes('Enviar para')) || null;
+             });
+             if (link) addressEl = link;
         }
 
+        if (addressEl) {
+           await addressEl.click();
+           await new Promise(r => setTimeout(r, 1500)); // Wait for modal
+        }
+
+        // Input Logic inside Modal
+        // ML Modal usually has an iframe or shadow DOM, but Puppeteer handles frames transparently often if not nested weirdly.
+        // The input name is usually 'zipcode' or similar.
+
+        const inputSelector = 'input[name="zipcode"]';
         try {
-            await page.waitForSelector('input[name="zipcode"]', { timeout: 5000 });
-            await page.type('input[name="zipcode"]', cep, { delay: 100 });
+            await page.waitForSelector(inputSelector, { timeout: 5000 });
+
+            // Clear input first
+            await page.click(inputSelector);
+            await page.keyboard.down('Control');
+            await page.keyboard.press('A');
+            await page.keyboard.up('Control');
+            await page.keyboard.press('Backspace');
+
+            await page.type(inputSelector, cep, { delay: 150 });
+            await new Promise(r => setTimeout(r, 500));
+
+            // Press "Usar" or "Salvar" button
+            // Usually type Enter works
             await page.keyboard.press('Enter');
-            await page.waitForNavigation({ waitUntil: 'networkidle2' }).catch(() => {});
+
+            // Wait for reload or modal close
+            await new Promise(r => setTimeout(r, 3000));
+            console.log('[Scraper] CEP input submitted.');
+
         } catch (e) {
-            console.log('[Scraper] CEP input skipped or not found.');
+            console.log('[Scraper] CEP input field skipped or not found (maybe already set?).');
         }
     } catch (error) {
         if (error.message === 'BLOCKED_BY_PORTAL') throw error;
@@ -137,14 +164,14 @@ async function autoScroll(page) {
 }
 
 function getMockResults(query) {
-    console.log('Returning MOCK results.');
     return [
         {
             title: `${query} - Modelo Avançado (MOCK)`,
             price: 150.00,
             link: 'http://mock-link.com/item1',
             isFull: true,
-            isInternational: false
+            isInternational: false,
+            condition: 'new'
         }
     ];
 }
@@ -175,6 +202,11 @@ async function scrapeCurrentPage(page) {
             const isFull = !!(card.querySelector('.poly-component__shipped-from svg[aria-label="FULL"]') || card.querySelector('.ui-search-item__fulfillment'));
             const isInternational = (card.innerText || "").includes('Compra Internacional');
 
+            // Check condition (New/Used)
+            // Usually implicit "Used" tag exists. If not present, assume New.
+            const isUsed = !!(card.querySelector('.ui-search-item__group__element.ui-search-item__condition') &&
+                              card.querySelector('.ui-search-item__group__element.ui-search-item__condition').innerText.includes('Usado'));
+
             if (titleEl && priceEl && linkEl) {
                 items.push({
                     title: titleEl.innerText,
@@ -182,7 +214,8 @@ async function scrapeCurrentPage(page) {
                     link: linkEl.href,
                     image: imageEl ? (imageEl.dataset.src || imageEl.src) : null,
                     isFull: isFull,
-                    isInternational: isInternational
+                    isInternational: isInternational,
+                    condition: isUsed ? 'used' : 'new'
                 });
             }
         });
@@ -203,13 +236,21 @@ async function searchAndScrape(page, query) {
         return getMockResults(query);
     }
 
-    const searchUrl = `https://lista.mercadolivre.com.br/${encodeURIComponent(query)}_Ord_PRICE_ASC`;
+    // Force new items only using filter if possible, or just default search and filter later.
+    // _ItemTypeID_2230284 = Novo? No, dynamic.
+    // Better to filter post-scrape or add "novo" to query?
+    // Let's filter in `scrapeCurrentPage` and here.
+
+    const searchUrl = `https://lista.mercadolivre.com.br/${encodeURIComponent(query)}_Ord_PRICE_ASC_ITEM*CONDITION_2230284`; // Try forcing NEW condition via URL param if standard?
+    // Actually simpler: `_Condition_2230284` is unstable.
+    // Let's just search and filter `condition === 'new'`.
+
+    const simpleUrl = `https://lista.mercadolivre.com.br/${encodeURIComponent(query)}_Ord_PRICE_ASC`;
 
     let allResults = [];
 
     try {
-        // Page 1
-        await page.goto(searchUrl, { waitUntil: 'networkidle2' });
+        await page.goto(simpleUrl, { waitUntil: 'networkidle2' });
         await simulateHumanInteraction(page);
 
         if (await checkForBlock(page)) {
@@ -226,6 +267,10 @@ async function searchAndScrape(page, query) {
         await autoScroll(page);
 
         let results = await scrapeCurrentPage(page);
+
+        // Filter Used
+        results = results.filter(r => r.condition !== 'used');
+
         allResults = [...allResults, ...results];
 
         // Page 2 Check
@@ -238,13 +283,15 @@ async function searchAndScrape(page, query) {
                  await simulateHumanInteraction(page);
                  await autoScroll(page);
 
-                 const page2Results = await scrapeCurrentPage(page);
-                 console.log(`[Scraper] Page 2 found ${page2Results.length} items.`);
+                 let page2Results = await scrapeCurrentPage(page);
+                 page2Results = page2Results.filter(r => r.condition !== 'used');
+
+                 console.log(`[Scraper] Page 2 found ${page2Results.length} new items.`);
                  allResults = [...allResults, ...page2Results];
              }
         }
 
-        console.log(`[Scraper] Total items found for "${query}": ${allResults.length}`);
+        console.log(`[Scraper] Total NEW items found for "${query}": ${allResults.length}`);
         return allResults;
 
     } catch (e) {
@@ -254,87 +301,9 @@ async function searchAndScrape(page, query) {
     }
 }
 
-/**
- * Executes the "Sniper" logic: Search specific model -> Scrape cheapest -> Validate.
- * Stops as soon as a perfect match (Score 0) is found.
- */
-async function sniperScrape(page, modelQuery, originalDescription, cep) {
-    console.log(`[Sniper] Hunting for model: "${modelQuery}"`);
-    // This function can reuse searchAndScrape logic partially but it has specific "stop on first match" logic.
-    // For now, I'm keeping it as it was but maybe using searchAndScrape inside could be cleaner?
-    // Let's leave it independent to avoid breaking orchestrator if it relies on specific behavior.
-
-    // Actually, let's keep the original implementation but maybe fix imports/deps if any.
-    // It calls getProductDetails and validateProductWithAI.
-
-    const searchUrl = `https://lista.mercadolivre.com.br/${encodeURIComponent(modelQuery)}_Ord_PRICE_ASC`; // Force sort by price
-
-    try {
-        await page.goto(searchUrl, { waitUntil: 'networkidle2' });
-        await simulateHumanInteraction(page);
-
-        // Extract basic results (Simplified version of searchAndScrape)
-        const candidates = await page.evaluate(() => {
-            const items = [];
-            const cards = document.querySelectorAll('li.ui-search-layout__item');
-            cards.forEach(card => {
-                const titleEl = card.querySelector('.poly-component__title') || card.querySelector('h2');
-                const linkEl = card.querySelector('a.poly-component__title') || card.querySelector('a');
-                const priceEl = card.querySelector('.poly-price__current .andes-money-amount__fraction') ||
-                                card.querySelector('.ui-search-price__second-line .andes-money-amount__fraction');
-
-                if (titleEl && linkEl && priceEl) {
-                    items.push({
-                        title: titleEl.innerText,
-                        link: linkEl.href,
-                        price: parseFloat(priceEl.innerText.replace(/\./g, '').replace(',', '.'))
-                    });
-                }
-            });
-            return items;
-        });
-
-        console.log(`[Sniper] Found ${candidates.length} candidates for "${modelQuery}".`);
-        if (candidates.length === 0) return null;
-
-        const chunkSize = 3;
-        for (let i = 0; i < candidates.length; i += chunkSize) {
-            const chunk = candidates.slice(i, i + chunkSize);
-            for (const candidate of chunk) {
-                const details = await getProductDetails(page, candidate.link);
-                candidate.attributes = details.attributes;
-                candidate.description = details.description;
-                candidate.shippingCost = details.shippingCost;
-                candidate.totalPrice = candidate.price + candidate.shippingCost;
-
-                const validation = await validateProductWithAI(originalDescription, candidate);
-
-                candidate.aiMatch = validation.status;
-                candidate.risk_score = validation.risk_score;
-                candidate.reasoning = validation.reasoning;
-                candidate.brand_model = validation.brand_model;
-
-                if (candidate.risk_score === 0) {
-                    console.log(`[Sniper] 🎯 PERFECT MATCH FOUND!`);
-                    return candidate;
-                }
-                if (candidate.risk_score <= 3) return candidate;
-            }
-        }
-        return null;
-    } catch (e) {
-        console.error('[Sniper] Error:', e.message);
-        return null;
-    }
-}
-
 async function getProductDetails(page, url) {
     if (url.includes('mock-link') || process.env.MOCK_SCRAPER === 'true') {
-        return {
-            shippingCost: 15.50,
-            attributes: { 'Marca': 'MockBrand', 'Modelo': 'X-1000' },
-            description: "Descrição simulada do produto."
-        };
+        return { shippingCost: 15.50, attributes: {}, description: "Mock desc" };
     }
 
     try {
@@ -348,20 +317,57 @@ async function getProductDetails(page, url) {
 
         // Shipping Logic
         let shippingCost = 0;
+        let shippingText = "";
+
         const freeShipping = await page.evaluate(() => {
             const bodyText = document.body.innerText;
             return bodyText.includes('Frete grátis') || bodyText.includes('Chegará grátis');
         });
 
         if (!freeShipping) {
-            const shippingPriceText = await page.evaluate(() => {
-                 const el = document.querySelector('.ui-pdp-media__price-subtext') ||
-                            document.querySelector('[class*="shipping"] .andes-money-amount__fraction');
-                 return el ? el.parentElement.innerText : null;
-            });
-            if (shippingPriceText) {
-                 const match = shippingPriceText.match(/R\$\s?([\d.,]+)/);
-                 if (match) shippingCost = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
+            // Click to see options if needed
+            // Selector: .ui-pdp-action-modal or .ui-pdp-shipping__action
+            // Or look for text "Ver mais formas de entrega"
+            try {
+                const shippingTrigger = await page.$('.ui-pdp-media__action.ui-pdp-shipping__action, .ui-pdp-action-modal__link');
+                if (shippingTrigger) {
+                    await shippingTrigger.click();
+                    await new Promise(r => setTimeout(r, 2000)); // Wait for modal
+
+                    // Extract lowest price from modal
+                    // .andes-money-amount inside modal
+                    const lowestPrice = await page.evaluate(() => {
+                        const prices = [];
+                        // Look inside the modal container
+                        const modal = document.querySelector('.andes-modal') || document.body;
+                        const amounts = modal.querySelectorAll('.andes-money-amount__fraction');
+                        amounts.forEach(el => {
+                            // Filter out the product price if visible (usually shipping is smaller)
+                            // Better heuristic: look for shipping specific classes or context
+                            // But usually modal only shows shipping options.
+                            const val = parseFloat(el.innerText.replace(/\./g, '').replace(',', '.'));
+                            if (!isNaN(val)) prices.push(val);
+                        });
+                        return prices.length > 0 ? Math.min(...prices) : 0;
+                    });
+
+                    if (lowestPrice > 0) shippingCost = lowestPrice;
+
+                    // Close modal (Escape)
+                    await page.keyboard.press('Escape');
+                    await new Promise(r => setTimeout(r, 500));
+                } else {
+                    // Try parsing text on main page if no modal link
+                    const priceText = await page.evaluate(() => {
+                        const el = document.querySelector('[class*="shipping"] .andes-money-amount__fraction');
+                        return el ? el.innerText : null;
+                    });
+                    if (priceText) {
+                        shippingCost = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
+                    }
+                }
+            } catch (e) {
+                console.log(`[Scraper] Failed to extract complex shipping: ${e.message}`);
             }
         }
 
@@ -382,9 +388,8 @@ async function getProductDetails(page, url) {
         return { attributes: data.attrs, description: data.description, shippingCost };
     } catch (e) {
         if (e.message === 'BLOCKED_BY_PORTAL') throw e;
-        // Generic detail error just returns empty
         return { attributes: {}, description: "", shippingCost: 0 };
     }
 }
 
-module.exports = { initBrowser, setCEP, sniperScrape, searchAndScrape, getProductDetails };
+module.exports = { initBrowser, setCEP, searchAndScrape, getProductDetails };
