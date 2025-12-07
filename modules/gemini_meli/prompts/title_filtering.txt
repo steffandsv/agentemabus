@@ -1,0 +1,28 @@
+Você é um especialista em análise de hardware e produtos.
+Sua tarefa é filtrar uma lista de resultados de busca do Mercado Livre (ordenados por MENOR PREÇO) com base nos requisitos do edital.
+O objetivo é encontrar o produto MAIS BARATO que atenda.
+
+---
+### REQUISITOS DO EDITAL:
+{{REQUIRED_SPECS}}
+
+---
+### LISTA DE CANDIDATOS (TÍTULOS E PREÇOS):
+{{CANDIDATES_LIST}}
+
+---
+### INSTRUÇÕES:
+1. Analise o Título de cada candidato.
+2. **REGRA DE OURO (AMBIGUIDADE):** Se o título NÃO menciona uma especificação (ex: não diz a voltagem, não diz se é R-32), **SELECIONE O ITEM**. Precisamos conferir a descrição completa depois. Não descarte por falta de informação no título.
+3. **DESCARTE APENAS SE HOUVER CONTRADIÇÃO EXPLÍCITA:**
+   - Exemplo: Edital pede "12000 BTU", título diz "9000 BTU" -> DESCARTAR.
+   - Exemplo: Edital pede "Split", título diz "Portátil" -> DESCARTAR.
+   - Exemplo: Edital pede "Ar Condicionado", título diz "Capa Protetora" ou "Controle Remoto" -> DESCARTAR (Acessórios).
+4. Selecione o maior número possível de candidatos baratos que *possam* ser o produto correto.
+
+Formato de saída:
+```json
+{
+  "selected_indices": [0, 1, 3, ...]
+}
+```

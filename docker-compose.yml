@@ -13,6 +13,7 @@ services:
       - GOOGLE_SEARCH_API_KEY=${GOOGLE_SEARCH_API_KEY}
       - GOOGLE_SEARCH_CX=${GOOGLE_SEARCH_CX}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
       - COOKIES_B64=${COOKIES_B64}
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
       - NODE_OPTIONS=--max-old-space-size=8192
@@ -24,6 +25,7 @@ services:
       - ./prompts:/app/prompts
       - ./cookies.json:/app/cookies.json
       - ./proxies.txt:/app/proxies.txt
+      - ./modules:/app/modules
     depends_on:
       - redis
     command: sh -c "echo \"$COOKIES_B64\" | base64 -d > cookies.json && npm start"
