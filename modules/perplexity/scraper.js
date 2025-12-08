@@ -1,40 +1,49 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-
 puppeteer.use(StealthPlugin());
 
 async function scrapeGeneric(page, url) {
     try {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-        // Basic extraction
         const data = await page.evaluate(() => {
-            // Remove scripts, styles
-            document.querySelectorAll('script, style, nav, footer, header').forEach(e => e.remove());
+            // Get meta description
+            const metaDesc = document.querySelector('meta[name="description"]')?.content ||
+                             document.querySelector('meta[property="og:description"]')?.content || "";
 
-            // Get text
-            const text = document.body.innerText.substring(0, 5000); // Limit
+            // Get title
+            const title = document.title || "";
 
-            // Try to find price
-            // Regex for price R$ ...
-            const priceRegex = /R\$\s?([\d.,]+)/;
-            const priceMatch = document.body.innerText.match(priceRegex);
+            // Get body text (limit length)
+            const bodyText = document.body.innerText.slice(0, 15000);
+
+            // Try to find price (simple heuristic)
             let price = 0;
-            if (priceMatch) {
-                price = parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.'));
+            const priceRegex = /R\$\s?[\d.,]+/;
+            const match = document.body.innerText.match(priceRegex);
+            if (match) {
+                try {
+                    price = parseFloat(match[0].replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
+                } catch (e) {}
             }
 
             return {
-                text: text,
-                price: price,
-                title: document.title
+                title,
+                description: metaDesc,
+                text: bodyText,
+                price
             };
         });
 
-        return data;
+        return {
+            title: data.title,
+            description: (data.description + "\n" + data.text).trim(), // Combine for AI
+            price: data.price
+        };
+
     } catch (e) {
-        console.error(`Generic scrape failed for ${url}:`, e.message);
-        return { text: "", price: 0, title: "Error" };
+        console.error(`Generic Scrape Error ${url}: ${e.message}`);
+        return { title: '', description: '', price: 0 };
     }
 }
 

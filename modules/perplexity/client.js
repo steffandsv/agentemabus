@@ -1,8 +1,18 @@
-async function askPerplexity(query) {
+async function askPerplexity(input) {
     const apiKey = process.env.PERPLEXITY_API_KEY;
     if (!apiKey) {
         console.warn("PERPLEXITY_API_KEY missing.");
         return null;
+    }
+
+    let messages = [];
+    if (Array.isArray(input)) {
+        messages = input;
+    } else {
+        messages = [
+            { role: 'system', content: 'You are a helpful shopping assistant. Search the brazilian web for products.' },
+            { role: 'user', content: input }
+        ];
     }
 
     try {
@@ -14,16 +24,14 @@ async function askPerplexity(query) {
             },
             body: JSON.stringify({
                 model: 'sonar-pro', // or sonar-reasoning-pro
-                messages: [
-                    { role: 'system', content: 'You are a helpful shopping assistant. Search the brazilian web for products.' },
-                    { role: 'user', content: query }
-                ],
-                max_tokens: 1000
+                messages: messages,
+                max_tokens: 3000
             })
         });
 
         if (!response.ok) {
-            throw new Error(`Perplexity API Error: ${response.status}`);
+            const errText = await response.text();
+            throw new Error(`Perplexity API Error: ${response.status} - ${errText}`);
         }
 
         const json = await response.json();
