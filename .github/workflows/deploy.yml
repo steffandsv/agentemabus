@@ -39,6 +39,7 @@ jobs:
             echo "GOOGLE_SEARCH_API_KEY=${{ secrets.GOOGLE_SEARCH_API_KEY }}" >> .env
             echo "GOOGLE_SEARCH_CX=${{ secrets.GOOGLE_SEARCH_CX }}" >> .env
             echo "DEEPSEEK_API_KEY=${{ secrets.DEEPSEEK_API_KEY }}" >> .env
+            echo "PERPLEXITY_API_KEY=${{ secrets.PERPLEXITY_API_KEY }}" >> .env
             # Adiciona COOKIES_B64 no .env pois seu docker-compose o utiliza no 'command'
             echo "COOKIES_B64=${{ secrets.COOKIES_B64 }}" >> .env
             
