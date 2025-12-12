@@ -11,10 +11,10 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.HOST }}             # IP: 45.172.145.202
-          username: ${{ secrets.USERNAME }}     # User: steffan
-          password: ${{ secrets.PASSWORD }}     # Pass: a2312steff
-          port: 2222                            # Porta SSH customizada do Mabus
+          host: ${{ secrets.HOST }}            
+          username: ${{ secrets.USERNAME }}    
+          password: ${{ secrets.PASSWORD }}     
+          port: 2222                            
           script: |
             # --- 1. PREPARAÇÃO DO AMBIENTE ---
             # Cria diretório e garante permissões (sudo -S para input de senha)
