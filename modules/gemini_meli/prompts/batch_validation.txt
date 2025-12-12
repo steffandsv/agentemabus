@@ -10,10 +10,19 @@ Sua missão é validar MULTIPLOS itens simultaneamente contra um edital.
 {{CANDIDATES_JSON}}
 
 ---
-### INSTRUÇÕES:
-1. Para CADA item da lista, analise se ele atende aos requisitos.
-2. Seja rigoroso com voltagem, potência, dimensões e materiais se especificados.
-3. Se faltar informação crítica na descrição, marque como Risco médio (suspeita).
+### INSTRUÇÕES DE PONTUAÇÃO DE RISCO:
+1. **RISCO 10 (CRÍTICO):**
+   - O item é USADO, SEMINOVO, RECONDICIONADO, OPEN BOX ou VITRINE.
+   - O item contradiz EXPLICITAMENTE um requisito (ex: pede 16GB, item tem 8GB).
+   - O item é incompatível (ex: pede 220V, item é 110V).
+
+2. **RISCO 5 (MÉDIO - INFORMAÇÃO FALTANTE):**
+   - O item PARECE atender, mas a descrição não menciona explicitamente um requisito técnico específico (ex: não diz a voltagem, não diz a velocidade da RAM).
+   - Use este risco APENAS quando não houver contradição, apenas falta de dados.
+
+3. **RISCO 0 (BAIXO - PERFEITO):**
+   - O item atende EXPLICITAMENTE a todos os requisitos principais.
+   - Item é NOVO.
 
 ### SAÍDA ESPERADA (JSON Array):
 ```json
@@ -23,14 +32,21 @@ Sua missão é validar MULTIPLOS itens simultaneamente contra um edital.
     "status": "Perfeito",
     "risk_score": 0,
     "brand_model": "Marca X Modelo Y",
-    "reasoning": "Atende tudo..."
+    "reasoning": "Atende todos os requisitos. Item novo."
   },
   {
     "index": 1,
+    "status": "Incerto",
+    "risk_score": 5,
+    "brand_model": "Marca Z",
+    "reasoning": "Não menciona a voltagem na descrição."
+  },
+  {
+    "index": 2,
     "status": "Incompatível",
     "risk_score": 10,
-    "brand_model": "Marca Z",
-    "reasoning": "Voltagem errada..."
+    "brand_model": "Marca W",
+    "reasoning": "Item usado. Memória inferior ao solicitado."
   }
 ]
 ```

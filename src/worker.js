@@ -4,7 +4,7 @@ const path = require('path');
 const pLimit = require('p-limit');
 const { readInput } = require('./input');
 const { writeOutput } = require('./output');
-const { updateTaskStatus } = require('./database');
+const { updateTaskStatus, getTaskById } = require('./database');
 
 console.log('[Worker] Initializing Queue...');
 
@@ -148,6 +148,14 @@ scrapeQueue.process(async (job) => {
         logger.log(`⚡ Processamento Paralelo: 12 threads.`);
 
         const promises = items.map(item => concurrency(async () => {
+            // Check for task cancellation
+            const currentTask = await getTaskById(taskId);
+            if (currentTask && (currentTask.status === 'aborted' || currentTask.status === 'failed')) {
+                // We cannot really stop the concurrency queue easily without clearing it, 
+                // but we can skip execution of individual items
+                return; 
+            }
+
             const itemJob = {
                 id: item.ID || item.id,
                 description: item.Descricao || item.Description || item.description,
@@ -169,6 +177,13 @@ scrapeQueue.process(async (job) => {
         }));
 
         await Promise.all(promises);
+
+        // Final check before saving
+        const finalTaskCheck = await getTaskById(taskId);
+        if (finalTaskCheck && (finalTaskCheck.status === 'aborted' || finalTaskCheck.status === 'failed')) {
+            logger.log('🛑 Tarefa abortada pelo usuário. Não salvando planilha.');
+            return;
+        }
 
         finalResults.sort((a, b) => parseInt(a.id) - parseInt(b.id));
         const outputFileName = `resultado_${taskId}.xlsx`; 

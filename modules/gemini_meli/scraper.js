@@ -203,8 +203,20 @@ async function scrapeCurrentPage(page) {
 
             // Check condition (New/Used)
             // Usually implicit "Used" tag exists. If not present, assume New.
-            const isUsed = !!(card.querySelector('.ui-search-item__group__element.ui-search-item__condition') &&
-                              card.querySelector('.ui-search-item__group__element.ui-search-item__condition').innerText.includes('Usado'));
+            // Improved Condition Check
+            let condition = 'new';
+            const conditionEl = card.querySelector('.ui-search-item__group__element.ui-search-item__condition');
+            if (conditionEl) {
+                const text = conditionEl.innerText.toLowerCase();
+                if (text.includes('usado')) condition = 'used';
+                if (text.includes('recondicionado')) condition = 'refurbished';
+            }
+
+            // Also check title for keywords
+            const titleText = titleEl ? titleEl.innerText.toLowerCase() : '';
+            if (titleText.includes('usado') || titleText.includes('recondicionado') || titleText.includes('seminovo')) {
+                condition = 'used';
+            }
 
             if (titleEl && priceEl && linkEl) {
                 items.push({
@@ -214,7 +226,7 @@ async function scrapeCurrentPage(page) {
                     image: imageEl ? (imageEl.dataset.src || imageEl.src) : null,
                     isFull: isFull,
                     isInternational: isInternational,
-                    condition: isUsed ? 'used' : 'new'
+                    condition: condition
                 });
             }
         });
@@ -267,8 +279,8 @@ async function searchAndScrape(page, query) {
 
         let results = await scrapeCurrentPage(page);
 
-        // Filter Used
-        results = results.filter(r => r.condition !== 'used');
+        // Filter Used & Refurbished
+        results = results.filter(r => r.condition === 'new');
 
         allResults = [...allResults, ...results];
 
@@ -283,7 +295,7 @@ async function searchAndScrape(page, query) {
                  await autoScroll(page);
 
                  let page2Results = await scrapeCurrentPage(page);
-                 page2Results = page2Results.filter(r => r.condition !== 'used');
+                 page2Results = page2Results.filter(r => r.condition === 'new');
 
                  console.log(`[Scraper] Page 2 found ${page2Results.length} new items.`);
                  allResults = [...allResults, ...page2Results];

@@ -1,6 +1,7 @@
 const { searchAndScrape, getProductDetails, initBrowser, setCEP } = require('./scraper');
 const { discoverModels } = require('./discovery');
 const { filterTitles, validateBatchWithDeepSeek, selectBestCandidate } = require('./ai');
+const { resolveAmbiguityWithPerplexity } = require('./verifier');
 
 async function execute(job, dependencies) {
     const { id, description, maxPrice, quantity, browser, cep, logger } = job;
@@ -102,6 +103,29 @@ async function execute(job, dependencies) {
 
                 logger.log(`📝 [Item ${id}] Risk: ${candidate.risk_score}`);
                 validatedCandidates.push(candidate);
+            }
+        }
+
+        // PHASE 3.5: GAP VERIFICATION (PERPLEXITY)
+        // Identify "Missing Info" candidates (Risk 5)
+        const ambiguousCandidates = validatedCandidates.filter(c => c.risk_score === 5);
+        if (ambiguousCandidates.length > 0) {
+            logger.log(`🕵️ [Item ${id}] Verificando ${ambiguousCandidates.length} itens incertos com Perplexity...`);
+            
+            for (const cand of ambiguousCandidates) {
+                logger.log(`🤖 [Item ${id}] Verificando detalhes: ${cand.title}`);
+                const verification = await resolveAmbiguityWithPerplexity(description, cand);
+                
+                if (verification) {
+                    logger.thought(id, 'verification', verification);
+                    
+                    // Update Risk based on Perplexity
+                    if (verification.risk_score !== undefined) {
+                         cand.risk_score = verification.risk_score;
+                         cand.aiReasoning = `(Verified) ${verification.reasoning}`;
+                         logger.log(`📝 [Item ${id}] Novo Risco: ${cand.risk_score}`);
+                    }
+                }
             }
         }
 

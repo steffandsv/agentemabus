@@ -101,7 +101,9 @@ async function writeOutput(results, filePath) {
             sell_price: item.valor_venda || 0,
             qty: item.quantidade || 1,
             profit: profit.toFixed(2),
-            link: best ? best.link : '-'
+            link: best ? best.link : '-',
+            risk: best ? best.risk_score : '-',
+            reasoning: best ? best.aiReasoning : '-'
         });
     });
 

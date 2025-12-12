@@ -20,10 +20,10 @@
                         <label class="form-label">Módulo de IA</label>
                         <select name="moduleName" class="form-select">
                             <% modules.forEach(function(mod) { %>
-                                <option value="<%= mod %>" <%= mod === 'gemini_meli' ? 'selected' : '' %>><%= mod %></option>
+                                <option value="<%= mod %>" <%= mod === 'smart' ? 'selected' : '' %>><%= mod %></option>
                             <% }); %>
                         </select>
-                        <div class="form-text">Selecione qual "cérebro" executará a tarefa.</div>
+                        <div class="form-text">Selecione qual "cérebro" executará a tarefa. O padrão agora é "Smart" (Gemini+Meli com fallback para Perplexity).</div>
                     </div>
 
                     <div class="card mb-3 bg-light">

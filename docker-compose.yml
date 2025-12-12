@@ -26,6 +26,7 @@ services:
       - ./cookies.json:/app/cookies.json
       - ./proxies.txt:/app/proxies.txt
       - ./modules:/app/modules
+      - ./tasks.db:/app/tasks.db
     depends_on:
       - redis
     command: sh -c "echo \"$COOKIES_B64\" | base64 -d > cookies.json && npm start"

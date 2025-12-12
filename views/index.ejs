@@ -35,6 +35,21 @@
                             <td><%= new Date(task.created_at).toLocaleString('pt-BR') %></td>
                             <td>
                                 <a href="/task/<%= task.id %>" class="btn btn-sm btn-outline-info">🔍 Detalhes</a>
+                                
+                                <% if (task.status === 'running' || task.status === 'pending') { %>
+                                    <form action="/task/<%= task.id %>/action" method="POST" class="d-inline">
+                                        <input type="hidden" name="action" value="abort">
+                                        <button type="submit" class="btn btn-sm btn-danger">⏹️ Abortar</button>
+                                    </form>
+                                <% } %>
+
+                                <% if (task.status === 'completed' || task.status === 'failed' || task.status === 'aborted') { %>
+                                    <form action="/task/<%= task.id %>/action" method="POST" class="d-inline">
+                                        <input type="hidden" name="action" value="archive">
+                                        <button type="submit" class="btn btn-sm btn-secondary">📦 Arquivar</button>
+                                    </form>
+                                <% } %>
+
                                 <% if (task.status === 'completed') { %>
                                     <a href="/download/<%= task.id %>" class="btn btn-sm btn-success">📥 Excel</a>
                                 <% } %>
