@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { initDB, createTask, getTasks, getTaskById } = require('./src/database');
+const { initDB, createTask, getTasks, getTaskById, updateTaskPosition, updateTaskTags } = require('./src/database');
 const { addJob } = require('./src/worker');
 
 const app = express();
@@ -30,15 +30,19 @@ function getModules() {
     return fs.readdirSync(modulesDir).filter(f => fs.statSync(path.join(modulesDir, f)).isDirectory());
 }
 
-initDB();
+// Initialize DB (MySQL now)
+// We call it here to ensure pool is ready
+initDB().catch(e => console.error("DB Init Failed:", e));
 
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json()); // For API JSON body
 
 app.get('/', async (req, res) => {
     try {
         const tasks = await getTasks();
+        // Tasks are already ordered by position ASC
         res.render('index', { tasks });
     } catch (e) {
         res.status(500).send(e.message);
@@ -75,18 +79,49 @@ app.post('/create', upload.single('csvFile'), async (req, res) => {
 
     try {
         await createTask(task);
-        await addJob({
-            taskId,
-            cep,
-            filePath: task.input_file,
-            logPath: task.log_file,
-            moduleName: moduleName || 'smart'
-        });
+        // We DON'T call addJob here anymore! The Dispatcher in worker.js will pick it up.
+        // Unless we want immediate feedback? No, Dispatcher runs every 5s.
+        // It's cleaner.
         res.redirect('/');
     } catch (e) {
         res.status(500).send(e.message);
     }
 });
+
+// API for Reordering (Drag & Drop)
+app.post('/api/tasks/reorder', async (req, res) => {
+    const { id, newIndex } = req.body;
+    // Implementation of reordering in linked list or array logic is complex in SQL.
+    // Simple approach: We receive a list of IDs in order? No, usually drag event gives start/end.
+    // Better: Receive the FULL list of IDs in the new order for that column.
+    
+    // User interface will send: { orderedIds: ['id1', 'id2', 'id3'] }
+    // We update position = array index.
+    
+    if (req.body.orderedIds && Array.isArray(req.body.orderedIds)) {
+        try {
+            const promises = req.body.orderedIds.map((tid, index) => updateTaskPosition(tid, index));
+            await Promise.all(promises);
+            res.json({ success: true });
+        } catch(e) {
+            res.status(500).json({ error: e.message });
+        }
+    } else {
+        res.status(400).json({ error: "Invalid data" });
+    }
+});
+
+// API for Tags
+app.post('/api/tasks/:id/tags', async (req, res) => {
+    const { tags } = req.body; // Expects JSON array of objects { name, color }
+    try {
+        await updateTaskTags(req.params.id, tags);
+        res.json({ success: true });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 
 app.get('/task/:id', async (req, res) => {
     try {
@@ -131,18 +166,8 @@ app.post('/task/:id/action', async (req, res) => {
         if (action === 'abort') {
             await require('./src/database').updateTaskStatus(taskId, 'aborted');
         } else if (action === 'archive') {
-             // For now, maybe just delete? Or add 'archived' status
-             // User said "Arquivar".
              await require('./src/database').updateTaskStatus(taskId, 'archived');
-        } else if (action === 'continue') {
-            // Not implemented - would require complex queue management
-            // User requested it, but for now I can only restart?
-            // "Continuar" implies resuming a paused task. We only support Abort.
-            // Let's just ignore or set status to pending? No, that would restart from scratch without logic.
-            // Let's set to pending and addJob again if we want to "Restart".
-            // User said "Continuar", maybe they mean "Tentar Novamente"?
-            // If it was aborted, maybe we can just restart.
-        }
+        } 
 
         res.redirect('/');
     } catch (e) {

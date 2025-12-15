@@ -1,0 +1,37 @@
+<div class="kanban-card status-<%= task.status %>" data-id="<%= task.id %>" data-tags='<%= task.tags || "[]" %>'>
+    <div class="card-tags">
+        <% 
+        let tags = [];
+        try { tags = typeof task.tags === 'string' ? JSON.parse(task.tags) : (task.tags || []); } catch(e) {}
+        tags.forEach(tag => { 
+        %>
+            <span class="tag-badge" style="background-color: <%= tag.color %>"><%= tag.name %></span>
+        <% }) %>
+        <button class="btn btn-sm btn-light py-0 px-1" style="font-size: 0.7em" onclick="openTagModal('<%= task.id %>')">+</button>
+    </div>
+    
+    <div class="fw-bold mb-1"><%= task.name %></div>
+    <div class="text-muted small mb-2"><i class="bi bi-clock"></i> <%= new Date(task.created_at).toLocaleDateString('pt-BR') %> <%= new Date(task.created_at).toLocaleTimeString('pt-BR').substring(0,5) %></div>
+
+    <div class="card-actions">
+        <a href="/task/<%= task.id %>" class="btn btn-sm btn-outline-secondary" title="Detalhes"><i class="bi bi-search"></i></a>
+        
+        <% if (task.status === 'completed') { %>
+            <a href="/download/<%= task.id %>" class="btn btn-sm btn-success" title="Baixar Excel"><i class="bi bi-file-earmark-excel"></i></a>
+        <% } %>
+
+        <% if (task.status === 'running' || task.status === 'pending' || task.status === 'queued') { %>
+            <form action="/task/<%= task.id %>/action" method="POST" class="d-inline">
+                <input type="hidden" name="action" value="abort">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Abortar"><i class="bi bi-stop-circle"></i></button>
+            </form>
+        <% } %>
+        
+        <% if (task.status === 'completed' || task.status === 'failed' || task.status === 'aborted') { %>
+            <form action="/task/<%= task.id %>/action" method="POST" class="d-inline">
+                <input type="hidden" name="action" value="archive">
+                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Arquivar"><i class="bi bi-archive"></i></button>
+            </form>
+        <% } %>
+    </div>
+</div>

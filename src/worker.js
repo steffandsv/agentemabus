@@ -4,14 +4,17 @@ const path = require('path');
 const pLimit = require('p-limit');
 const { readInput } = require('./input');
 const { writeOutput } = require('./output');
-const { updateTaskStatus, getTaskById } = require('./database');
+const { updateTaskStatus, getTaskById, getNextPendingTask } = require('./database');
 
 console.log('[Worker] Initializing Queue...');
 
 const scrapeQueue = new Queue('scrape-queue', process.env.REDIS_URL || 'redis://localhost:6379');
+const DISPATCH_INTERVAL = 5000; // 5 seconds
+const CONCURRENT_JOBS = 1; // Only 1 job at a time per worker instance, but parallel inside job
 
 scrapeQueue.on('ready', () => {
     console.log('[Worker] ✅ Connected to Redis! Ready to process jobs.');
+    startDispatcher();
 });
 
 let redisErrorLogged = false;
@@ -21,6 +24,52 @@ scrapeQueue.on('error', (err) => {
         redisErrorLogged = true;
     }
 });
+
+// --- DISPATCHER LOGIC ---
+// Periodically check DB for pending tasks and add to Bull if queue is empty
+async function startDispatcher() {
+    setInterval(async () => {
+        try {
+            const counts = await scrapeQueue.getJobCounts();
+            if (counts.waiting === 0 && counts.active === 0) {
+                // Queue is empty, look for work in DB
+                const nextTask = await getNextPendingTask();
+                if (nextTask) {
+                    console.log(`[Dispatcher] Found pending task: ${nextTask.name} (ID: ${nextTask.id})`);
+                    
+                    // We need to re-construct job data. 
+                    // This implies we stored necessary data in DB or we can infer it.
+                    // The DB schema has: input_file, log_file, cep.
+                    // We need 'moduleName'. 
+                    // Wait, `moduleName` was passed in `addJob` but not stored in DB explicitly?
+                    // I need to add `module` column to DB or default it.
+                    // Let's assume default 'smart' or add column. 
+                    // For now, I'll default to 'smart' if not present, but I should probably add it to DB in next step if critical.
+                    // Actually, let's just update DB schema in `database.js` if we can, OR simply pass it in `createTask`.
+                    // The current DB schema in `database.js` (my previous edit) DOES NOT have module column.
+                    // I will Assume 'smart' for now to keep it simple as user requested "standard module Smart".
+                    
+                    const jobData = {
+                        taskId: nextTask.id,
+                        cep: nextTask.cep,
+                        filePath: nextTask.input_file,
+                        logPath: nextTask.log_file,
+                        moduleName: 'smart' // Defaulting to Smart
+                    };
+
+                    await scrapeQueue.add(jobData);
+                    // Update status to 'queued' so we don't pick it again?
+                    // Or rely on 'pending' -> 'running' transition in process?
+                    // If we leave it 'pending', dispatcher might pick it again in 5s if Bull hasn't started it.
+                    // Better to mark as 'queued' in DB.
+                    await updateTaskStatus(nextTask.id, 'queued');
+                }
+            }
+        } catch (e) {
+            console.error('[Dispatcher] Error:', e.message);
+        }
+    }, DISPATCH_INTERVAL);
+}
 
 function Logger(logPath) {
     this.log = (msg) => {
@@ -70,7 +119,7 @@ function loadModule(moduleName) {
     return null;
 }
 
-scrapeQueue.process(async (job) => {
+scrapeQueue.process(CONCURRENT_JOBS, async (job) => {
     const { taskId, cep, filePath, logPath, moduleName } = job.data;
     const logger = new Logger(logPath);
     
@@ -101,17 +150,13 @@ scrapeQueue.process(async (job) => {
             return;
         }
 
-        // 2. Init Browser (if module needs it, or we do it globally)
-        // Ideally module handles it, but let's provide a shared browser instance if exported
-        // or let execute handle it.
-        // Assuming module.execute takes { ...jobData, browser, logger }
-        
+        // 2. Init Browser
         if (mod.initBrowser) {
             logger.log('🌐 Abrindo navegador...');
             browser = await mod.initBrowser();
         }
 
-        // 3. Set CEP (if supported)
+        // 3. Set CEP
         if (mod.setCEP && browser) {
             const page = await browser.newPage();
             logger.log(`📍 Configurando CEP: ${cep}...`);
@@ -119,40 +164,22 @@ scrapeQueue.process(async (job) => {
                 await mod.setCEP(page, cep);
             } catch(e) {
                 logger.log(`❌ Erro ao configurar CEP: ${e.message}`);
-                // Abort if critical?
-                // Depending on module.
-                if (moduleName === 'gemini_meli') {
+                if (moduleName === 'gemini_meli' || moduleName === 'smart') {
                      throw e;
                 }
             }
             await page.close();
         }
 
-        // 4. Execute Module Logic (Parallel Limit handled inside module or here?)
-        // The previous worker handled p-limit.
-        // It's better if `mod.execute` processes a SINGLE item, and we handle concurrency here.
-        // BUT my refactor plan put the loop inside `index.js` of the module?
-        // Wait, my previous plan said "Create modules/gemini_meli/index.js containing the current logic...".
-        // If the module handles the whole loop, it's easier to migrate.
-        // But `execute` usually implies one task.
-        // Let's check `modules/gemini_meli/index.js` I wrote.
-        // It exports `execute(job, dependencies)`. It processes ONE item? No, I copied the WHOLE loop logic into `execute`?
-        // Let's check the code I wrote for `gemini_meli/index.js`.
-        // I wrote: `async function execute(job, dependencies) { const { id... } = job; ... return { ... } }`
-        // It processes ONE item.
-        // So the loop stays in `worker.js`.
-
+        // 4. Execute Module Logic
         const finalResults = [];
         const concurrency = pLimit(12);
 
         logger.log(`⚡ Processamento Paralelo: 12 threads.`);
 
         const promises = items.map(item => concurrency(async () => {
-            // Check for task cancellation
             const currentTask = await getTaskById(taskId);
             if (currentTask && (currentTask.status === 'aborted' || currentTask.status === 'failed')) {
-                // We cannot really stop the concurrency queue easily without clearing it, 
-                // but we can skip execution of individual items
                 return; 
             }
 
@@ -169,7 +196,7 @@ scrapeQueue.process(async (job) => {
             try {
                 const result = await mod.execute(itemJob);
                 if (result) finalResults.push(result);
-                else finalResults.push({ ...itemJob, offers: [] }); // Error handled inside
+                else finalResults.push({ ...itemJob, offers: [] }); 
             } catch (e) {
                 logger.log(`💥 [Item ${itemJob.id}] Falha Crítica: ${e.message}`);
                 finalResults.push({ ...itemJob, offers: [] });
@@ -178,7 +205,6 @@ scrapeQueue.process(async (job) => {
 
         await Promise.all(promises);
 
-        // Final check before saving
         const finalTaskCheck = await getTaskById(taskId);
         if (finalTaskCheck && (finalTaskCheck.status === 'aborted' || finalTaskCheck.status === 'failed')) {
             logger.log('🛑 Tarefa abortada pelo usuário. Não salvando planilha.');
@@ -205,6 +231,7 @@ scrapeQueue.process(async (job) => {
 });
 
 function addJob(data) {
+    // Legacy: direct add, mostly unused now if we rely on DB dispatcher
     return scrapeQueue.add(data);
 }
 

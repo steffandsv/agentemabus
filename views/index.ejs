@@ -1,68 +1,225 @@
 <%- include('partials/header') %>
 
-<h1 class="mb-4">🚀 Painel de Controle</h1>
+<style>
+    .kanban-board {
+        display: flex;
+        gap: 1.5rem;
+        overflow-x: auto;
+        padding-bottom: 20px;
+        min-height: 80vh;
+    }
+    .kanban-column {
+        flex: 1;
+        min-width: 300px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+    }
+    .kanban-column-header {
+        font-weight: bold;
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+    .kanban-column-header .badge {
+        font-size: 0.8em;
+    }
+    .kanban-card {
+        background: white;
+        border-radius: 6px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        cursor: grab;
+        transition: transform 0.2s, box-shadow 0.2s;
+        border-left: 4px solid transparent;
+    }
+    .kanban-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .kanban-card.status-running { border-left-color: #0d6efd; }
+    .kanban-card.status-completed { border-left-color: #198754; }
+    .kanban-card.status-failed { border-left-color: #dc3545; }
+    .kanban-card.status-pending { border-left-color: #6c757d; }
+    .kanban-card.status-queued { border-left-color: #fd7e14; }
 
-<div class="card shadow-sm">
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Nome da Tarefa</th>
-                        <th>Status</th>
-                        <th>Criado em</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <% tasks.forEach(task => { %>
-                        <tr>
-                            <td>
-                                <div class="fw-bold"><%= task.name %></div>
-                                <small class="text-muted"><%= task.id %></small>
-                            </td>
-                            <td>
-                                <% if (task.status === 'completed') { %>
-                                    <span class="badge bg-success">Concluído</span>
-                                <% } else if (task.status === 'running') { %>
-                                    <span class="badge bg-primary spinner-grow-sm">Rodando</span>
-                                <% } else if (task.status === 'failed') { %>
-                                    <span class="badge bg-danger">Falhou</span>
-                                <% } else { %>
-                                    <span class="badge bg-secondary">Pendente</span>
-                                <% } %>
-                            </td>
-                            <td><%= new Date(task.created_at).toLocaleString('pt-BR') %></td>
-                            <td>
-                                <a href="/task/<%= task.id %>" class="btn btn-sm btn-outline-info">🔍 Detalhes</a>
-                                
-                                <% if (task.status === 'running' || task.status === 'pending') { %>
-                                    <form action="/task/<%= task.id %>/action" method="POST" class="d-inline">
-                                        <input type="hidden" name="action" value="abort">
-                                        <button type="submit" class="btn btn-sm btn-danger">⏹️ Abortar</button>
-                                    </form>
-                                <% } %>
+    .card-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        margin-bottom: 0.5rem;
+    }
+    .tag-badge {
+        font-size: 0.75rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: white;
+    }
+    .card-actions {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #f1f1f1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .ghost-card {
+        background: #e9ecef;
+        border: 2px dashed #adb5bd;
+    }
+</style>
 
-                                <% if (task.status === 'completed' || task.status === 'failed' || task.status === 'aborted') { %>
-                                    <form action="/task/<%= task.id %>/action" method="POST" class="d-inline">
-                                        <input type="hidden" name="action" value="archive">
-                                        <button type="submit" class="btn btn-sm btn-secondary">📦 Arquivar</button>
-                                    </form>
-                                <% } %>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>🚀 Painel de Missões</h1>
+    <a href="/create" class="btn btn-primary">➕ Nova Cotação</a>
+</div>
 
-                                <% if (task.status === 'completed') { %>
-                                    <a href="/download/<%= task.id %>" class="btn btn-sm btn-success">📥 Excel</a>
-                                <% } %>
-                            </td>
-                        </tr>
-                    <% }) %>
-                    <% if (tasks.length === 0) { %>
-                        <tr><td colspan="4" class="text-center py-4">Nenhuma missão encontrada. Bora criar a primeira! ✨</td></tr>
-                    <% } %>
-                </tbody>
-            </table>
+<div class="kanban-board">
+    <!-- Aguardando (Pending/Queued) -->
+    <div class="kanban-column" id="col-pending">
+        <div class="kanban-column-header">
+            <span>⏳ Aguardando</span>
+            <span class="badge bg-secondary"><%= tasks.filter(t => t.status === 'pending' || t.status === 'queued').length %></span>
+        </div>
+        <div class="kanban-list" data-status="pending">
+            <% tasks.filter(t => t.status === 'pending' || t.status === 'queued').forEach(task => { %>
+                <%- include('partials/card', { task: task }) %>
+            <% }) %>
+        </div>
+    </div>
+
+    <!-- Em Andamento -->
+    <div class="kanban-column" id="col-running">
+        <div class="kanban-column-header">
+            <span>📊 Em Cotação</span>
+            <span class="badge bg-primary"><%= tasks.filter(t => t.status === 'running').length %></span>
+        </div>
+        <div class="kanban-list" data-status="running">
+            <% tasks.filter(t => t.status === 'running').forEach(task => { %>
+                <%- include('partials/card', { task: task }) %>
+            <% }) %>
+        </div>
+    </div>
+
+    <!-- Concluído -->
+    <div class="kanban-column" id="col-completed">
+        <div class="kanban-column-header">
+            <span>✅ Concluído</span>
+            <span class="badge bg-success"><%= tasks.filter(t => t.status === 'completed').length %></span>
+        </div>
+        <div class="kanban-list" data-status="completed">
+            <% tasks.filter(t => t.status === 'completed').forEach(task => { %>
+                <%- include('partials/card', { task: task }) %>
+            <% }) %>
+        </div>
+    </div>
+
+    <!-- Erro/Abortado -->
+    <div class="kanban-column" id="col-failed">
+        <div class="kanban-column-header">
+            <span>⚠️ Erros / Abortados</span>
+            <span class="badge bg-danger"><%= tasks.filter(t => t.status === 'failed' || t.status === 'aborted').length %></span>
+        </div>
+        <div class="kanban-list" data-status="failed">
+            <% tasks.filter(t => t.status === 'failed' || t.status === 'aborted').forEach(task => { %>
+                <%- include('partials/card', { task: task }) %>
+            <% }) %>
         </div>
     </div>
 </div>
+
+<!-- Modal Tags -->
+<div class="modal fade" id="tagModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Gerenciar Tags</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="tagTaskId">
+                <div class="mb-3">
+                    <label>Nome da Tag</label>
+                    <input type="text" class="form-control" id="tagName" placeholder="Ex: Prioridade Alta">
+                </div>
+                <div class="mb-3">
+                    <label>Cor</label>
+                    <input type="color" class="form-control form-control-color" id="tagColor" value="#563d7c">
+                </div>
+                <button type="button" class="btn btn-primary w-100" onclick="addTag()">Adicionar Tag</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script>
+    // Enable Drag and Drop only for 'Pending' column (reordering)
+    // Actually, user might want to move card to 'Archive' manually? 
+    // For now, let's enable sorting on Pending column to allow prioritization.
+    const pendingList = document.querySelector('#col-pending .kanban-list');
+    
+    new Sortable(pendingList, {
+        group: 'kanban', // Allow dragging between lists if we wanted, but logic implies status change
+        animation: 150,
+        ghostClass: 'ghost-card',
+        onEnd: function (evt) {
+            // Get new order
+            const itemEl = evt.item;
+            const newIndex = evt.newIndex;
+            // We need to send the full list of IDs in this column to backend
+            const cards = pendingList.querySelectorAll('.kanban-card');
+            const orderedIds = Array.from(cards).map(c => c.dataset.id);
+
+            fetch('/api/tasks/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderedIds: orderedIds })
+            });
+        }
+    });
+
+    // Tag Logic
+    let currentTaskTags = []; // To store current tags if we want to append? 
+    // Implementation simplified: just add one tag at a time to DB array
+
+    function openTagModal(taskId) {
+        document.getElementById('tagTaskId').value = taskId;
+        var modal = new bootstrap.Modal(document.getElementById('tagModal'));
+        modal.show();
+    }
+
+    function addTag() {
+        const id = document.getElementById('tagTaskId').value;
+        const name = document.getElementById('tagName').value;
+        const color = document.getElementById('tagColor').value;
+
+        if(!name) return;
+
+        // Fetch current tags first? Or just append in backend?
+        // Backend replaces whole JSON.
+        // We need to read current tags from DOM or fetch?
+        // Let's assume we read from dataset.
+        const card = document.querySelector(`.kanban-card[data-id="${id}"]`);
+        let tags = [];
+        try {
+            tags = JSON.parse(card.dataset.tags || '[]');
+        } catch(e) {}
+
+        tags.push({ name, color });
+
+        fetch(`/api/tasks/${id}/tags`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tags })
+        }).then(() => location.reload()); // Simple reload to reflect
+    }
+</script>
 
 <%- include('partials/footer') %>
