@@ -8,12 +8,50 @@ const { updateTaskStatus, getTaskById, getNextPendingTask } = require('./databas
 
 console.log('[Worker] Initializing Queue...');
 
-const scrapeQueue = new Queue('scrape-queue', process.env.REDIS_URL || 'redis://localhost:6379');
+// Redis Configuration
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+const scrapeQueue = new Queue('scrape-queue', redisUrl, {
+    redis: {
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+        retryStrategy: function(times) {
+            return Math.min(times * 50, 2000);
+        }
+    }
+});
+
 const DISPATCH_INTERVAL = 5000; // 5 seconds
 const CONCURRENT_JOBS = 1;
 
-scrapeQueue.on('ready', () => {
+scrapeQueue.on('ready', async () => {
     console.log('[Worker] ✅ Connected to Redis! Ready to process jobs.');
+
+    // --- GHOST JOB CLEANUP ---
+    // If the worker restarts, any "active" job is dead.
+    try {
+        const activeJobs = await scrapeQueue.getJobs(['active']);
+        if (activeJobs.length > 0) {
+            console.log(`[Worker] Found ${activeJobs.length} ghost jobs from previous session. Cleaning up...`);
+            for (const job of activeJobs) {
+                try {
+                    // Update DB to failed so it doesn't stay 'running' forever
+                    const taskId = job.data.taskId;
+                    if (taskId) {
+                        await updateTaskStatus(taskId, 'failed');
+                        console.log(`[Worker] Marked ghost job task ${taskId} as failed in DB.`);
+                    }
+                    // Move to failed in Bull so it leaves the 'active' queue
+                    await job.moveToFailed({ message: 'Worker restarted while processing' }, true);
+                    console.log(`[Worker] Moved ghost job ${job.id} to failed queue.`);
+                } catch (e) {
+                    console.error(`[Worker] Failed to cleanup ghost job ${job.id}:`, e);
+                }
+            }
+        }
+    } catch (e) {
+        console.error('[Worker] Error checking ghost jobs:', e);
+    }
+
     startDispatcher();
 });
 
@@ -38,18 +76,6 @@ async function startDispatcher() {
                 
                 if (nextTask) {
                     console.log(`[Dispatcher] Found pending task: ${nextTask.name} (ID: ${nextTask.id})`);
-                    
-                    // Immediately mark as 'queued' or 'running' to move it visually to "Em Cotação"
-                    // User requested: "Sempre que não houver nenhuma tarefa Em Cotação, a primeira tarefa da lista Aguardando deverá ser automaticamente iniciada, passando a ficar Em Cotação"
-                    // Bull queue "active" means running. "waiting" means queued.
-                    // If we add to Bull, it becomes 'waiting'.
-                    // Let's update DB status to 'queued' so it leaves 'Aguardando' column visually if we map 'queued' to 'running' or separate column?
-                    // User only specified "Aguardando", "Em Cotação", "Concluído", "Erro".
-                    // So 'queued' should probably be displayed in "Em Cotação" or "Aguardando"? 
-                    // "passando a ficar Em Cotação" implies we should treat 'queued' as 'running' in frontend or update status to 'running' immediately.
-                    // However, 'running' is set by worker when it actually starts.
-                    // If we set 'running' here, it might be misleading if queue is backed up.
-                    // But we only add if active < limit, so it should start almost immediately.
                     
                     await updateTaskStatus(nextTask.id, 'queued'); // Transitional status
 
