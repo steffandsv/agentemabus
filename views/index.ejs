@@ -26,28 +26,25 @@
         padding-bottom: 0.5rem;
         border-bottom: 2px solid #e9ecef;
     }
-    .kanban-column-header .badge {
-        font-size: 0.8em;
-    }
     .kanban-card {
         background: white;
         border-radius: 6px;
         padding: 1rem;
         margin-bottom: 1rem;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        cursor: grab;
+        cursor: pointer;
         transition: transform 0.2s, box-shadow 0.2s;
         border-left: 4px solid transparent;
+        position: relative;
     }
     .kanban-card:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    .kanban-card.status-running { border-left-color: #0d6efd; }
+    .kanban-card.status-running, .kanban-card.status-queued { border-left-color: #0d6efd; }
     .kanban-card.status-completed { border-left-color: #198754; }
     .kanban-card.status-failed { border-left-color: #dc3545; }
     .kanban-card.status-pending { border-left-color: #6c757d; }
-    .kanban-card.status-queued { border-left-color: #fd7e14; }
 
     .card-tags {
         display: flex;
@@ -61,14 +58,6 @@
         border-radius: 4px;
         color: white;
     }
-    .card-actions {
-        margin-top: 0.75rem;
-        padding-top: 0.75rem;
-        border-top: 1px solid #f1f1f1;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
     .ghost-card {
         background: #e9ecef;
         border: 2px dashed #adb5bd;
@@ -81,27 +70,27 @@
 </div>
 
 <div class="kanban-board">
-    <!-- Aguardando (Pending/Queued) -->
+    <!-- Aguardando -->
     <div class="kanban-column" id="col-pending">
         <div class="kanban-column-header">
             <span>⏳ Aguardando</span>
-            <span class="badge bg-secondary"><%= tasks.filter(t => t.status === 'pending' || t.status === 'queued').length %></span>
+            <span class="badge bg-secondary"><%= tasks.filter(t => t.status === 'pending').length %></span>
         </div>
         <div class="kanban-list" data-status="pending">
-            <% tasks.filter(t => t.status === 'pending' || t.status === 'queued').forEach(task => { %>
+            <% tasks.filter(t => t.status === 'pending').forEach(task => { %>
                 <%- include('partials/card', { task: task }) %>
             <% }) %>
         </div>
     </div>
 
-    <!-- Em Andamento -->
+    <!-- Em Cotação -->
     <div class="kanban-column" id="col-running">
         <div class="kanban-column-header">
             <span>📊 Em Cotação</span>
-            <span class="badge bg-primary"><%= tasks.filter(t => t.status === 'running').length %></span>
+            <span class="badge bg-primary"><%= tasks.filter(t => t.status === 'running' || t.status === 'queued').length %></span>
         </div>
         <div class="kanban-list" data-status="running">
-            <% tasks.filter(t => t.status === 'running').forEach(task => { %>
+            <% tasks.filter(t => t.status === 'running' || t.status === 'queued').forEach(task => { %>
                 <%- include('partials/card', { task: task }) %>
             <% }) %>
         </div>
@@ -120,7 +109,7 @@
         </div>
     </div>
 
-    <!-- Erro/Abortado -->
+    <!-- Erro -->
     <div class="kanban-column" id="col-failed">
         <div class="kanban-column-header">
             <span>⚠️ Erros / Abortados</span>
@@ -160,36 +149,29 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 <script>
-    // Enable Drag and Drop only for 'Pending' column (reordering)
-    // Actually, user might want to move card to 'Archive' manually? 
-    // For now, let's enable sorting on Pending column to allow prioritization.
+    // Only allow sorting within Pending list
     const pendingList = document.querySelector('#col-pending .kanban-list');
-    
-    new Sortable(pendingList, {
-        group: 'kanban', // Allow dragging between lists if we wanted, but logic implies status change
-        animation: 150,
-        ghostClass: 'ghost-card',
-        onEnd: function (evt) {
-            // Get new order
-            const itemEl = evt.item;
-            const newIndex = evt.newIndex;
-            // We need to send the full list of IDs in this column to backend
-            const cards = pendingList.querySelectorAll('.kanban-card');
-            const orderedIds = Array.from(cards).map(c => c.dataset.id);
+    if (pendingList) {
+        new Sortable(pendingList, {
+            group: 'pending', // Unique group name prevents dragging to other columns
+            animation: 150,
+            ghostClass: 'ghost-card',
+            onEnd: function (evt) {
+                const newIndex = evt.newIndex;
+                const cards = pendingList.querySelectorAll('.kanban-card');
+                const orderedIds = Array.from(cards).map(c => c.dataset.id);
 
-            fetch('/api/tasks/reorder', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ orderedIds: orderedIds })
-            });
-        }
-    });
-
-    // Tag Logic
-    let currentTaskTags = []; // To store current tags if we want to append? 
-    // Implementation simplified: just add one tag at a time to DB array
+                fetch('/api/tasks/reorder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ orderedIds: orderedIds })
+                });
+            }
+        });
+    }
 
     function openTagModal(taskId) {
+        event.stopPropagation(); // Prevent card click
         document.getElementById('tagTaskId').value = taskId;
         var modal = new bootstrap.Modal(document.getElementById('tagModal'));
         modal.show();
@@ -202,23 +184,24 @@
 
         if(!name) return;
 
-        // Fetch current tags first? Or just append in backend?
-        // Backend replaces whole JSON.
-        // We need to read current tags from DOM or fetch?
-        // Let's assume we read from dataset.
-        const card = document.querySelector(`.kanban-card[data-id="${id}"]`);
-        let tags = [];
-        try {
-            tags = JSON.parse(card.dataset.tags || '[]');
-        } catch(e) {}
-
+        let tags = []; 
+        // Logic to fetch existing not implemented in frontend state, simplistic add
         tags.push({ name, color });
+
+        // We should really append to existing on backend, but our API replaces.
+        // For now, let's just send the new one and let backend handle or overwrite (simple limitation).
+        // To fix: read data-tags attribute again.
+        const card = document.querySelector(`.kanban-card[data-id="${id}"]`);
+        try {
+            const existing = JSON.parse(card.dataset.tags || '[]');
+            tags = [...existing, { name, color }];
+        } catch(e) {}
 
         fetch(`/api/tasks/${id}/tags`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tags })
-        }).then(() => location.reload()); // Simple reload to reflect
+        }).then(() => location.reload()); 
     }
 </script>
 

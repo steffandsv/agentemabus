@@ -10,7 +10,7 @@ console.log('[Worker] Initializing Queue...');
 
 const scrapeQueue = new Queue('scrape-queue', process.env.REDIS_URL || 'redis://localhost:6379');
 const DISPATCH_INTERVAL = 5000; // 5 seconds
-const CONCURRENT_JOBS = 1; // Only 1 job at a time per worker instance, but parallel inside job
+const CONCURRENT_JOBS = 1;
 
 scrapeQueue.on('ready', () => {
     console.log('[Worker] ✅ Connected to Redis! Ready to process jobs.');
@@ -26,43 +26,42 @@ scrapeQueue.on('error', (err) => {
 });
 
 // --- DISPATCHER LOGIC ---
-// Periodically check DB for pending tasks and add to Bull if queue is empty
 async function startDispatcher() {
     setInterval(async () => {
         try {
             const counts = await scrapeQueue.getJobCounts();
-            if (counts.waiting === 0 && counts.active === 0) {
-                // Queue is empty, look for work in DB
+            
+            // Check capacity: only dispatch if active < limit
+            if (counts.active < CONCURRENT_JOBS) {
+                // Fetch next task from DB (ordered by position)
                 const nextTask = await getNextPendingTask();
+                
                 if (nextTask) {
                     console.log(`[Dispatcher] Found pending task: ${nextTask.name} (ID: ${nextTask.id})`);
                     
-                    // We need to re-construct job data. 
-                    // This implies we stored necessary data in DB or we can infer it.
-                    // The DB schema has: input_file, log_file, cep.
-                    // We need 'moduleName'. 
-                    // Wait, `moduleName` was passed in `addJob` but not stored in DB explicitly?
-                    // I need to add `module` column to DB or default it.
-                    // Let's assume default 'smart' or add column. 
-                    // For now, I'll default to 'smart' if not present, but I should probably add it to DB in next step if critical.
-                    // Actually, let's just update DB schema in `database.js` if we can, OR simply pass it in `createTask`.
-                    // The current DB schema in `database.js` (my previous edit) DOES NOT have module column.
-                    // I will Assume 'smart' for now to keep it simple as user requested "standard module Smart".
+                    // Immediately mark as 'queued' or 'running' to move it visually to "Em Cotação"
+                    // User requested: "Sempre que não houver nenhuma tarefa Em Cotação, a primeira tarefa da lista Aguardando deverá ser automaticamente iniciada, passando a ficar Em Cotação"
+                    // Bull queue "active" means running. "waiting" means queued.
+                    // If we add to Bull, it becomes 'waiting'.
+                    // Let's update DB status to 'queued' so it leaves 'Aguardando' column visually if we map 'queued' to 'running' or separate column?
+                    // User only specified "Aguardando", "Em Cotação", "Concluído", "Erro".
+                    // So 'queued' should probably be displayed in "Em Cotação" or "Aguardando"? 
+                    // "passando a ficar Em Cotação" implies we should treat 'queued' as 'running' in frontend or update status to 'running' immediately.
+                    // However, 'running' is set by worker when it actually starts.
+                    // If we set 'running' here, it might be misleading if queue is backed up.
+                    // But we only add if active < limit, so it should start almost immediately.
                     
+                    await updateTaskStatus(nextTask.id, 'queued'); // Transitional status
+
                     const jobData = {
                         taskId: nextTask.id,
                         cep: nextTask.cep,
                         filePath: nextTask.input_file,
                         logPath: nextTask.log_file,
-                        moduleName: 'smart' // Defaulting to Smart
+                        moduleName: 'smart' // Default
                     };
 
                     await scrapeQueue.add(jobData);
-                    // Update status to 'queued' so we don't pick it again?
-                    // Or rely on 'pending' -> 'running' transition in process?
-                    // If we leave it 'pending', dispatcher might pick it again in 5s if Bull hasn't started it.
-                    // Better to mark as 'queued' in DB.
-                    await updateTaskStatus(nextTask.id, 'queued');
                 }
             }
         } catch (e) {
@@ -164,6 +163,8 @@ scrapeQueue.process(CONCURRENT_JOBS, async (job) => {
                 await mod.setCEP(page, cep);
             } catch(e) {
                 logger.log(`❌ Erro ao configurar CEP: ${e.message}`);
+                // Allow continue even if CEP fails? 
+                // For Gemeni/Meli it's critical-ish but maybe we can fallback.
                 if (moduleName === 'gemini_meli' || moduleName === 'smart') {
                      throw e;
                 }
@@ -231,7 +232,6 @@ scrapeQueue.process(CONCURRENT_JOBS, async (job) => {
 });
 
 function addJob(data) {
-    // Legacy: direct add, mostly unused now if we rely on DB dispatcher
     return scrapeQueue.add(data);
 }
 

@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { initDB, createTask, getTasks, getTaskById, updateTaskPosition, updateTaskTags } = require('./src/database');
+const { initDB, createTask, getTasks, getTaskById, updateTaskPosition, updateTaskTags, forceStartTask } = require('./src/database');
 const { addJob } = require('./src/worker');
 
 const app = express();
@@ -31,18 +31,16 @@ function getModules() {
 }
 
 // Initialize DB (MySQL now)
-// We call it here to ensure pool is ready
 initDB().catch(e => console.error("DB Init Failed:", e));
 
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json()); // For API JSON body
+app.use(express.json()); 
 
 app.get('/', async (req, res) => {
     try {
         const tasks = await getTasks();
-        // Tasks are already ordered by position ASC
         res.render('index', { tasks });
     } catch (e) {
         res.status(500).send(e.message);
@@ -55,7 +53,7 @@ app.get('/create', (req, res) => {
 });
 
 app.post('/create', upload.single('csvFile'), async (req, res) => {
-    const { name, cep, csvText, moduleName } = req.body;
+    const { name, cep, csvText, moduleName, external_link } = req.body;
     let filePath = req.file ? req.file.path : null;
 
     if (!filePath && csvText && csvText.trim().length > 0) {
@@ -74,30 +72,20 @@ app.post('/create', upload.single('csvFile'), async (req, res) => {
         name,
         cep,
         input_file: filePath,
-        log_file: path.join('logs', `${taskId}.txt`)
+        log_file: path.join('logs', `${taskId}.txt`),
+        external_link: external_link // Added S.O.U link
     };
 
     try {
         await createTask(task);
-        // We DON'T call addJob here anymore! The Dispatcher in worker.js will pick it up.
-        // Unless we want immediate feedback? No, Dispatcher runs every 5s.
-        // It's cleaner.
+        // Dispatcher will pick it up
         res.redirect('/');
     } catch (e) {
         res.status(500).send(e.message);
     }
 });
 
-// API for Reordering (Drag & Drop)
 app.post('/api/tasks/reorder', async (req, res) => {
-    const { id, newIndex } = req.body;
-    // Implementation of reordering in linked list or array logic is complex in SQL.
-    // Simple approach: We receive a list of IDs in order? No, usually drag event gives start/end.
-    // Better: Receive the FULL list of IDs in the new order for that column.
-    
-    // User interface will send: { orderedIds: ['id1', 'id2', 'id3'] }
-    // We update position = array index.
-    
     if (req.body.orderedIds && Array.isArray(req.body.orderedIds)) {
         try {
             const promises = req.body.orderedIds.map((tid, index) => updateTaskPosition(tid, index));
@@ -111,9 +99,8 @@ app.post('/api/tasks/reorder', async (req, res) => {
     }
 });
 
-// API for Tags
 app.post('/api/tasks/:id/tags', async (req, res) => {
-    const { tags } = req.body; // Expects JSON array of objects { name, color }
+    const { tags } = req.body; 
     try {
         await updateTaskTags(req.params.id, tags);
         res.json({ success: true });
@@ -150,6 +137,17 @@ app.get('/download/:id', async (req, res) => {
         } else {
             res.status(404).send('File not found');
         }
+    } catch (e) {
+        res.status(500).send(e.message);
+    }
+});
+
+// Force Start Action
+app.post('/task/:id/force-start', async (req, res) => {
+    const taskId = req.params.id;
+    try {
+        await forceStartTask(taskId);
+        res.redirect('/');
     } catch (e) {
         res.status(500).send(e.message);
     }

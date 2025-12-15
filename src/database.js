@@ -16,7 +16,6 @@ async function initDB() {
             queueLimit: 0
         };
 
-        // Create pool
         pool = mysql.createPool(config);
 
         // Verify connection
@@ -25,6 +24,7 @@ async function initDB() {
         connection.release();
 
         // Init Schema
+        // Added external_link column as requested
         await pool.query(`
             CREATE TABLE IF NOT EXISTS tasks (
                 id VARCHAR(36) PRIMARY KEY,
@@ -37,21 +37,30 @@ async function initDB() {
                 output_file VARCHAR(255),
                 log_file VARCHAR(255),
                 tags JSON,
-                position INT DEFAULT 0
+                position INT DEFAULT 0,
+                external_link TEXT
             )
         `);
 
+        // Migration for existing tables without new columns?
+        // Simple check: describe tasks? Or just try adding column if missing.
+        // For simplicity in this task scope, we assume CREATE IF NOT EXISTS works or manual migration.
+        // But to be safe, let's try ALTER TABLE loosely.
+        try {
+            await pool.query("ALTER TABLE tasks ADD COLUMN external_link TEXT");
+        } catch (e) { /* Ignore if exists */ }
+        try {
+            await pool.query("ALTER TABLE tasks ADD COLUMN tags JSON");
+        } catch (e) { /* Ignore */ }
+        try {
+            await pool.query("ALTER TABLE tasks ADD COLUMN position INT DEFAULT 0");
+        } catch (e) { /* Ignore */ }
+
     } catch (e) {
-        console.error('[Database] ❌ Connection failed:', e.message);
-        // Fallback or retry logic could be added here, but for now we log.
-        // If DB is critical, we might want to exit? 
-        // User said "O banco de dados agora deverá ter persistência".
-        // Let's assume env vars are correct.
+        console.error('[Database] ❌ Connection/Init failed:', e.message);
     }
 }
 
-// Ensure init is called or lazy loaded
-// We'll call initDB() in server.js startup, but here we helper
 async function getPool() {
     if (!pool) await initDB();
     return pool;
@@ -61,12 +70,12 @@ async function createTask(task) {
     const p = await getPool();
     if (!p) throw new Error("DB not ready");
 
-    // Default position: max + 1 (bottom of list)
     const [rows] = await p.query("SELECT MAX(position) as maxPos FROM tasks");
     const nextPos = (rows[0].maxPos || 0) + 1;
 
-    const sql = `INSERT INTO tasks (id, name, status, cep, input_file, log_file, position, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-    await p.query(sql, [task.id, task.name, 'pending', task.cep, task.input_file, task.log_file, nextPos, '[]']);
+    // Added external_link
+    const sql = `INSERT INTO tasks (id, name, status, cep, input_file, log_file, position, tags, external_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    await p.query(sql, [task.id, task.name, 'pending', task.cep, task.input_file, task.log_file, nextPos, '[]', task.external_link || null]);
     return task.id;
 }
 
@@ -114,19 +123,28 @@ async function updateTaskPosition(id, position) {
 async function updateTaskTags(id, tags) {
     const p = await getPool();
     if (!p) throw new Error("DB not ready");
-    // tags should be a JSON string or object? MySQL JSON needs string.
     const tagsStr = typeof tags === 'string' ? tags : JSON.stringify(tags);
     await p.query("UPDATE tasks SET tags = ? WHERE id = ?", [tagsStr, id]);
 }
 
-// Function to get the next pending task for the dispatcher
 async function getNextPendingTask() {
     const p = await getPool();
     if (!p) return null;
     
-    // Select the one with lowest position value (highest priority)
     const [rows] = await p.query("SELECT * FROM tasks WHERE status = 'pending' ORDER BY position ASC LIMIT 1");
     return rows[0];
 }
 
-module.exports = { initDB, createTask, updateTaskStatus, getTasks, getTaskById, updateTaskPosition, updateTaskTags, getNextPendingTask };
+async function forceStartTask(id) {
+    const p = await getPool();
+    if (!p) throw new Error("DB not ready");
+    
+    // Set position to -1 to be top priority (if strict ordering)
+    // And set status to pending? Or queued? 
+    // The dispatcher picks 'pending'. So we set to 'pending' and pos -1.
+    // If it was already pending, this boosts it. 
+    // If it was queued but stuck? 
+    await p.query("UPDATE tasks SET status = 'pending', position = -1 WHERE id = ?", [id]);
+}
+
+module.exports = { initDB, createTask, updateTaskStatus, getTasks, getTaskById, updateTaskPosition, updateTaskTags, getNextPendingTask, forceStartTask };
