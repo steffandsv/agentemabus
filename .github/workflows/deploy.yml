@@ -17,11 +17,9 @@ jobs:
           port: 2222                            
           script: |
             # --- 1. PREPARAÇÃO DO AMBIENTE ---
-            # Cria diretório e garante permissões (sudo -S para input de senha)
             echo "${{ secrets.PASSWORD }}" | sudo -S mkdir -p /opt/agente-mabus
             echo "${{ secrets.PASSWORD }}" | sudo -S chown -R $USER:$USER /opt/agente-mabus
             
-            # Entra no diretório de trabalho
             cd /opt/agente-mabus
             
             # --- 2. ATUALIZAÇÃO DO CÓDIGO (GIT) ---
@@ -32,32 +30,24 @@ jobs:
               git reset --hard origin/main
             fi
             
-            # --- 3. GERAÇÃO DE ARQUIVOS DE CONFIGURAÇÃO ---
-            
-            # Gera o arquivo .env com TODAS as variáveis necessárias para o docker-compose
+            # --- 3. GERAÇÃO DO ARQUIVO .ENV ---
+            # Aqui garantimos que todas as variáveis vão para o arquivo
             echo "DB_HOST=srv466.hstgr.io" > .env
-            echo "DB_PASS=${{ secrets.DB_PASS }}" >> .env
-            echo "DB_USER=${{ secrets.DB_USER }}" >> .env
             echo "DB_DB=${{ secrets.DB_DB }}" >> .env
-            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+            echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+            echo "DB_PASS=${{ secrets.DB_PASS }}" >> .env
+            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
             echo "GOOGLE_SEARCH_API_KEY=${{ secrets.GOOGLE_SEARCH_API_KEY }}" >> .env
             echo "GOOGLE_SEARCH_CX=${{ secrets.GOOGLE_SEARCH_CX }}" >> .env
             echo "DEEPSEEK_API_KEY=${{ secrets.DEEPSEEK_API_KEY }}" >> .env
             echo "PERPLEXITY_API_KEY=${{ secrets.PERPLEXITY_API_KEY }}" >> .env
-            # Adiciona COOKIES_B64 no .env pois seu docker-compose o utiliza no 'command'
             echo "COOKIES_B64=${{ secrets.COOKIES_B64 }}" >> .env
             
-            # Gera o arquivo físico cookies.json decodificando do segredo (para o volume mount)
-            echo "${{ secrets.COOKIES_B64 }}" | base64 -d > cookies.json            
-            
             # --- 4. EXECUÇÃO DO DOCKER ---
-            
-            # Derruba containers antigos
             echo "${{ secrets.PASSWORD }}" | sudo -S docker compose down
             
-            # Sobe a nova versão (Force recreate para garantir leitura das novas envs/cookies)
-            echo "${{ secrets.PASSWORD }}" | sudo -S docker compose up -d --build --force-recreate --remove-orphans
+            # AQUI ESTÁ O TRUQUE: --env-file .env
+            echo "${{ secrets.PASSWORD }}" | sudo -S docker compose --env-file .env up -d --build --force-recreate --remove-orphans
             
             # --- 5. LIMPEZA ---
-            # Remove imagens antigas (dangling) para liberar espaço no SSD do VPS
             echo "${{ secrets.PASSWORD }}" | sudo -S docker image prune -f
