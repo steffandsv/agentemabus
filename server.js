@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { initDB, createTask, getTasks, getTaskById, updateTaskPosition, updateTaskTags, forceStartTask } = require('./src/database');
-const { addJob } = require('./src/worker');
+const { startWorker } = require('./src/worker');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -31,7 +31,10 @@ function getModules() {
 }
 
 // Initialize DB (MySQL now)
-initDB().catch(e => console.error("DB Init Failed:", e));
+initDB().then(() => {
+    // Start Worker Polling Loop
+    startWorker();
+}).catch(e => console.error("DB Init Failed:", e));
 
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
