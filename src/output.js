@@ -22,15 +22,6 @@ async function writeOutput(results, filePath) {
     ];
 
     results.forEach(item => {
-        // For "Dados Brutos", we might want to list ALL candidates or just the winner?
-        // The user said: "resumo dos itens que viu e dos selecionados".
-        // Usually "Dados Brutos" implies detailed list.
-        // Let's list the winner first, then maybe others if we had a flat list structure.
-        // Current `results` structure is per-item with a winner index.
-        // Let's just list the chosen one for now to keep it clean, OR list all candidates if the user wants "rankings".
-        // User said "Adicione o Ranking (aba Dados Brutos)". Ranking implies list of candidates.
-
-        // Let's iterate ALL offers for the ranking sheet
         if (item.offers && item.offers.length > 0) {
             item.offers.forEach((offer, idx) => {
                 let profit = 0;
@@ -52,7 +43,6 @@ async function writeOutput(results, filePath) {
                 });
             });
         } else {
-            // No offers found
             rawSheet.addRow({
                 id: item.id,
                 desc: item.description,
@@ -71,15 +61,17 @@ async function writeOutput(results, filePath) {
     // --- SHEET 2: RESUMO (CONSOLIDADO) ---
     const summarySheet = workbook.addWorksheet('Resumo');
 
+    // Order: ID, Descrição Original, Quantidade, Valor de Compra, Valor de venda, Marca/Modelo, Link
     summarySheet.columns = [
         { header: 'ID', key: 'id', width: 10 },
         { header: 'Descrição Original', key: 'desc', width: 40 },
-        { header: 'Marca/Modelo Escolhido', key: 'model', width: 25 },
-        { header: 'Valor Unitário Compra', key: 'buy_price', width: 15 },
-        { header: 'Valor Unitário Venda', key: 'sell_price', width: 15 },
         { header: 'Quantidade', key: 'qty', width: 10 },
-        { header: 'Lucro Total Previsto', key: 'profit', width: 15 },
-        { header: 'Link', key: 'link', width: 50 }
+        { header: 'Valor de Compra', key: 'buy_price', width: 15 },
+        { header: 'Valor de venda', key: 'sell_price', width: 15 },
+        { header: 'Marca/Modelo', key: 'model', width: 25 },
+        { header: 'Link', key: 'link', width: 50 },
+        { header: 'Risco', key: 'risk', width: 10 },
+        { header: 'Motivo', key: 'reasoning', width: 50 }
     ];
 
     results.forEach(item => {
@@ -88,19 +80,13 @@ async function writeOutput(results, filePath) {
             best = item.offers[item.winnerIndex];
         }
 
-        let profit = 0;
-        if (best && item.valor_venda) {
-            profit = (item.valor_venda - best.totalPrice) * (item.quantidade || 1);
-        }
-
         summarySheet.addRow({
             id: item.id,
             desc: item.description,
-            model: best ? (best.brand_model || best.title) : 'N/A',
+            qty: item.quantidade || 1,
             buy_price: best ? best.totalPrice : 0,
             sell_price: item.valor_venda || 0,
-            qty: item.quantidade || 1,
-            profit: profit.toFixed(2),
+            model: best ? (best.brand_model || best.title) : 'N/A',
             link: best ? best.link : '-',
             risk: best ? best.risk_score : '-',
             reasoning: best ? best.aiReasoning : '-'

@@ -67,7 +67,7 @@ async function validateBatchWithDeepSeek(requiredSpecs, candidates) {
         index: i,
         title: c.title,
         attributes: c.attributes,
-        description: (c.description || "").substring(0, 800)
+        description: (c.description || "").substring(0, 500)
     }));
 
     const prompt = renderTemplate(template, {
