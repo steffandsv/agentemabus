@@ -35,7 +35,7 @@ jobs:
             # --- 3. GERAÇÃO DE ARQUIVOS DE CONFIGURAÇÃO ---
             
             # Gera o arquivo .env com TODAS as variáveis necessárias para o docker-compose
-            echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
+            echo "DB_HOST=srv466.hstgr.io" > .env
             echo "DB_PASS=${{ secrets.DB_PASS }}" >> .env
             echo "DB_USER=${{ secrets.DB_USER }}" >> .env
             echo "DB_DB=${{ secrets.DB_DB }}" >> .env
