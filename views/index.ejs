@@ -45,6 +45,7 @@
     .kanban-card.status-completed { border-left-color: #198754; }
     .kanban-card.status-failed { border-left-color: #dc3545; }
     .kanban-card.status-pending { border-left-color: #6c757d; }
+    .kanban-card.status-archived { border-left-color: #343a40; opacity: 0.8; }
 
     .card-tags {
         display: flex;
@@ -65,63 +66,110 @@
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>🚀 Painel de Missões</h1>
-    <a href="/create" class="btn btn-primary">➕ Nova Cotação</a>
-</div>
-
-<div class="kanban-board">
-    <!-- Aguardando -->
-    <div class="kanban-column" id="col-pending">
-        <div class="kanban-column-header">
-            <span>⏳ Aguardando</span>
-            <span class="badge bg-secondary"><%= tasks.filter(t => t.status === 'pending').length %></span>
-        </div>
-        <div class="kanban-list" data-status="pending">
-            <% tasks.filter(t => t.status === 'pending').forEach(task => { %>
-                <%- include('partials/card', { task: task }) %>
-            <% }) %>
+    <div class="d-flex align-items-center gap-3">
+        <h1>🚀 Painel de Missões</h1>
+        <div class="btn-group">
+            <a href="/" class="btn btn-outline-secondary <%= !showArchived ? 'active' : '' %>">Ativos</a>
+            <a href="/?show_archived=true" class="btn btn-outline-secondary <%= showArchived ? 'active' : '' %>">Arquivados</a>
         </div>
     </div>
 
-    <!-- Em Cotação -->
-    <div class="kanban-column" id="col-running">
-        <div class="kanban-column-header">
-            <span>📊 Em Cotação</span>
-            <span class="badge bg-primary"><%= tasks.filter(t => t.status === 'running' || t.status === 'queued').length %></span>
-        </div>
-        <div class="kanban-list" data-status="running">
-            <% tasks.filter(t => t.status === 'running' || t.status === 'queued').forEach(task => { %>
-                <%- include('partials/card', { task: task }) %>
-            <% }) %>
-        </div>
-    </div>
-
-    <!-- Concluído -->
-    <div class="kanban-column" id="col-completed">
-        <div class="kanban-column-header">
-            <span>✅ Concluído</span>
-            <span class="badge bg-success"><%= tasks.filter(t => t.status === 'completed').length %></span>
-        </div>
-        <div class="kanban-list" data-status="completed">
-            <% tasks.filter(t => t.status === 'completed').forEach(task => { %>
-                <%- include('partials/card', { task: task }) %>
-            <% }) %>
-        </div>
-    </div>
-
-    <!-- Erro -->
-    <div class="kanban-column" id="col-failed">
-        <div class="kanban-column-header">
-            <span>⚠️ Erros / Abortados</span>
-            <span class="badge bg-danger"><%= tasks.filter(t => t.status === 'failed' || t.status === 'aborted').length %></span>
-        </div>
-        <div class="kanban-list" data-status="failed">
-            <% tasks.filter(t => t.status === 'failed' || t.status === 'aborted').forEach(task => { %>
-                <%- include('partials/card', { task: task }) %>
-            <% }) %>
-        </div>
+    <div class="d-flex gap-2">
+        <% if (user) { %>
+            <% if (user.role === 'moderator' || user.role === 'admin') { %>
+                <a href="/create" class="btn btn-primary">➕ Nova Cotação</a>
+            <% } %>
+            <% if (user.role === 'admin') { %>
+                <a href="/admin/users" class="btn btn-dark"><i class="fas fa-users-cog"></i> Usuários</a>
+            <% } %>
+            <div class="dropdown">
+                <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="fas fa-user"></i> <%= user.username %> (<%= user.role %>)
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="/logout">Sair</a></li>
+                </ul>
+            </div>
+        <% } else { %>
+            <a href="/login" class="btn btn-outline-primary">Login</a>
+        <% } %>
     </div>
 </div>
+
+<% if (showArchived) { %>
+    <!-- Arquivados View (Simple List) -->
+    <div class="card">
+        <div class="card-header bg-secondary text-white">🗄️ Arquivo Morto</div>
+        <div class="card-body">
+            <% if (tasks.length === 0) { %>
+                <p class="text-center text-muted my-4">Nenhuma tarefa arquivada.</p>
+            <% } else { %>
+                <div class="row">
+                    <% tasks.forEach(task => { %>
+                        <div class="col-md-4">
+                            <%- include('partials/card', { task: task }) %>
+                        </div>
+                    <% }) %>
+                </div>
+            <% } %>
+        </div>
+    </div>
+<% } else { %>
+    <!-- Kanban View -->
+    <div class="kanban-board">
+        <!-- Aguardando -->
+        <div class="kanban-column" id="col-pending">
+            <div class="kanban-column-header">
+                <span>⏳ Aguardando</span>
+                <span class="badge bg-secondary"><%= tasks.filter(t => t.status === 'pending').length %></span>
+            </div>
+            <div class="kanban-list" data-status="pending">
+                <% tasks.filter(t => t.status === 'pending').forEach(task => { %>
+                    <%- include('partials/card', { task: task }) %>
+                <% }) %>
+            </div>
+        </div>
+
+        <!-- Em Cotação -->
+        <div class="kanban-column" id="col-running">
+            <div class="kanban-column-header">
+                <span>📊 Em Cotação</span>
+                <span class="badge bg-primary"><%= tasks.filter(t => t.status === 'running' || t.status === 'queued').length %></span>
+            </div>
+            <div class="kanban-list" data-status="running">
+                <% tasks.filter(t => t.status === 'running' || t.status === 'queued').forEach(task => { %>
+                    <%- include('partials/card', { task: task }) %>
+                <% }) %>
+            </div>
+        </div>
+
+        <!-- Concluído -->
+        <div class="kanban-column" id="col-completed">
+            <div class="kanban-column-header">
+                <span>✅ Concluído</span>
+                <span class="badge bg-success"><%= tasks.filter(t => t.status === 'completed').length %></span>
+            </div>
+            <div class="kanban-list" data-status="completed">
+                <% tasks.filter(t => t.status === 'completed').forEach(task => { %>
+                    <%- include('partials/card', { task: task }) %>
+                <% }) %>
+            </div>
+        </div>
+
+        <!-- Erro -->
+        <div class="kanban-column" id="col-failed">
+            <div class="kanban-column-header">
+                <span>⚠️ Erros / Abortados</span>
+                <span class="badge bg-danger"><%= tasks.filter(t => t.status === 'failed' || t.status === 'aborted').length %></span>
+            </div>
+            <div class="kanban-list" data-status="failed">
+                <% tasks.filter(t => t.status === 'failed' || t.status === 'aborted').forEach(task => { %>
+                    <%- include('partials/card', { task: task }) %>
+                <% }) %>
+            </div>
+        </div>
+    </div>
+<% } %>
 
 <!-- Modal Tags -->
 <div class="modal fade" id="tagModal" tabindex="-1">
@@ -185,12 +233,6 @@
         if(!name) return;
 
         let tags = []; 
-        // Logic to fetch existing not implemented in frontend state, simplistic add
-        tags.push({ name, color });
-
-        // We should really append to existing on backend, but our API replaces.
-        // For now, let's just send the new one and let backend handle or overwrite (simple limitation).
-        // To fix: read data-tags attribute again.
         const card = document.querySelector(`.kanban-card[data-id="${id}"]`);
         try {
             const existing = JSON.parse(card.dataset.tags || '[]');

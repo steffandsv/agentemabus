@@ -3,7 +3,25 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { initDB, createTask, getTasks, getTaskById, updateTaskPosition, updateTaskTags, forceStartTask } = require('./src/database');
+const session = require('express-session');
+const bcrypt = require('bcrypt');
+const flash = require('connect-flash');
+const {
+    initDB,
+    createTask,
+    getTasks,
+    getTaskById,
+    updateTaskPosition,
+    updateTaskTags,
+    forceStartTask,
+    getUserByUsername,
+    getUserById,
+    createUser,
+    getAllUsers,
+    deleteUser,
+    updateUserRole,
+    updateTaskStatus
+} = require('./src/database');
 const { startWorker } = require('./src/worker');
 
 const app = express();
@@ -41,21 +59,95 @@ app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json()); 
 
+// --- AUTH CONFIGURATION ---
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'agente-mabus-secret-key-12345',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: false } // Set to true if behind https proxy
+}));
+
+app.use(flash());
+
+// Make user available to all views
+app.use(async (req, res, next) => {
+    res.locals.user = req.session.userId ? await getUserById(req.session.userId) : null;
+    res.locals.error = req.flash('error');
+    res.locals.success = req.flash('success');
+    // If user is deleted but session exists, clear session
+    if (req.session.userId && !res.locals.user) {
+        req.session.destroy();
+    }
+    next();
+});
+
+// Auth Middlewares
+const isAuthenticated = (req, res, next) => {
+    if (req.session.userId) return next();
+    req.flash('error', 'Você precisa estar logado.');
+    res.redirect('/login');
+};
+
+const isModeratorOrAdmin = async (req, res, next) => {
+    if (!req.session.userId) return res.redirect('/login');
+    const user = await getUserById(req.session.userId);
+    if (user && (user.role === 'moderator' || user.role === 'admin')) return next();
+    req.flash('error', 'Acesso negado.');
+    res.redirect('/');
+};
+
+const isAdmin = async (req, res, next) => {
+    if (!req.session.userId) return res.redirect('/login');
+    const user = await getUserById(req.session.userId);
+    if (user && user.role === 'admin') return next();
+    req.flash('error', 'Acesso negado. Apenas administradores.');
+    res.redirect('/');
+};
+
+
+// --- ROUTES ---
+
+// Public Dashboard (Wait, everyone can see logs? Yes. But dashboard shows tasks. OK.)
 app.get('/', async (req, res) => {
     try {
-        const tasks = await getTasks();
-        res.render('index', { tasks });
+        const showArchived = req.query.show_archived === 'true';
+        const tasks = await getTasks(showArchived);
+        res.render('index', { tasks, showArchived });
     } catch (e) {
         res.status(500).send(e.message);
     }
 });
 
-app.get('/create', (req, res) => {
+// Login Routes
+app.get('/login', (req, res) => {
+    res.render('login');
+});
+
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+    const user = await getUserByUsername(username);
+    if (user && await bcrypt.compare(password, user.password_hash)) {
+        req.session.userId = user.id;
+        res.redirect('/');
+    } else {
+        req.flash('error', 'Credenciais inválidas.');
+        res.redirect('/login');
+    }
+});
+
+app.get('/logout', (req, res) => {
+    req.session.destroy();
+    res.redirect('/');
+});
+
+
+// Task Management (Restricted)
+app.get('/create', isModeratorOrAdmin, (req, res) => {
     const modules = getModules();
     res.render('create', { modules });
 });
 
-app.post('/create', upload.single('csvFile'), async (req, res) => {
+app.post('/create', isModeratorOrAdmin, upload.single('csvFile'), async (req, res) => {
     const { name, cep, csvText, moduleName, external_link } = req.body;
     let filePath = req.file ? req.file.path : null;
 
@@ -76,19 +168,20 @@ app.post('/create', upload.single('csvFile'), async (req, res) => {
         cep,
         input_file: filePath,
         log_file: path.join('logs', `${taskId}.txt`),
-        external_link: external_link // Added S.O.U link
+        external_link: external_link,
+        module_name: moduleName
     };
 
     try {
         await createTask(task);
-        // Dispatcher will pick it up
         res.redirect('/');
     } catch (e) {
         res.status(500).send(e.message);
     }
 });
 
-app.post('/api/tasks/reorder', async (req, res) => {
+// API endpoints (Some restricted?)
+app.post('/api/tasks/reorder', isModeratorOrAdmin, async (req, res) => {
     if (req.body.orderedIds && Array.isArray(req.body.orderedIds)) {
         try {
             const promises = req.body.orderedIds.map((tid, index) => updateTaskPosition(tid, index));
@@ -102,7 +195,7 @@ app.post('/api/tasks/reorder', async (req, res) => {
     }
 });
 
-app.post('/api/tasks/:id/tags', async (req, res) => {
+app.post('/api/tasks/:id/tags', isModeratorOrAdmin, async (req, res) => {
     const { tags } = req.body; 
     try {
         await updateTaskTags(req.params.id, tags);
@@ -112,7 +205,8 @@ app.post('/api/tasks/:id/tags', async (req, res) => {
     }
 });
 
-
+// View Detail - Public? Or auth? "todos poderão ver o log".
+// Detail page shows logs. So public.
 app.get('/task/:id', async (req, res) => {
     try {
         const task = await getTaskById(req.params.id);
@@ -123,6 +217,7 @@ app.get('/task/:id', async (req, res) => {
     }
 });
 
+// Logs API - Public
 app.get('/api/logs/:id', (req, res) => {
     const logPath = path.join('logs', `${req.params.id}.txt`);
     if (fs.existsSync(logPath)) {
@@ -132,7 +227,8 @@ app.get('/api/logs/:id', (req, res) => {
     }
 });
 
-app.get('/download/:id', async (req, res) => {
+// Download - Authenticated (User, Mod, Admin)
+app.get('/download/:id', isAuthenticated, async (req, res) => {
     try {
         const task = await getTaskById(req.params.id);
         if (task && task.output_file && fs.existsSync(task.output_file)) {
@@ -145,8 +241,8 @@ app.get('/download/:id', async (req, res) => {
     }
 });
 
-// Force Start Action
-app.post('/task/:id/force-start', async (req, res) => {
+// Force Start - Mod/Admin
+app.post('/task/:id/force-start', isModeratorOrAdmin, async (req, res) => {
     const taskId = req.params.id;
     try {
         await forceStartTask(taskId);
@@ -156,24 +252,81 @@ app.post('/task/:id/force-start', async (req, res) => {
     }
 });
 
-app.post('/task/:id/action', async (req, res) => {
+// Actions (Archive: User/Mod/Admin. Abort: Mod/Admin)
+app.post('/task/:id/action', isAuthenticated, async (req, res) => {
     const { action } = req.body;
     const taskId = req.params.id;
+    const user = res.locals.user;
 
     try {
         const task = await getTaskById(taskId);
         if (!task) return res.status(404).send('Task not found');
 
         if (action === 'abort') {
-            await require('./src/database').updateTaskStatus(taskId, 'aborted');
+            if (user.role === 'moderator' || user.role === 'admin') {
+                await updateTaskStatus(taskId, 'aborted');
+            } else {
+                return res.status(403).send('Unauthorized');
+            }
         } else if (action === 'archive') {
-             await require('./src/database').updateTaskStatus(taskId, 'archived');
-        } 
+             // Everyone (authenticated) can archive
+             await updateTaskStatus(taskId, 'archived');
+        } else if (action === 'unarchive') {
+             // Everyone can unarchive? Assuming yes for simplicity or mirror archive permission.
+             // If archived, move back to pending? Or just remove 'archived' status (wait, schema stores status).
+             // If unarchived, where does it go? Probably 'pending' or 'completed' depending on finished_at?
+             // Simplest: set to 'pending' to restart? Or just 'completed'?
+             // If it was completed, it should go back to completed.
+             // If failed, back to failed.
+             // We need to know previous status. We don't store it.
+             // Let's assume unarchive -> 'pending' (restart) or check finished_at.
+             // Actually, usually Archive is just a filter.
+             // "desarquivar cards".
+             // Let's set it to 'pending' so it can be re-run or just viewed?
+             // If the user wants to re-run, they force start.
+             // Let's just set it to 'failed' or 'completed' based on if output exists?
+             // Safe bet: Set to 'pending' effectively resets it.
+             // Or set to 'completed' if output file exists.
+             if (task.output_file) {
+                 await updateTaskStatus(taskId, 'completed', task.output_file);
+             } else {
+                 await updateTaskStatus(taskId, 'pending');
+             }
+        }
 
         res.redirect('/');
     } catch (e) {
         res.status(500).send(e.message);
     }
+});
+
+// Admin User Management
+app.get('/admin/users', isAdmin, async (req, res) => {
+    const users = await getAllUsers();
+    res.render('admin_users', { users });
+});
+
+app.post('/admin/users', isAdmin, async (req, res) => {
+    const { username, password, role } = req.body;
+    try {
+        await createUser(username, password, role);
+        req.flash('success', 'Usuário criado com sucesso.');
+    } catch (e) {
+        req.flash('error', 'Erro ao criar usuário (possível duplicata).');
+    }
+    res.redirect('/admin/users');
+});
+
+app.post('/admin/users/delete', isAdmin, async (req, res) => {
+    const { id } = req.body;
+    if (id) await deleteUser(id);
+    res.redirect('/admin/users');
+});
+
+app.post('/admin/users/role', isAdmin, async (req, res) => {
+    const { id, role } = req.body;
+    if (id && role) await updateUserRole(id, role);
+    res.redirect('/admin/users');
 });
 
 app.get('/download-template', (req, res) => {
