@@ -42,7 +42,6 @@ jobs:
             echo "DEEPSEEK_API_KEY=${{ secrets.DEEPSEEK_API_KEY }}" >> .env
             echo "PERPLEXITY_API_KEY=${{ secrets.PERPLEXITY_API_KEY }}" >> .env
             echo "COOKIES_B64=${{ secrets.COOKIES_B64 }}" >> .env
-            echo "REDIS_URL=redis://redis:6379" >> .env
             
             # --- 4. EXECUÇÃO DO DOCKER ---
             echo "${{ secrets.PASSWORD }}" | sudo -S docker compose down

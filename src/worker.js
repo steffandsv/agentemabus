@@ -2,26 +2,45 @@ const fs = require('fs');
 const path = require('path');
 const pLimit = require('p-limit');
 const { readInput } = require('./input');
-const { writeOutput } = require('./output');
-const { updateTaskStatus, getTaskById, getNextPendingTask } = require('./database');
+// writeOutput is no longer used directly for file generation in worker,
+// but we might need the logic? No, we save to DB.
+// const { writeOutput } = require('./output');
+const {
+    updateTaskStatus,
+    getTaskById,
+    getNextPendingTask,
+    createTaskItems,
+    getTaskItem,
+    saveCandidates,
+    logTaskMessage
+} = require('./database');
 
 // --- CONFIGURATION ---
-const POLL_INTERVAL = 5000; // Check DB every 5 seconds
-const CONCURRENT_ITEMS_LIMIT = 12; // Parallel items per task
+const POLL_INTERVAL = 5000;
+const CONCURRENT_ITEMS_LIMIT = 12;
 let isProcessing = false;
 
 console.log('[Worker] System Initialized. Waiting for tasks...');
 
 // --- LOGGER ---
-function Logger(logPath) {
+function Logger(taskId, logPath) {
+    this.taskId = taskId;
+
     this.log = (msg) => {
         const timestamp = new Date().toLocaleTimeString('pt-BR');
-        const line = `[${timestamp}] ${msg}\n`;
-        console.log(`[Worker] ${line.trim()}`);
+        const line = `[${timestamp}] ${msg}`;
+        console.log(`[Worker] ${line}`);
+
+        // Log to File (Legacy/Backup)
         try {
-            if (logPath) fs.appendFileSync(logPath, line);
+            if (logPath) fs.appendFileSync(logPath, line + '\n');
         } catch (e) {
             console.error('Error writing to log file:', e);
+        }
+
+        // Log to DB (New)
+        if (this.taskId) {
+            logTaskMessage(this.taskId, msg, 'info');
         }
     };
     
@@ -33,11 +52,16 @@ function Logger(logPath) {
             content: content,
             timestamp: new Date().toLocaleTimeString('pt-BR')
         };
-        const line = `[PENSAMENTO]${JSON.stringify(payload)}\n`;
+        const line = `[PENSAMENTO]${JSON.stringify(payload)}`;
+
+        // File
         try {
-            if (logPath) fs.appendFileSync(logPath, line);
-        } catch (e) {
-            console.error('Error writing thought to log file:', e);
+            if (logPath) fs.appendFileSync(logPath, line + '\n');
+        } catch (e) {}
+
+        // DB (As a debug log?)
+        if (this.taskId) {
+            logTaskMessage(this.taskId, `[THOUGHT] Item ${itemId} (${stage})`, 'debug');
         }
     }
 }
@@ -69,13 +93,9 @@ function loadModule(moduleName) {
 function startWorker() {
     console.log('[Worker] Starting polling loop...');
     setInterval(async () => {
-        if (isProcessing) {
-            // console.log('[Debug] Worker is busy. Skipping poll.');
-            return;
-        }
+        if (isProcessing) return;
 
         try {
-            // console.log('[Debug] Checking for pending tasks...');
             const nextTask = await getNextPendingTask();
 
             if (nextTask) {
@@ -87,12 +107,11 @@ function startWorker() {
                 } catch (e) {
                     console.error(`[Worker] Error processing task ${nextTask.id}:`, e);
                     await updateTaskStatus(nextTask.id, 'failed');
+                    logTaskMessage(nextTask.id, `Task Failed: ${e.message}`, 'error');
                 } finally {
                     isProcessing = false;
                     console.log(`[Worker] Finished processing task ${nextTask.id}. Ready for next.`);
                 }
-            } else {
-                // console.log('[Debug] No pending tasks found.');
             }
         } catch (e) {
             console.error('[Worker] Error in polling loop:', e);
@@ -103,46 +122,26 @@ function startWorker() {
 
 // --- TASK PROCESSOR ---
 async function processTask(task) {
-    const { id: taskId, cep, input_file: filePath, log_file: logPath } = task;
-    // Default module logic (if not specified in DB, defaulting to 'gemini_meli' or 'smart')
-    // The previous code had a hardcoded default 'smart' in the dispatcher if not present.
-    // We should probably read it from the task or default to 'gemini_meli' if that's the preferred one.
-    // But `server.js` doesn't seem to store moduleName in DB yet?
-    // Wait, the create route reads `moduleName` but I don't see it saved in `createTask`.
-    // Checking `database.js`... `createTask` function:
-    // `const sql = ... VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    // It saves: id, name, status, cep, input_file, log_file, position, tags, external_link.
-    // It MISSES moduleName!
-    // The user previously selected a module in the UI.
-    // I should probably fix that too or default to 'gemini_meli' or 'smart'.
-    // For now, I'll default to 'gemini_meli' as per memory instructions ("gemini_meli set as default").
-    // Actually, let's check what 'smart' was doing. It was the default in the old dispatcher.
-    // Let's use 'gemini_meli' as it seems to be the main one.
-
-    const moduleName = task.module_name || 'gemini_meli';
+    const { id: taskId, cep, input_file: filePath, log_file: logPath, module_name } = task;
+    const moduleName = module_name || 'gemini_meli';
     
-    const logger = new Logger(logPath);
+    const logger = new Logger(taskId, logPath);
     logger.log(`🚀 Iniciando Missão #${taskId}`);
     logger.log(`🛠️ Módulo Definido: ${moduleName}`);
     logger.log(`📂 Arquivo de Entrada: ${filePath}`);
 
     await updateTaskStatus(taskId, 'running');
-    console.log(`[Worker] Task ${taskId} marked as running.`);
 
     let browser = null;
 
     try {
         const mod = loadModule(moduleName);
-        if (!mod) {
-            throw new Error(`Module '${moduleName}' not found.`);
-        }
+        if (!mod) throw new Error(`Module '${moduleName}' not found.`);
 
-        if (!fs.existsSync(filePath)) {
-            throw new Error(`Input file not found: ${filePath}`);
-        }
+        if (!fs.existsSync(filePath)) throw new Error(`Input file not found: ${filePath}`);
         
         // 1. Read Input
-        console.log(`[Worker] Reading input file...`);
+        logger.log(`[Worker] Reading input file...`);
         const items = await readInput(filePath);
         logger.log(`📄 Itens para processar: ${items.length}`);
 
@@ -153,47 +152,37 @@ async function processTask(task) {
             return;
         }
 
+        // 1.5 Save Items to DB (Persistence)
+        logger.log(`[DB] Salvando itens no banco de dados...`);
+        await createTaskItems(taskId, items);
+
         // 2. Init Browser
         if (mod.initBrowser) {
             logger.log('🌐 Abrindo navegador...');
-            console.log(`[Worker] initializing browser for module ${moduleName}...`);
             browser = await mod.initBrowser();
-            console.log(`[Worker] Browser initialized.`);
         }
 
         // 3. Set CEP
         if (mod.setCEP && browser) {
-            console.log(`[Worker] Setting CEP ${cep}...`);
             const page = await browser.newPage();
             logger.log(`📍 Configurando CEP: ${cep}...`);
             try {
                 await mod.setCEP(page, cep);
-                console.log(`[Worker] CEP set successfully.`);
             } catch(e) {
                 logger.log(`❌ Erro ao configurar CEP: ${e.message}`);
-                console.error(`[Worker] CEP Error:`, e);
-                // Fail hard if CEP is crucial?
                 if (moduleName === 'gemini_meli') throw e;
             }
             await page.close();
         }
 
         // 4. Execute Module Logic
-        const finalResults = [];
         const concurrency = pLimit(CONCURRENT_ITEMS_LIMIT);
-
         logger.log(`⚡ Processamento Paralelo: ${CONCURRENT_ITEMS_LIMIT} threads.`);
-        console.log(`[Worker] processing ${items.length} items with concurrency ${CONCURRENT_ITEMS_LIMIT}`);
 
         const promises = items.map((item, index) => concurrency(async () => {
-            console.log(`[Worker] Starting item ${index + 1}/${items.length}: ${item.Descricao || item.description}`);
-
-            // Re-check task status to allow abortion
+            // Re-check task status
             const currentTask = await getTaskById(taskId);
-            if (currentTask && (currentTask.status === 'aborted' || currentTask.status === 'failed')) {
-                console.log(`[Worker] Task aborted, skipping item.`);
-                return; 
-            }
+            if (currentTask && (currentTask.status === 'aborted' || currentTask.status === 'failed')) return;
 
             const itemJob = {
                 id: item.ID || item.id,
@@ -205,19 +194,34 @@ async function processTask(task) {
                 logger: logger
             };
 
+            logger.log(`[Item ${itemJob.id}] Iniciando processamento...`);
+
             try {
                 const result = await mod.execute(itemJob);
-                if (result) {
-                    finalResults.push(result);
-                    console.log(`[Worker] Item ${itemJob.id} finished successfully.`);
+
+                // Result structure: { ..., offers: [...], winnerIndex: N }
+                if (result && result.offers && result.offers.length > 0) {
+                    // Save to DB
+                    // Need to find the task_item_id.
+                    const dbItem = await getTaskItem(taskId, itemJob.id);
+                    if (dbItem) {
+                        await saveCandidates(dbItem.id, result.offers, result.winnerIndex);
+                        logger.log(`[Item ${itemJob.id}] ✅ Resultados salvos no banco.`);
+                    } else {
+                        logger.log(`[Item ${itemJob.id}] ⚠️ ERRO: Item não encontrado no DB.`);
+                    }
                 } else {
-                    finalResults.push({ ...itemJob, offers: [] });
-                    console.log(`[Worker] Item ${itemJob.id} finished with no result.`);
+                     // Save empty result to mark as done?
+                     const dbItem = await getTaskItem(taskId, itemJob.id);
+                     if (dbItem) {
+                         // Save nothing but mark done? Or save a "not found" candidate?
+                         // For now, simple logic: if no result, just log.
+                         // Maybe update status to 'error'?
+                         logger.log(`[Item ${itemJob.id}] ⚠️ Nenhum resultado encontrado.`);
+                     }
                 }
             } catch (e) {
                 logger.log(`💥 [Item ${itemJob.id}] Falha Crítica: ${e.message}`);
-                console.error(`[Worker] Item ${itemJob.id} failed:`, e);
-                finalResults.push({ ...itemJob, offers: [] });
             }
         }));
 
@@ -225,49 +229,27 @@ async function processTask(task) {
 
         const finalTaskCheck = await getTaskById(taskId);
         if (finalTaskCheck && (finalTaskCheck.status === 'aborted' || finalTaskCheck.status === 'failed')) {
-            logger.log('🛑 Tarefa abortada pelo usuário. Não salvando planilha.');
+            logger.log('🛑 Tarefa abortada pelo usuário.');
             return;
         }
 
-        finalResults.sort((a, b) => parseInt(a.id) - parseInt(b.id));
-        const outputFileName = `resultado_${taskId}.xlsx`; 
-        const outputPath = path.join('outputs', outputFileName);
+        // Generate Output File?
+        // User said: "logs de download... ficam inacessíveis".
+        // Solution: Do NOT generate file here. Generate on-the-fly when user clicks Download.
+        // Just update status.
         
-        logger.log('💾 Salvando planilha...');
-        console.log(`[Worker] Writing output to ${outputPath}`);
-        await writeOutput(finalResults, outputPath);
-        
-        logger.log('🎉 Finalizado com Sucesso.');
-        await updateTaskStatus(taskId, 'completed', outputPath);
-        console.log(`[Worker] Task ${taskId} completed.`);
+        logger.log('🎉 Finalizado com Sucesso. Resultados persistidos no Banco de Dados.');
+        // output_file param is null because we don't have a static file anymore (or we create a dummy one)
+        // Let's set it to 'db-generated' or similar to indicate dynamic generation.
+        await updateTaskStatus(taskId, 'completed', 'db-generated');
 
     } catch (e) {
         logger.log(`💀 ERRO GERAL: ${e.message}`);
-        console.error(`[Worker] General Error for task ${taskId}:`, e);
+        console.error(e);
         await updateTaskStatus(taskId, 'failed');
     } finally {
-        if (browser) {
-            console.log(`[Worker] Closing browser...`);
-            await browser.close();
-        }
+        if (browser) await browser.close();
     }
 }
-
-// For compatibility with server.js requiring { addJob }
-// We can just keep a dummy addJob or remove it.
-// server.js calls addJob. But since we are polling DB now, addJob logic in server might not be needed?
-// server.js logic:
-// app.post('/create'...) -> createTask(task) -> DONE.
-// Then it calls `addJob`? No, let's check server.js again.
-
-// Checking server.js...
-// It does: `const { addJob } = require('./src/worker');`
-// But it NEVER CALLS `addJob` in the `/create` route!
-// Wait.
-// app.post('/create', ...) -> await createTask(task); -> res.redirect('/');
-// It relies on the Dispatcher (which was inside worker.js) to pick it up.
-// So, I don't need to export addJob.
-// However, I need to start the worker loop.
-// So I should export `startWorker` and call it in server.js.
 
 module.exports = { startWorker };
