@@ -20,9 +20,11 @@ const {
     getAllUsers,
     deleteUser,
     updateUserRole,
-    updateTaskStatus
+    updateTaskStatus,
+    getTaskLogs
 } = require('./src/database');
 const { startWorker } = require('./src/worker');
+const { generateExcelBuffer } = require('./src/export');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -217,26 +219,48 @@ app.get('/task/:id', async (req, res) => {
     }
 });
 
-// Logs API - Public
-app.get('/api/logs/:id', (req, res) => {
-    const logPath = path.join('logs', `${req.params.id}.txt`);
-    if (fs.existsSync(logPath)) {
-        res.sendFile(path.resolve(logPath));
-    } else {
-        res.send('');
+// Logs API - Public (Now fetches from DB)
+app.get('/api/logs/:id', async (req, res) => {
+    try {
+        const logs = await getTaskLogs(req.params.id);
+        // Format as plain text to maintain compatibility with frontend viewer
+        const text = logs.map(l => l.message).join('\n'); // Time already in message or re-add?
+        // Worker logger format: `[Time] Msg`. DB stores `message` which includes timestamp?
+        // No, `logTaskMessage` stores raw msg. Worker logger PREPENDS time.
+        // Wait, `Logger.log` line 25: `const line = [${timestamp}] ${msg}`.
+        // `logTaskMessage` is called with `msg`. So DB has RAW message without timestamp?
+        // Let's check worker.js: `logTaskMessage(this.taskId, msg, 'info');`
+        // msg passed to `this.log` DOES NOT have timestamp. Timestamp is added in `line`.
+        // So DB has raw message.
+        // We should format it here.
+
+        const formatted = logs.map(l => {
+             const time = new Date(l.timestamp).toLocaleTimeString('pt-BR');
+             return `[${time}] ${l.message}`;
+        }).join('\n');
+
+        res.send(formatted);
+    } catch (e) {
+        res.status(500).send('Error fetching logs');
     }
 });
 
 // Download - Authenticated (User, Mod, Admin)
+// Now generates from DB on-the-fly
 app.get('/download/:id', isAuthenticated, async (req, res) => {
     try {
         const task = await getTaskById(req.params.id);
-        if (task && task.output_file && fs.existsSync(task.output_file)) {
-            res.download(task.output_file);
-        } else {
-            res.status(404).send('File not found');
-        }
+        if (!task) return res.status(404).send('Task not found');
+
+        const buffer = await generateExcelBuffer(req.params.id);
+        if (!buffer) return res.status(404).send('No results found to generate Excel.');
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=resultado_${task.id}.xlsx`);
+        res.send(buffer);
+
     } catch (e) {
+        console.error(e);
         res.status(500).send(e.message);
     }
 });
