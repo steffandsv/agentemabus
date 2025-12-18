@@ -119,7 +119,7 @@ async function processTask(task) {
     // Actually, let's check what 'smart' was doing. It was the default in the old dispatcher.
     // Let's use 'gemini_meli' as it seems to be the main one.
 
-    const moduleName = 'gemini_meli';
+    const moduleName = task.module_name || 'gemini_meli';
     
     const logger = new Logger(logPath);
     logger.log(`🚀 Iniciando Missão #${taskId}`);
