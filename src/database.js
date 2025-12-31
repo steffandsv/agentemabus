@@ -459,6 +459,13 @@ async function getTaskItem(taskId, originalId) {
     return rows[0];
 }
 
+async function getTaskItems(taskId) {
+    const p = await getPool();
+    if (!p) return [];
+    const [rows] = await p.query("SELECT * FROM task_items WHERE task_id = ? ORDER BY id ASC", [taskId]);
+    return rows;
+}
+
 async function saveCandidates(taskItemId, candidates, selectedIndex) {
     const p = await getPool();
     if (!p || !taskItemId) return;
@@ -569,6 +576,7 @@ module.exports = {
     getUserCredits,
     createTaskItems,
     getTaskItem,
+    getTaskItems,
     saveCandidates,
     logTaskMessage,
     getTaskLogs,

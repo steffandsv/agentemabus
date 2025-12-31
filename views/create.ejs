@@ -87,6 +87,15 @@
                                         <strong>Custo Estimado:</strong> <span id="estimated-cost">0</span> créditos (1 por item)
                                     </div>
 
+                                    <!-- AI TR Processor -->
+                                    <div class="mb-3 d-flex align-items-center">
+                                        <button type="button" class="btn btn-warning me-2" onclick="document.getElementById('trFile').click()">
+                                            <i class="fas fa-magic"></i> Processar TR com I.A
+                                        </button>
+                                        <input type="file" id="trFile" accept=".pdf" style="display: none;" onchange="uploadTR(this)">
+                                        <span id="ai-status" class="text-muted ms-2"></span>
+                                    </div>
+
                                     <table class="table table-bordered table-sm" id="items-grid">
                                         <thead class="table-light">
                                             <tr>
@@ -150,17 +159,75 @@
                                     // Initial Row
                                     addRow();
 
+                                    // AI TR Upload Logic
+                                    async function uploadTR(input) {
+                                        if (input.files.length === 0) return;
+                                        const file = input.files[0];
+                                        const formData = new FormData();
+                                        formData.append('pdfFile', file);
+
+                                        const statusSpan = document.getElementById('ai-status');
+                                        statusSpan.innerText = '⏳ Lendo PDF com I.A...';
+
+                                        try {
+                                            const res = await fetch('/api/process-tr', {
+                                                method: 'POST',
+                                                body: formData
+                                            });
+                                            const data = await res.json();
+
+                                            if (data.success && data.items) {
+                                                statusSpan.innerText = `✅ ${data.items.length} itens encontrados!`;
+                                                populateGrid(data.items);
+                                            } else {
+                                                statusSpan.innerText = `❌ Erro: ${data.error || 'Falha desconhecida'}`;
+                                            }
+                                        } catch (e) {
+                                            statusSpan.innerText = `❌ Erro de conexão: ${e.message}`;
+                                        }
+                                        input.value = ''; // Reset
+                                    }
+
+                                    function populateGrid(items) {
+                                        const tbody = document.getElementById('items-body');
+                                        tbody.innerHTML = ''; // Clear existing
+                                        rowCount = 0;
+
+                                        items.forEach(item => {
+                                            rowCount++;
+                                            const tr = document.createElement('tr');
+                                            tr.innerHTML = `
+                                                <td>${rowCount}</td>
+                                                <td><input type="text" class="form-control form-control-sm" value="${item.description}" required></td>
+                                                <td><input type="number" step="0.01" class="form-control form-control-sm" value="${item.valor_venda}" required></td>
+                                                <td><input type="number" class="form-control form-control-sm" value="${item.quantidade}" required></td>
+                                                <td><button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">X</button></td>
+                                            `;
+                                            tbody.appendChild(tr);
+                                        });
+                                        updateCost();
+                                    }
+
                                     // Intercept form submission to serialize grid
                                     document.querySelector('form').addEventListener('submit', function(e) {
+                                        // Only process if user is NOT admin/mod using file upload
+                                        // But this script block is only rendered for non-admins (or when using grid)
+                                        // Wait, the IF condition above surrounds this entire block.
+
                                         const rows = document.querySelectorAll('#items-body tr');
+                                        if (rows.length === 0) return; // Allow normal submit if empty? No, required.
+
                                         let data = "ID;Descricao;valor_venda;quantidade\n";
 
                                         rows.forEach((row, index) => {
                                             const inputs = row.querySelectorAll('input');
-                                            const desc = inputs[0].value.replace(/;/g, ',');
-                                            const price = inputs[1].value;
-                                            const qty = inputs[2].value;
-                                            data += `${index + 1};${desc};${price};${qty}\n`;
+                                            // Handle potential nulls if row structure changes? Assuming standard.
+                                            if (inputs.length >= 3) {
+                                                const desc = inputs[0].value.replace(/;/g, ',') || 'Item Sem Nome';
+                                                const price = inputs[1].value || '0';
+                                                const qty = inputs[2].value || '1';
+                                                data += `${index + 1};${desc};${price};${qty}\n`;
+                                            }
                                         });
 
                                         document.getElementById('gridData').value = data;

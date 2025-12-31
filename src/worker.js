@@ -11,6 +11,7 @@ const {
     getNextPendingTask,
     createTaskItems,
     getTaskItem,
+    getTaskItems,
     saveCandidates,
     logTaskMessage,
     addCredits
@@ -139,23 +140,40 @@ async function processTask(task) {
         const mod = loadModule(moduleName);
         if (!mod) throw new Error(`Module '${moduleName}' not found.`);
 
-        if (!fs.existsSync(filePath)) throw new Error(`Input file not found: ${filePath}`);
+        // 1. Resolve Items (DB Priority -> File Fallback)
+        logger.log(`[Worker] Verificando itens da tarefa...`);
+        let items = await getTaskItems(taskId);
         
-        // 1. Read Input
-        logger.log(`[Worker] Reading input file...`);
-        const items = await readInput(filePath);
-        logger.log(`📄 Itens para processar: ${items.length}`);
+        if (items && items.length > 0) {
+             logger.log(`[DB] ${items.length} itens recuperados do banco de dados.`);
+             // Normalize keys if needed (DB columns: original_id, description, max_price, quantity)
+             // Worker logic expects: id, description, valor_venda, quantidade
+             items = items.map(i => ({
+                 id: i.original_id,
+                 description: i.description,
+                 valor_venda: parseFloat(i.max_price),
+                 quantidade: i.quantity
+             }));
+        } else {
+             // Fallback to File
+             if (!fs.existsSync(filePath)) throw new Error(`Input file not found: ${filePath} AND no DB items found.`);
+
+             logger.log(`[Worker] Lendo arquivo de entrada: ${filePath}`);
+             items = await readInput(filePath);
+             logger.log(`📄 Itens lidos do arquivo: ${items.length}`);
+
+             if (items.length > 0) {
+                 logger.log(`[DB] Persistindo itens no banco...`);
+                 await createTaskItems(taskId, items);
+             }
+        }
 
         if (items.length === 0) {
-            const msg = "ERRO CRÍTICO: Nenhum item encontrado no CSV.";
+            const msg = "ERRO CRÍTICO: Nenhum item encontrado (DB ou Arquivo).";
             logger.log(msg);
             await updateTaskStatus(taskId, 'failed');
             return;
         }
-
-        // 1.5 Save Items to DB (Persistence)
-        logger.log(`[DB] Salvando itens no banco de dados...`);
-        await createTaskItems(taskId, items);
 
         // 2. Init Browser
         if (mod.initBrowser) {
@@ -244,7 +262,7 @@ async function processTask(task) {
         // or refine if we can parse risk.
         // The prompt says: "consumirá 1 crédito por item que foi cotado corretamente (risco menor que 5)".
         // We need to fetch the results to count.
-        
+
         // Count successes
         const { getTaskFullResults } = require('./database');
         const results = await getTaskFullResults(taskId);

@@ -27,10 +27,12 @@ const {
     getAllGroups,
     getUserGroups,
     addUserToGroup,
-    addCredits
+    addCredits,
+    createTaskItems
 } = require('./src/database');
 const { startWorker } = require('./src/worker');
 const { generateExcelBuffer } = require('./src/export');
+const { processPDF } = require('./src/services/tr_processor');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -273,6 +275,30 @@ app.post('/create', isAuthenticated, upload.single('csvFile'), async (req, res) 
         }
 
         await createTask(task);
+
+        // IMMEDIATE PERSISTENCE FOR GRID DATA
+        if (gridData && gridData.trim().length > 0) {
+             const lines = gridData.trim().split('\n');
+             // Skip header (line 0)
+             const items = [];
+             for (let i = 1; i < lines.length; i++) {
+                 const line = lines[i].trim();
+                 if (!line) continue;
+                 const parts = line.split(';'); // ID;Desc;Price;Qty
+                 if (parts.length >= 4) {
+                     items.push({
+                         id: parts[0],
+                         description: parts[1],
+                         valor_venda: parseFloat(parts[2]),
+                         quantidade: parseInt(parts[3])
+                     });
+                 }
+             }
+             if (items.length > 0) {
+                 await createTaskItems(taskId, items);
+             }
+        }
+
         res.redirect('/');
     } catch (e) {
         res.status(500).send(e.message);
@@ -300,6 +326,20 @@ app.post('/api/tasks/:id/tags', isModeratorOrAdmin, async (req, res) => {
         await updateTaskTags(req.params.id, tags);
         res.json({ success: true });
     } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// TR Processing Endpoint
+app.post('/api/process-tr', isAuthenticated, upload.single('pdfFile'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+
+    try {
+        const items = await processPDF(req.file.path);
+        // Clean up file
+        fs.unlinkSync(req.file.path);
+        res.json({ success: true, items });
+    } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
