@@ -1,76 +1,82 @@
-const sqlite3 = require('sqlite3').verbose();
-const { open } = require('sqlite');
+const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
-const path = require('path');
 
-let db = null;
-
-async function getDB() {
-    if (db) return db;
-    db = await open({
-        filename: path.join(__dirname, '../tasks.db'),
-        driver: sqlite3.Database
-    });
-    return db;
-}
+let pool = null;
 
 async function initDB() {
+    if (pool) return;
+
     try {
-        const db = await getDB();
-        console.log('[Database] ✅ Connected to SQLite!');
+        const config = {
+            host: process.env.DB_HOST || 'srv466.hstgr.io',
+            user: process.env.DB_USER || 'u225637494_fiomb',
+            password: process.env.DB_PASS || '20SKDMasx',
+            database: process.env.DB_DB || 'u225637494_fiomb',
+            waitForConnections: true,
+            connectionLimit: 10,
+            queueLimit: 0,
+            ssl: { rejectUnauthorized: false } // Often needed for external hosting
+        };
+
+        pool = mysql.createPool(config);
+
+        // Verify connection
+        const connection = await pool.getConnection();
+        console.log('[Database] ✅ Connected to MariaDB/MySQL!');
+        connection.release();
 
         // --- TASKS TABLE ---
-        await db.exec(`
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS tasks (
-                id TEXT PRIMARY KEY,
-                name TEXT,
-                status TEXT,
-                cep TEXT,
+                id VARCHAR(36) PRIMARY KEY,
+                name VARCHAR(255),
+                status VARCHAR(50),
+                cep VARCHAR(20),
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 finished_at DATETIME,
-                input_file TEXT,
-                output_file TEXT,
-                log_file TEXT,
+                input_file VARCHAR(255),
+                output_file VARCHAR(255),
+                log_file VARCHAR(255),
                 tags JSON,
-                position INTEGER DEFAULT 0,
+                position INT DEFAULT 0,
                 external_link TEXT,
-                module_name TEXT,
-                group_id INTEGER,
-                user_id INTEGER,
-                cost_estimate INTEGER DEFAULT 0
+                module_name VARCHAR(50),
+                group_id INT,
+                user_id INT,
+                cost_estimate INT DEFAULT 0
             )
         `);
 
         // --- USERS TABLE ---
-        await db.exec(`
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                role TEXT DEFAULT 'user',
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                role ENUM('user', 'moderator', 'admin') DEFAULT 'user',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                full_name TEXT,
-                cpf TEXT,
-                cnpj TEXT,
-                current_credits INTEGER DEFAULT 0
+                full_name VARCHAR(255),
+                cpf VARCHAR(20),
+                cnpj VARCHAR(20),
+                current_credits INT DEFAULT 0
             )
         `);
 
         // --- GROUPS TABLE ---
-        await db.exec(`
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS groups (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
                 description TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `);
 
         // --- USER_GROUPS TABLE ---
-        await db.exec(`
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS user_groups (
-                user_id INTEGER NOT NULL,
-                group_id INTEGER NOT NULL,
+                user_id INT NOT NULL,
+                group_id INT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (user_id, group_id),
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -79,92 +85,89 @@ async function initDB() {
         `);
 
         // --- CREDITS LEDGER TABLE ---
-        await db.exec(`
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS credits_ledger (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                amount INTEGER NOT NULL,
-                reason TEXT,
-                task_id TEXT,
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                amount INT NOT NULL,
+                reason VARCHAR(255),
+                task_id VARCHAR(36),
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         `);
 
         // --- TASK ITEMS TABLE ---
-        await db.exec(`
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS task_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_id TEXT NOT NULL,
-                original_id TEXT,
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                task_id VARCHAR(36) NOT NULL,
+                original_id VARCHAR(50),
                 description TEXT,
                 max_price DECIMAL(10, 2),
-                quantity INTEGER,
-                status TEXT DEFAULT 'pending',
+                quantity INT,
+                status VARCHAR(50) DEFAULT 'pending',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
             )
         `);
 
         // --- ITEM CANDIDATES TABLE ---
-        await db.exec(`
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS item_candidates (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_item_id INTEGER NOT NULL,
-                title TEXT,
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                task_item_id INT NOT NULL,
+                title VARCHAR(255),
                 price DECIMAL(10, 2),
                 link TEXT,
                 image_url TEXT,
-                store TEXT,
+                store VARCHAR(100),
                 specs JSON,
-                risk_score TEXT,
+                risk_score VARCHAR(50),
                 ai_reasoning TEXT,
-                is_selected BOOLEAN DEFAULT 0,
+                is_selected BOOLEAN DEFAULT FALSE,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (task_item_id) REFERENCES task_items(id) ON DELETE CASCADE
             )
         `);
 
         // --- TASK LOGS TABLE ---
-        await db.exec(`
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS task_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_id TEXT NOT NULL,
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                task_id VARCHAR(36) NOT NULL,
                 message TEXT,
-                level TEXT DEFAULT 'info',
+                level VARCHAR(20) DEFAULT 'info',
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
             )
         `);
 
         // Check for default admin
-        const admin = await db.get("SELECT * FROM users WHERE username = 'admin'");
-        if (!admin) {
+        const [users] = await pool.query("SELECT * FROM users WHERE username = 'admin'");
+        if (users.length === 0) {
             const hash = await bcrypt.hash('admin', 10);
-            await db.run("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)", ['admin', hash, 'admin']);
+            await pool.query("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)", ['admin', hash, 'admin']);
             console.log('[Database] Default admin user created (admin/admin)');
         }
 
         // Migrations (Safe to run multiple times)
-        const columnsToCheck = [
-            { table: 'tasks', col: 'external_link', type: 'TEXT' },
-            { table: 'tasks', col: 'tags', type: 'JSON' },
-            { table: 'tasks', col: 'position', type: 'INTEGER DEFAULT 0' },
-            { table: 'tasks', col: 'module_name', type: 'TEXT' },
-            { table: 'tasks', col: 'group_id', type: 'INTEGER' },
-            { table: 'tasks', col: 'user_id', type: 'INTEGER' },
-            { table: 'tasks', col: 'cost_estimate', type: 'INTEGER DEFAULT 0' },
-            { table: 'users', col: 'full_name', type: 'TEXT' },
-            { table: 'users', col: 'cpf', type: 'TEXT' },
-            { table: 'users', col: 'cnpj', type: 'TEXT' },
-            { table: 'users', col: 'current_credits', type: 'INTEGER DEFAULT 0' }
+        const migrations = [
+            "ALTER TABLE tasks ADD COLUMN external_link TEXT",
+            "ALTER TABLE tasks ADD COLUMN tags JSON",
+            "ALTER TABLE tasks ADD COLUMN position INT DEFAULT 0",
+            "ALTER TABLE tasks ADD COLUMN module_name VARCHAR(50)",
+            "ALTER TABLE tasks ADD COLUMN group_id INT",
+            "ALTER TABLE tasks ADD COLUMN user_id INT",
+            "ALTER TABLE tasks ADD COLUMN cost_estimate INT DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN full_name VARCHAR(255)",
+            "ALTER TABLE users ADD COLUMN cpf VARCHAR(20)",
+            "ALTER TABLE users ADD COLUMN cnpj VARCHAR(20)",
+            "ALTER TABLE users ADD COLUMN current_credits INT DEFAULT 0"
         ];
 
-        for (const check of columnsToCheck) {
-            try {
-                // SQLite doesn't have "IF NOT EXISTS" for columns, so we try and ignore error
-                await db.run(`ALTER TABLE ${check.table} ADD COLUMN ${check.col} ${check.type}`);
-            } catch (e) {
+        for (const sql of migrations) {
+            try { await pool.query(sql); } catch (e) {
                 // Ignore "duplicate column" errors
             }
         }
@@ -174,119 +177,147 @@ async function initDB() {
     }
 }
 
+async function getPool() {
+    if (!pool) await initDB();
+    return pool;
+}
+
 // --- USER FUNCTIONS ---
 async function getUserByUsername(username) {
-    const db = await getDB();
-    return await db.get("SELECT * FROM users WHERE username = ?", [username]);
+    const p = await getPool();
+    if (!p) return null;
+    const [rows] = await p.query("SELECT * FROM users WHERE username = ?", [username]);
+    return rows[0];
 }
 
 async function getUserById(id) {
-    const db = await getDB();
-    return await db.get("SELECT * FROM users WHERE id = ?", [id]);
+    const p = await getPool();
+    if (!p) return null;
+    const [rows] = await p.query("SELECT * FROM users WHERE id = ?", [id]);
+    return rows[0];
 }
 
 async function createUser(userData) {
-    const db = await getDB();
+    const p = await getPool();
+    if (!p) throw new Error("DB not ready");
     const { username, password, role, full_name, cpf, cnpj } = userData;
     const hash = await bcrypt.hash(password, 10);
-    await db.run(
+    await p.query(
         "INSERT INTO users (username, password_hash, role, full_name, cpf, cnpj) VALUES (?, ?, ?, ?, ?, ?)",
         [username, hash, role || 'user', full_name, cpf, cnpj]
     );
 }
 
 async function getAllUsers() {
-    const db = await getDB();
-    return await db.all("SELECT id, username, role, created_at, full_name, current_credits FROM users");
+    const p = await getPool();
+    if (!p) return [];
+    const [rows] = await p.query("SELECT id, username, role, created_at, full_name, current_credits FROM users");
+    return rows;
 }
 
 async function deleteUser(id) {
-    const db = await getDB();
-    await db.run("DELETE FROM users WHERE id = ?", [id]);
+    const p = await getPool();
+    if (!p) return;
+    await p.query("DELETE FROM users WHERE id = ?", [id]);
 }
 
 async function updateUserRole(id, role) {
-    const db = await getDB();
-    await db.run("UPDATE users SET role = ? WHERE id = ?", [role, id]);
+    const p = await getPool();
+    if (!p) return;
+    await p.query("UPDATE users SET role = ? WHERE id = ?", [role, id]);
 }
 
 
 // --- GROUP & CREDIT FUNCTIONS ---
 
 async function createGroup(name, description) {
-    const db = await getDB();
-    await db.run("INSERT INTO groups (name, description) VALUES (?, ?)", [name, description]);
+    const p = await getPool();
+    if (!p) return;
+    await p.query("INSERT INTO groups (name, description) VALUES (?, ?)", [name, description]);
 }
 
 async function getAllGroups() {
-    const db = await getDB();
-    return await db.all("SELECT * FROM groups ORDER BY name ASC");
+    const p = await getPool();
+    if (!p) return [];
+    const [rows] = await p.query("SELECT * FROM groups ORDER BY name ASC");
+    return rows;
 }
 
 async function getUserGroups(userId) {
-    const db = await getDB();
-    return await db.all(`
+    const p = await getPool();
+    if (!p) return [];
+    const [rows] = await p.query(`
         SELECT g.*
         FROM groups g
         JOIN user_groups ug ON g.id = ug.group_id
         WHERE ug.user_id = ?
     `, [userId]);
+    return rows;
 }
 
 async function addUserToGroup(userId, groupId) {
-    const db = await getDB();
+    const p = await getPool();
+    if (!p) return;
     try {
-        await db.run("INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)", [userId, groupId]);
+        await p.query("INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)", [userId, groupId]);
     } catch(e) {
         // Ignore duplicates
     }
 }
 
 async function removeUserFromGroup(userId, groupId) {
-    const db = await getDB();
-    await db.run("DELETE FROM user_groups WHERE user_id = ? AND group_id = ?", [userId, groupId]);
+    const p = await getPool();
+    if (!p) return;
+    await p.query("DELETE FROM user_groups WHERE user_id = ? AND group_id = ?", [userId, groupId]);
 }
 
 async function addCredits(userId, amount, reason, taskId = null) {
-    const db = await getDB();
+    const p = await getPool();
+    if (!p) throw new Error("DB not ready");
 
-    // SQLite transactions
-    await db.exec('BEGIN TRANSACTION');
+    const connection = await p.getConnection();
     try {
+        await connection.beginTransaction();
+
         // 1. Insert Ledger
-        await db.run(
+        await connection.query(
             "INSERT INTO credits_ledger (user_id, amount, reason, task_id) VALUES (?, ?, ?, ?)",
             [userId, amount, reason, taskId]
         );
 
         // 2. Update User Balance
-        await db.run(
+        await connection.query(
             "UPDATE users SET current_credits = current_credits + ? WHERE id = ?",
             [amount, userId]
         );
 
-        await db.exec('COMMIT');
+        await connection.commit();
     } catch (e) {
-        await db.exec('ROLLBACK');
+        await connection.rollback();
         throw e;
+    } finally {
+        connection.release();
     }
 }
 
 async function getUserCredits(userId) {
-    const db = await getDB();
-    const row = await db.get("SELECT current_credits FROM users WHERE id = ?", [userId]);
-    return row ? row.current_credits : 0;
+    const p = await getPool();
+    if (!p) return 0;
+    const [rows] = await p.query("SELECT current_credits FROM users WHERE id = ?", [userId]);
+    return rows[0] ? rows[0].current_credits : 0;
 }
 
 
 // --- TASK FUNCTIONS ---
 async function createTask(task) {
-    const db = await getDB();
+    const p = await getPool();
+    if (!p) throw new Error("DB not ready");
 
-    const row = await db.get("SELECT MAX(position) as maxPos FROM tasks");
-    const nextPos = (row ? row.maxPos : 0) + 1;
+    const [rows] = await p.query("SELECT MAX(position) as maxPos FROM tasks");
+    const nextPos = (rows[0].maxPos || 0) + 1;
 
-    await db.run(`INSERT INTO tasks (id, name, status, cep, input_file, log_file, position, tags, external_link, module_name, group_id, user_id, cost_estimate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+    const sql = `INSERT INTO tasks (id, name, status, cep, input_file, log_file, position, tags, external_link, module_name, group_id, user_id, cost_estimate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    await p.query(sql, [
         task.id,
         task.name,
         'pending',
@@ -305,171 +336,183 @@ async function createTask(task) {
 }
 
 async function updateTaskStatus(id, status, outputFile = null) {
-    const db = await getDB();
+    const p = await getPool();
+    if (!p) throw new Error("DB not ready");
+
     let sql = `UPDATE tasks SET status = ? WHERE id = ?`;
     let params = [status, id];
 
     if (status === 'completed' || status === 'failed') {
-        sql = `UPDATE tasks SET status = ?, finished_at = datetime('now', 'localtime'), output_file = ? WHERE id = ?`;
+        sql = `UPDATE tasks SET status = ?, finished_at = NOW(), output_file = ? WHERE id = ?`;
         params = [status, outputFile, id];
     } else if (status === 'aborted') {
-        sql = `UPDATE tasks SET status = ?, finished_at = datetime('now', 'localtime') WHERE id = ?`;
+        sql = `UPDATE tasks SET status = ?, finished_at = NOW() WHERE id = ?`;
         params = [status, id];
     }
 
-    await db.run(sql, params);
+    await p.query(sql, params);
 }
 
 // Updated getTasks to support scoping
 async function getTasksForUser(user, showArchived = false) {
-    const db = await getDB();
-    
+    const p = await getPool();
+    if (!p) return [];
+
     let statusSql = "status != 'archived'";
     if (showArchived) statusSql = "status = 'archived'";
 
     if (user.role === 'admin') {
-        return await db.all(`SELECT * FROM tasks WHERE ${statusSql} ORDER BY position ASC, created_at DESC`);
+        // Admin sees all
+        const sql = `SELECT * FROM tasks WHERE ${statusSql} ORDER BY position ASC, created_at DESC`;
+        const [rows] = await p.query(sql);
+        return rows;
     } else {
+        // User sees tasks from their groups OR their own tasks
+        // Get user groups
         const userGroups = await getUserGroups(user.id);
         const groupIds = userGroups.map(g => g.id);
 
-        // SQLite doesn't support arrays in params easily for IN clause, manual construction
         let whereClause = `(${statusSql}) AND (user_id = ?`;
-
         if (groupIds.length > 0) {
-            const placeholders = groupIds.map(() => '?').join(',');
-            whereClause += ` OR group_id IN (${placeholders})`;
+            whereClause += ` OR group_id IN (${groupIds.join(',')})`; // Safe int join
         }
         whereClause += `)`;
 
-        const params = [user.id, ...groupIds];
-        return await db.all(`SELECT * FROM tasks WHERE ${whereClause} ORDER BY position ASC, created_at DESC`, params);
+        const sql = `SELECT * FROM tasks WHERE ${whereClause} ORDER BY position ASC, created_at DESC`;
+        const [rows] = await p.query(sql, [user.id]);
+        return rows;
     }
 }
 
 async function getTasks(showArchived = false) {
-    const db = await getDB();
+    // Legacy/Internal use
+    const p = await getPool();
+    if (!p) return [];
+
     let sql = "SELECT * FROM tasks WHERE status != 'archived' ORDER BY position ASC, created_at DESC";
     if (showArchived) {
         sql = "SELECT * FROM tasks WHERE status = 'archived' ORDER BY finished_at DESC";
     }
-    return await db.all(sql);
+
+    const [rows] = await p.query(sql);
+    return rows;
 }
 
 async function getTaskById(id) {
-    const db = await getDB();
-    return await db.get("SELECT * FROM tasks WHERE id = ?", [id]);
+    const p = await getPool();
+    if (!p) return null;
+
+    const [rows] = await p.query("SELECT * FROM tasks WHERE id = ?", [id]);
+    return rows[0];
 }
 
 async function updateTaskPosition(id, position) {
-    const db = await getDB();
-    await db.run("UPDATE tasks SET position = ? WHERE id = ?", [position, id]);
+    const p = await getPool();
+    if (!p) throw new Error("DB not ready");
+    await p.query("UPDATE tasks SET position = ? WHERE id = ?", [position, id]);
 }
 
 async function updateTaskTags(id, tags) {
-    const db = await getDB();
+    const p = await getPool();
+    if (!p) throw new Error("DB not ready");
     const tagsStr = typeof tags === 'string' ? tags : JSON.stringify(tags);
-    await db.run("UPDATE tasks SET tags = ? WHERE id = ?", [tagsStr, id]);
+    await p.query("UPDATE tasks SET tags = ? WHERE id = ?", [tagsStr, id]);
 }
 
 async function getNextPendingTask() {
-    const db = await getDB();
-    return await db.get("SELECT * FROM tasks WHERE status = 'pending' ORDER BY position ASC LIMIT 1");
+    const p = await getPool();
+    if (!p) return null;
+
+    const [rows] = await p.query("SELECT * FROM tasks WHERE status = 'pending' ORDER BY position ASC LIMIT 1");
+    return rows[0];
 }
 
 async function forceStartTask(id) {
-    const db = await getDB();
-    await db.run("UPDATE tasks SET status = 'pending', position = -1 WHERE id = ?", [id]);
+    const p = await getPool();
+    if (!p) throw new Error("DB not ready");
+    await p.query("UPDATE tasks SET status = 'pending', position = -1 WHERE id = ?", [id]);
 }
 
 // --- NEW DB PERSISTENCE FUNCTIONS ---
 
 async function createTaskItems(taskId, items) {
-    const db = await getDB();
-
-    // SQLite bulk insert
+    const p = await getPool();
+    if (!p) return;
     // items: array of { id, description, valor_venda, quantidade }
-    // We can loop or build a big query. Loop is safer for SQLite limit.
-    await db.exec('BEGIN TRANSACTION');
-    try {
-        const stmt = await db.prepare("INSERT INTO task_items (task_id, original_id, description, max_price, quantity) VALUES (?, ?, ?, ?, ?)");
-        for (const i of items) {
-            await stmt.run(
-                taskId,
-                i.ID || i.id,
-                i.Descricao || i.description || i.Description,
-                i.valor_venda,
-                i.quantidade
-            );
-        }
-        await stmt.finalize();
-        await db.exec('COMMIT');
-    } catch(e) {
-        await db.exec('ROLLBACK');
-        console.error("Failed to insert items:", e);
-    }
+    const values = items.map(i => [
+        taskId,
+        i.ID || i.id,
+        i.Descricao || i.description || i.Description,
+        i.valor_venda,
+        i.quantidade
+    ]);
+
+    if (values.length === 0) return;
+
+    const sql = `INSERT INTO task_items (task_id, original_id, description, max_price, quantity) VALUES ?`;
+    await p.query(sql, [values]);
 }
 
 async function getTaskItem(taskId, originalId) {
-    const db = await getDB();
-    return await db.get("SELECT * FROM task_items WHERE task_id = ? AND original_id = ?", [taskId, originalId]);
+    const p = await getPool();
+    const [rows] = await p.query("SELECT * FROM task_items WHERE task_id = ? AND original_id = ?", [taskId, originalId]);
+    return rows[0];
 }
 
 async function saveCandidates(taskItemId, candidates, selectedIndex) {
-    const db = await getDB();
-    if (!taskItemId || !candidates || candidates.length === 0) return;
+    const p = await getPool();
+    if (!p || !taskItemId) return;
+    if (!candidates || candidates.length === 0) return;
 
-    await db.exec('BEGIN TRANSACTION');
-    try {
-        const stmt = await db.prepare("INSERT INTO item_candidates (task_item_id, title, price, link, image_url, store, specs, risk_score, ai_reasoning, is_selected) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        for (let index = 0; index < candidates.length; index++) {
-            const c = candidates[index];
-            await stmt.run(
-                taskItemId,
-                c.title || c.name || 'N/A',
-                c.totalPrice || c.price || 0,
-                c.link,
-                c.image || c.thumbnail || null,
-                c.store || 'N/A',
-                JSON.stringify(c.specs || {}),
-                c.risk_score || '-',
-                c.aiReasoning || c.reasoning || '-',
-                index === selectedIndex ? 1 : 0
-            );
-        }
-        await stmt.finalize();
+    const values = candidates.map((c, index) => [
+        taskItemId,
+        c.title || c.name || 'N/A',
+        c.totalPrice || c.price || 0,
+        c.link,
+        c.image || c.thumbnail || null,
+        c.store || 'N/A',
+        JSON.stringify(c.specs || {}),
+        c.risk_score || '-',
+        c.aiReasoning || c.reasoning || '-',
+        index === selectedIndex // is_selected
+    ]);
 
-        // Update item status
-        await db.run("UPDATE task_items SET status = 'done' WHERE id = ?", [taskItemId]);
+    const sql = `INSERT INTO item_candidates (task_item_id, title, price, link, image_url, store, specs, risk_score, ai_reasoning, is_selected) VALUES ?`;
+    await p.query(sql, [values]);
 
-        await db.exec('COMMIT');
-    } catch (e) {
-        await db.exec('ROLLBACK');
-        console.error("Failed to save candidates:", e);
-    }
+    // Update item status
+    await p.query("UPDATE task_items SET status = 'done' WHERE id = ?", [taskItemId]);
 }
 
 async function logTaskMessage(taskId, message, level = 'info') {
-    const db = await getDB();
+    const p = await getPool();
+    if (!p) return;
     try {
-        await db.run("INSERT INTO task_logs (task_id, message, level) VALUES (?, ?, ?)", [taskId, message, level]);
+        await p.query("INSERT INTO task_logs (task_id, message, level) VALUES (?, ?, ?)", [taskId, message, level]);
     } catch(e) {
         console.error("Failed to log to DB:", e);
     }
 }
 
 async function getTaskLogs(taskId) {
-    const db = await getDB();
-    return await db.all("SELECT * FROM task_logs WHERE task_id = ? ORDER BY timestamp ASC", [taskId]);
+    const p = await getPool();
+    if (!p) return [];
+    const [rows] = await p.query("SELECT * FROM task_logs WHERE task_id = ? ORDER BY timestamp ASC", [taskId]);
+    return rows;
 }
 
+// Fetch Full Results for Excel Generation
 async function getTaskFullResults(taskId) {
-    const db = await getDB();
-    const items = await db.all("SELECT * FROM task_items WHERE task_id = ?", [taskId]);
+    const p = await getPool();
+    if (!p) return [];
 
+    // Get Items
+    const [items] = await p.query("SELECT * FROM task_items WHERE task_id = ?", [taskId]);
+
+    // For each item, get candidates
     const results = [];
     for (const item of items) {
-        const candidates = await db.all("SELECT * FROM item_candidates WHERE task_item_id = ?", [item.id]);
+        const [candidates] = await p.query("SELECT * FROM item_candidates WHERE task_item_id = ?", [item.id]);
 
         const offers = candidates.map(c => ({
             title: c.title,
@@ -495,6 +538,7 @@ async function getTaskFullResults(taskId) {
         });
     }
 
+    // Sort by ID to maintain order
     results.sort((a, b) => parseInt(a.id) - parseInt(b.id));
     return results;
 }
