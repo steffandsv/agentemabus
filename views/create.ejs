@@ -88,11 +88,14 @@
                                         <!-- Rows added dynamically -->
                                     </tbody>
                                 </table>
-                                <div class="d-flex justify-content-between">
-                                    <button type="button" class="btn btn-sm btn-success mb-3" onclick="addRow()"><i class="fas fa-plus"></i> Adicionar Item</button>
+                                <div class="d-flex justify-content-between mb-3">
+                                    <div class="btn-group">
+                                        <button type="button" class="btn btn-sm btn-success" id="btnAddRow" onclick="addRow()"><i class="fas fa-plus"></i> Adicionar Item</button>
+                                        <button type="button" class="btn btn-sm btn-primary" id="btnConfirm" onclick="toggleEdit()"><i class="fas fa-check"></i> Confirmar Itens</button>
+                                    </div>
 
                                     <!-- Fallback File Upload for Admins or manual users -->
-                                    <div class="input-group input-group-sm w-auto mb-3">
+                                    <div class="input-group input-group-sm w-auto">
                                         <label class="input-group-text" for="fallbackCsv">Ou importar CSV</label>
                                         <input type="file" class="form-control" id="fallbackCsv" name="csvFile" accept=".csv">
                                     </div>
@@ -103,10 +106,12 @@
 
                             <script>
                                 let rowCount = 0;
+                                let isLocked = false;
                                 const userCredits = <%= user.current_credits %>;
                                 const isAdmin = <%= user.role === 'admin' %>;
 
                                 function addRow() {
+                                    if(isLocked) return;
                                     rowCount++;
                                     const tbody = document.getElementById('items-body');
                                     const tr = document.createElement('tr');
@@ -122,8 +127,61 @@
                                 }
 
                                 function removeRow(btn) {
+                                    if(isLocked) return;
                                     btn.closest('tr').remove();
                                     updateCost();
+                                }
+
+                                function toggleEdit() {
+                                    const btn = document.getElementById('btnConfirm');
+                                    const btnAdd = document.getElementById('btnAddRow');
+                                    const tbody = document.getElementById('items-body');
+                                    const inputs = tbody.querySelectorAll('input');
+                                    const removeBtns = tbody.querySelectorAll('.btn-danger');
+
+                                    if (!isLocked) {
+                                        // LOCK and SERIALIZE
+                                        if (tbody.children.length === 0) {
+                                            alert("Adicione pelo menos um item para confirmar.");
+                                            return;
+                                        }
+
+                                        let data = "ID;Descricao;valor_venda;quantidade\n";
+                                        const rows = tbody.querySelectorAll('tr');
+
+                                        for(let i=0; i<rows.length; i++) {
+                                            const rowInputs = rows[i].querySelectorAll('input');
+                                            if (rowInputs.length >= 3) {
+                                                const desc = rowInputs[0].value.replace(/;/g, ',').trim() || 'Item Sem Nome';
+                                                const price = rowInputs[1].value || '0';
+                                                const qty = rowInputs[2].value || '1';
+                                                data += `${i + 1};${desc};${price};${qty}\n`;
+                                            }
+                                        }
+
+                                        document.getElementById('gridData').value = data;
+
+                                        // UI Updates
+                                        inputs.forEach(inp => inp.disabled = true);
+                                        removeBtns.forEach(b => b.disabled = true);
+                                        btnAdd.disabled = true;
+                                        btn.innerHTML = '<i class="fas fa-edit"></i> Editar Itens';
+                                        btn.className = 'btn btn-sm btn-warning';
+                                        isLocked = true;
+
+                                        // Enable Submit (if it was blocked logic, but we handle that in updateCost)
+
+                                    } else {
+                                        // UNLOCK
+                                        inputs.forEach(inp => inp.disabled = false);
+                                        removeBtns.forEach(b => b.disabled = false);
+                                        btnAdd.disabled = false;
+                                        btn.innerHTML = '<i class="fas fa-check"></i> Confirmar Itens';
+                                        btn.className = 'btn btn-sm btn-primary';
+
+                                        document.getElementById('gridData').value = ""; // Clear to force re-confirm
+                                        isLocked = false;
+                                    }
                                 }
 
                                 function updateCost() {
@@ -135,11 +193,8 @@
                                         btn.disabled = true;
                                         btn.innerText = `Saldo Insuficiente (Faltam ${rows - userCredits})`;
                                     } else if (rows === 0) {
-                                        // Allow submit if file is selected (logic handled in server), but for grid UX:
                                         const fileInput = document.getElementById('fallbackCsv');
                                         if (!fileInput.value) {
-                                             // Ideally we check both. But let's assume if grid is empty, maybe they want to upload file.
-                                             // For now, keep it simple.
                                              btn.innerText = 'Adicione Itens ou CSV';
                                         }
                                     } else {
@@ -204,6 +259,9 @@
                                     tbody.innerHTML = ''; // Clear existing
                                     rowCount = 0;
 
+                                    // Unlock if locked to allow population
+                                    if (isLocked) toggleEdit();
+
                                     items.forEach(item => {
                                         rowCount++;
                                         const tr = document.createElement('tr');
@@ -219,24 +277,21 @@
                                     updateCost();
                                 }
 
-                                // Intercept form submission to serialize grid
+                                // Form Submit Interceptor
                                 document.querySelector('form').addEventListener('submit', function(e) {
-                                    const rows = document.querySelectorAll('#items-body tr');
-                                    // If rows exist, serialize
-                                    if (rows.length > 0) {
-                                        let data = "ID;Descricao;valor_venda;quantidade\n";
+                                    const gridData = document.getElementById('gridData').value;
+                                    const fileInput = document.getElementById('fallbackCsv');
+                                    const itemsCount = document.querySelectorAll('#items-body tr').length;
 
-                                        rows.forEach((row, index) => {
-                                            const inputs = row.querySelectorAll('input');
-                                            if (inputs.length >= 3) {
-                                                const desc = inputs[0].value.replace(/;/g, ',') || 'Item Sem Nome';
-                                                const price = inputs[1].value || '0';
-                                                const qty = inputs[2].value || '1';
-                                                data += `${index + 1};${desc};${price};${qty}\n`;
-                                            }
-                                        });
-
-                                        document.getElementById('gridData').value = data;
+                                    // If we have items but data is empty (user didn't click Confirm), force confirm or alert
+                                    if (itemsCount > 0 && (!gridData || gridData.trim().length === 0)) {
+                                        // Attempt auto-confirm?
+                                        // User asked to "force confirm". Better to block and ask to confirm.
+                                        e.preventDefault();
+                                        alert("Por favor, clique em 'Confirmar Itens' antes de enviar a tarefa.");
+                                        // Highlight button?
+                                        document.getElementById('btnConfirm').focus();
+                                        return false;
                                     }
                                 });
                             </script>
