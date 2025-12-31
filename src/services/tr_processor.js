@@ -4,32 +4,46 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-async function processPDF(filePath) {
+async function processPDF(filePaths) {
     try {
-        const dataBuffer = fs.readFileSync(filePath);
-        const data = await pdf(dataBuffer);
-        const text = data.text;
+        if (typeof filePaths === 'string') {
+            filePaths = [filePaths];
+        }
+
+        let combinedText = "";
+
+        for (const filePath of filePaths) {
+            const dataBuffer = fs.readFileSync(filePath);
+            const data = await pdf(dataBuffer);
+            combinedText += `\n--- START OF FILE ${filePath} ---\n` + data.text + `\n--- END OF FILE ${filePath} ---\n`;
+        }
 
         // Use standard model or the one requested if available.
-        // User requested "gemini-2.5-flash-lite". I suspect this is "gemini-1.5-flash".
-        // I will use "gemini-1.5-flash" as it is stable and cost effective.
-        // Prompt engineering to extract specific format.
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        // Updated to gemini-2.5-flash-lite as requested.
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
         const prompt = `
-        You are an expert data extraction assistant.
-        Extract a list of items from the following Terms of Reference (TR) text.
-        Return ONLY a raw JSON array of objects. Do not include markdown formatting (like \`\`\`json).
+        You are an expert data extraction assistant specialized in Brazilian Public Bidding Documents (Editais).
+        Analyze the provided Terms of Reference (TR) / Edital text.
 
-        Each object must have these exact keys:
-        - "id": Sequential number or the item number from the text.
-        - "description": Full description of the item.
-        - "valor_venda": The maximum unit price (numeric, do not include currency symbols). If not found, use 0.
-        - "quantidade": The quantity (numeric). If not found, use 1.
+        Extract three things:
+        1. "global_info":
+           - "name": Create a concise task name using the Process Number (Processo/Pregão) and the Public Organ/Municipality name (e.g., "PE 12/2024 - Pref. São Paulo").
+           - "cep": The ZIP code (CEP) for delivery (usually found near "Local de Entrega"). Format: 00000-000.
+
+        2. "metadata": A simple key-value object containing important details about the bidding process (e.g., "prazo_entrega", "validade_proposta", "condicoes_pagamento", "garantia", "data_abertura", "objeto"). Only include found details.
+
+        3. "items": An array of objects, where each object has:
+           - "id": Item number.
+           - "description": Full description of the item.
+           - "valor_venda": Maximum unit price (numeric, no currency symbols). Use 0 if not found.
+           - "quantidade": Quantity (numeric). Use 1 if not found.
+
+        Return ONLY a valid JSON object with keys "global_info", "metadata", and "items". Do not include markdown formatting.
 
         Text to analyze:
-        ${text.substring(0, 30000)}
-        `; // Limit context window just in case
+        ${combinedText.substring(0, 60000)}
+        `;
 
         const result = await model.generateContent(prompt);
         const response = await result.response;
@@ -38,8 +52,19 @@ async function processPDF(filePath) {
         // Cleanup markdown if AI ignores instruction
         textResponse = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
 
-        const items = JSON.parse(textResponse);
-        return items;
+        const parsed = JSON.parse(textResponse);
+
+        // Ensure structure
+        if (!parsed.items && Array.isArray(parsed)) {
+            // Fallback if AI returned just array
+            return {
+                global_info: { name: "", cep: "" },
+                metadata: {},
+                items: parsed
+            };
+        }
+
+        return parsed;
 
     } catch (e) {
         console.error("AI TR Processing Failed:", e);

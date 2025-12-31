@@ -143,6 +143,17 @@ async function initDB() {
             )
         `);
 
+        // --- TASK METADATA TABLE ---
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS task_metadata (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                task_id VARCHAR(36) NOT NULL,
+                data JSON,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+            )
+        `);
+
         // Check for default admin
         const [users] = await pool.query("SELECT * FROM users WHERE username = 'admin'");
         if (users.length === 0) {
@@ -509,6 +520,16 @@ async function getTaskLogs(taskId) {
 }
 
 // Fetch Full Results for Excel Generation
+async function createTaskMetadata(taskId, data) {
+    const p = await getPool();
+    if (!p) return;
+    try {
+        await p.query("INSERT INTO task_metadata (task_id, data) VALUES (?, ?)", [taskId, JSON.stringify(data)]);
+    } catch(e) {
+        console.error("Failed to save metadata:", e);
+    }
+}
+
 async function getTaskFullResults(taskId) {
     const p = await getPool();
     if (!p) return [];
@@ -580,5 +601,6 @@ module.exports = {
     saveCandidates,
     logTaskMessage,
     getTaskLogs,
-    getTaskFullResults
+    getTaskFullResults,
+    createTaskMetadata
 };

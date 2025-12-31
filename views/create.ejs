@@ -5,19 +5,33 @@
         <h2 class="mb-4">✨ Nova Missão</h2>
         <div class="card shadow">
             <div class="card-body">
+                <!-- AI TR Processor - MOVED TO TOP -->
+                <div class="mb-4 p-3 bg-light rounded border">
+                    <h5 class="mb-3">🤖 Automação com I.A</h5>
+                    <div class="d-flex align-items-center">
+                        <button type="button" class="btn btn-warning me-3" onclick="document.getElementById('trFile').click()">
+                            <i class="fas fa-magic"></i> Processar Editais/TRs com I.A
+                        </button>
+                        <input type="file" id="trFile" accept=".pdf" style="display: none;" multiple onchange="uploadTR(this)">
+                        <span id="ai-status" class="text-muted">Carregue um ou mais PDFs para preenchimento automático.</span>
+                    </div>
+                </div>
+
                 <form action="/create" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="metadataJSON" id="metadataJSON">
+
                     <div class="mb-3">
                         <label class="form-label">Nome da Tarefa</label>
-                        <input type="text" name="name" class="form-control" required placeholder="Ex: Cotação TI - Lote 1">
+                        <input type="text" name="name" id="taskName" class="form-control" required placeholder="Ex: Cotação TI - Lote 1">
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label">CEP de Destino</label>
-                        <input type="text" name="cep" class="form-control" required placeholder="00000-000">
+                        <input type="text" name="cep" id="taskCep" class="form-control" required placeholder="00000-000">
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Link Externo (S.O.U)</label>
+                        <label class="form-label">Link com mais detalhes</label>
                         <input type="text" name="external_link" class="form-control" placeholder="https://...">
                         <div class="form-text">Link para mais detalhes do processo.</div>
                     </div>
@@ -87,15 +101,6 @@
                                         <strong>Custo Estimado:</strong> <span id="estimated-cost">0</span> créditos (1 por item)
                                     </div>
 
-                                    <!-- AI TR Processor -->
-                                    <div class="mb-3 d-flex align-items-center">
-                                        <button type="button" class="btn btn-warning me-2" onclick="document.getElementById('trFile').click()">
-                                            <i class="fas fa-magic"></i> Processar TR com I.A
-                                        </button>
-                                        <input type="file" id="trFile" accept=".pdf" style="display: none;" onchange="uploadTR(this)">
-                                        <span id="ai-status" class="text-muted ms-2"></span>
-                                    </div>
-
                                     <table class="table table-bordered table-sm" id="items-grid">
                                         <thead class="table-light">
                                             <tr>
@@ -162,12 +167,15 @@
                                     // AI TR Upload Logic
                                     async function uploadTR(input) {
                                         if (input.files.length === 0) return;
-                                        const file = input.files[0];
                                         const formData = new FormData();
-                                        formData.append('pdfFile', file);
+
+                                        // Handle multiple files
+                                        for (let i = 0; i < input.files.length; i++) {
+                                            formData.append('pdfFiles', input.files[i]);
+                                        }
 
                                         const statusSpan = document.getElementById('ai-status');
-                                        statusSpan.innerText = '⏳ Lendo PDF com I.A...';
+                                        statusSpan.innerText = '⏳ Analisando documentos com I.A...';
 
                                         try {
                                             const res = await fetch('/api/process-tr', {
@@ -176,9 +184,25 @@
                                             });
                                             const data = await res.json();
 
-                                            if (data.success && data.items) {
-                                                statusSpan.innerText = `✅ ${data.items.length} itens encontrados!`;
-                                                populateGrid(data.items);
+                                            if (data.success) {
+                                                // 1. Fill Global Info
+                                                if (data.global_info) {
+                                                    if (data.global_info.name) document.getElementById('taskName').value = data.global_info.name;
+                                                    if (data.global_info.cep) document.getElementById('taskCep').value = data.global_info.cep;
+                                                }
+
+                                                // 2. Store Metadata
+                                                if (data.metadata) {
+                                                    document.getElementById('metadataJSON').value = JSON.stringify(data.metadata);
+                                                }
+
+                                                // 3. Fill Items
+                                                if (data.items && data.items.length > 0) {
+                                                    statusSpan.innerText = `✅ Processamento completo! ${data.items.length} itens encontrados.`;
+                                                    populateGrid(data.items);
+                                                } else {
+                                                    statusSpan.innerText = '⚠️ Processado, mas nenhum item foi identificado na lista.';
+                                                }
                                             } else {
                                                 statusSpan.innerText = `❌ Erro: ${data.error || 'Falha desconhecida'}`;
                                             }

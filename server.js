@@ -28,7 +28,8 @@ const {
     getUserGroups,
     addUserToGroup,
     addCredits,
-    createTaskItems
+    createTaskItems,
+    createTaskMetadata
 } = require('./src/database');
 const { startWorker } = require('./src/worker');
 const { generateExcelBuffer } = require('./src/export');
@@ -202,43 +203,34 @@ app.get('/create', isAuthenticated, async (req, res) => {
 });
 
 app.post('/create', isAuthenticated, upload.single('csvFile'), async (req, res) => {
-    const { name, cep, csvText, moduleName, external_link, gridData, group_id } = req.body;
+    const { name, cep, csvText, moduleName, external_link, gridData, group_id, metadataJSON } = req.body;
     const user = res.locals.user;
 
     let filePath = req.file ? req.file.path : null;
     let costEstimate = 0;
 
-    // Handle Admin/Mod vs User Logic
-    if (user.role === 'admin') {
-         // Admin can upload file, paste text, or use grid
-         if (!filePath && csvText && csvText.trim().length > 0) {
-            const fileName = `paste_${Date.now()}.csv`;
-            filePath = path.join('uploads', fileName);
-            fs.writeFileSync(filePath, csvText);
-        } else if (!filePath && gridData && gridData.trim().length > 0) {
-            const fileName = `grid_${Date.now()}.csv`;
-            filePath = path.join('uploads', fileName);
-            fs.writeFileSync(filePath, gridData);
-        }
-    } else {
-        // Normal User MUST use gridData
-        if (gridData && gridData.trim().length > 0) {
-            const fileName = `grid_${Date.now()}.csv`;
-            filePath = path.join('uploads', fileName);
-            fs.writeFileSync(filePath, gridData);
+    // Handle File / Grid Logic (Unified)
+    if (!filePath && csvText && csvText.trim().length > 0) {
+        const fileName = `paste_${Date.now()}.csv`;
+        filePath = path.join('uploads', fileName);
+        fs.writeFileSync(filePath, csvText);
+    } else if (!filePath && gridData && gridData.trim().length > 0) {
+        const fileName = `grid_${Date.now()}.csv`;
+        filePath = path.join('uploads', fileName);
+        fs.writeFileSync(filePath, gridData);
+    }
 
-            // Calculate Cost
-            const lines = gridData.trim().split('\n');
-            // Header is line 0, so count is lines.length - 1
-            costEstimate = Math.max(0, lines.length - 1);
+    // Calculate Cost & Check Credits (For non-admins)
+    if (gridData && gridData.trim().length > 0) {
+        const lines = gridData.trim().split('\n');
+        // Header is line 0
+        costEstimate = Math.max(0, lines.length - 1);
+    }
 
-            // Check Credits
-            if (user.current_credits < costEstimate) {
-                 return res.status(400).send(`Créditos insuficientes. Necessário: ${costEstimate}, Disponível: ${user.current_credits}`);
-            }
-
-        } else {
-             return res.status(403).send('Apenas administradores podem fazer upload de arquivos diretos.');
+    // Only check credits for non-admins
+    if (user.role !== 'admin') {
+        if (user.current_credits < costEstimate) {
+             return res.status(400).send(`Créditos insuficientes. Necessário: ${costEstimate}, Disponível: ${user.current_credits}`);
         }
     }
 
@@ -275,6 +267,16 @@ app.post('/create', isAuthenticated, upload.single('csvFile'), async (req, res) 
         }
 
         await createTask(task);
+
+        // SAVE METADATA IF EXISTS
+        if (metadataJSON) {
+            try {
+                const metadata = JSON.parse(metadataJSON);
+                await createTaskMetadata(taskId, metadata);
+            } catch (e) {
+                console.error("Error parsing metadataJSON:", e);
+            }
+        }
 
         // IMMEDIATE PERSISTENCE FOR GRID DATA
         if (gridData && gridData.trim().length > 0) {
@@ -331,15 +333,21 @@ app.post('/api/tasks/:id/tags', isModeratorOrAdmin, async (req, res) => {
 });
 
 // TR Processing Endpoint
-app.post('/api/process-tr', isAuthenticated, upload.single('pdfFile'), async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+app.post('/api/process-tr', isAuthenticated, upload.array('pdfFiles'), async (req, res) => {
+    if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+
+    const filePaths = req.files.map(f => f.path);
 
     try {
-        const items = await processPDF(req.file.path);
-        // Clean up file
-        fs.unlinkSync(req.file.path);
-        res.json({ success: true, items });
+        const result = await processPDF(filePaths);
+        // Clean up files
+        filePaths.forEach(p => fs.unlinkSync(p));
+
+        // result should now contain { global_info, metadata, items }
+        res.json({ success: true, ...result });
     } catch (e) {
+        // Try cleanup on error too
+        filePaths.forEach(p => { if(fs.existsSync(p)) fs.unlinkSync(p); });
         res.status(500).json({ error: e.message });
     }
 });
