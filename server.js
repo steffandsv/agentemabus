@@ -234,8 +234,13 @@ app.post('/create', isAuthenticated, upload.single('csvFile'), async (req, res) 
         }
     }
 
-    if (!filePath || !name || !cep) {
-        return res.status(400).send('Dados incompletos.');
+    const missingFields = [];
+    if (!filePath) missingFields.push('Lista de Itens (Arquivo, Texto ou Grid)');
+    if (!name) missingFields.push('Nome da Tarefa');
+    if (!cep) missingFields.push('CEP');
+
+    if (missingFields.length > 0) {
+        return res.status(400).send('Dados incompletos. Faltando: ' + missingFields.join(', '));
     }
 
     const taskId = uuidv4();
