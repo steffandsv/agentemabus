@@ -25,6 +25,7 @@ const {
     getTaskLogs,
     createGroup,
     getAllGroups,
+    getUserGroups,
     addUserToGroup,
     addCredits
 } = require('./src/database');
@@ -96,9 +97,10 @@ const isAuthenticated = (req, res, next) => {
 };
 
 const isModeratorOrAdmin = async (req, res, next) => {
+    // Deprecated role check, treating as Admin for legacy routes or strict admin
     if (!req.session.userId) return res.redirect('/login');
     const user = await getUserById(req.session.userId);
-    if (user && (user.role === 'moderator' || user.role === 'admin')) return next();
+    if (user && user.role === 'admin') return next();
     req.flash('error', 'Acesso negado.');
     res.redirect('/');
 };
@@ -205,7 +207,7 @@ app.post('/create', isAuthenticated, upload.single('csvFile'), async (req, res) 
     let costEstimate = 0;
 
     // Handle Admin/Mod vs User Logic
-    if (user.role === 'admin' || user.role === 'moderator') {
+    if (user.role === 'admin') {
          // Admin can upload file, paste text, or use grid
          if (!filePath && csvText && csvText.trim().length > 0) {
             const fileName = `paste_${Date.now()}.csv`;
@@ -382,7 +384,7 @@ app.post('/task/:id/action', isAuthenticated, async (req, res) => {
         if (!task) return res.status(404).send('Task not found');
 
         if (action === 'abort') {
-            if (user.role === 'moderator' || user.role === 'admin') {
+            if (user.role === 'admin') {
                 await updateTaskStatus(taskId, 'aborted');
             } else {
                 return res.status(403).send('Unauthorized');
