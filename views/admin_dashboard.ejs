@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Administrativo - Agente Mabus</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f6f9; }
+        .sidebar { min-height: 100vh; background: #343a40; color: white; padding-top: 20px; }
+        .sidebar a { color: #adb5bd; padding: 10px 20px; display: block; text-decoration: none; }
+        .sidebar a:hover, .sidebar a.active { background: #495057; color: white; }
+        .main-content { padding: 20px; }
+        .card { border: none; box-shadow: 0 0 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="d-flex">
+        <!-- Sidebar -->
+        <div class="sidebar col-md-2 d-none d-md-block">
+            <h4 class="text-center mb-4">Admin Panel</h4>
+            <a href="/" class=""><i class="fas fa-home me-2"></i> Voltar ao App</a>
+            <a href="/admin/dashboard" class="active"><i class="fas fa-users-cog me-2"></i> Dashboard</a>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content col-md-10 col-12">
+            <h2 class="mb-4">Gerenciamento do Sistema</h2>
+
+            <% if (success && success.length > 0) { %>
+                <div class="alert alert-success"><%= success %></div>
+            <% } %>
+            <% if (error && error.length > 0) { %>
+                <div class="alert alert-danger"><%= error %></div>
+            <% } %>
+
+            <div class="row">
+                <!-- Create Group -->
+                <div class="col-md-4">
+                    <div class="card p-3">
+                        <h5>Criar Grupo</h5>
+                        <form action="/admin/groups" method="POST">
+                            <div class="mb-2">
+                                <input type="text" name="name" class="form-control" placeholder="Nome do Grupo" required>
+                            </div>
+                            <div class="mb-2">
+                                <input type="text" name="description" class="form-control" placeholder="Descrição">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Criar Grupo</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Add Credits -->
+                <div class="col-md-4">
+                    <div class="card p-3">
+                        <h5>Adicionar/Remover Créditos</h5>
+                        <form action="/admin/credits" method="POST">
+                            <div class="mb-2">
+                                <select name="user_id" class="form-select" required>
+                                    <option value="">Selecione Usuário</option>
+                                    <% users.forEach(u => { %>
+                                        <option value="<%= u.id %>"><%= u.username %> (<%= u.current_credits %>)</option>
+                                    <% }) %>
+                                </select>
+                            </div>
+                            <div class="mb-2">
+                                <input type="number" name="amount" class="form-control" placeholder="Quantidade (+ ou -)" required>
+                            </div>
+                            <div class="mb-2">
+                                <input type="text" name="reason" class="form-control" placeholder="Justificativa" required>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">Atualizar Saldo</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Assign Group -->
+                <div class="col-md-4">
+                    <div class="card p-3">
+                        <h5>Atribuir Grupo</h5>
+                        <form action="/admin/users/assign_group" method="POST">
+                            <div class="mb-2">
+                                <select name="user_id" class="form-select" required>
+                                    <option value="">Selecione Usuário</option>
+                                    <% users.forEach(u => { %>
+                                        <option value="<%= u.id %>"><%= u.username %></option>
+                                    <% }) %>
+                                </select>
+                            </div>
+                            <div class="mb-2">
+                                <select name="group_id" class="form-select" required>
+                                    <option value="">Selecione Grupo</option>
+                                    <% groups.forEach(g => { %>
+                                        <option value="<%= g.id %>"><%= g.name %></option>
+                                    <% }) %>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-info w-100 text-white">Vincular</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users List -->
+            <div class="card p-3 mt-4">
+                <h5>Usuários Cadastrados</h5>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Usuário</th>
+                                <th>Nome</th>
+                                <th>Créditos</th>
+                                <th>Role</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% users.forEach(u => { %>
+                                <tr>
+                                    <td><%= u.id %></td>
+                                    <td><%= u.username %></td>
+                                    <td><%= u.full_name || '-' %></td>
+                                    <td><strong><%= u.current_credits %></strong></td>
+                                    <td><%= u.role %></td>
+                                    <td>
+                                        <!-- Role Form -->
+                                        <form action="/admin/users/role" method="POST" class="d-inline">
+                                            <input type="hidden" name="id" value="<%= u.id %>">
+                                            <select name="role" onchange="this.form.submit()" class="form-select form-select-sm d-inline w-auto">
+                                                <option value="user" <%= u.role === 'user' ? 'selected' : '' %>>User</option>
+                                                <option value="moderator" <%= u.role === 'moderator' ? 'selected' : '' %>>Mod</option>
+                                                <option value="admin" <%= u.role === 'admin' ? 'selected' : '' %>>Admin</option>
+                                            </select>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Groups List -->
+            <div class="card p-3 mt-4">
+                <h5>Grupos Existentes</h5>
+                 <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nome</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% groups.forEach(g => { %>
+                                <tr>
+                                    <td><%= g.id %></td>
+                                    <td><%= g.name %></td>
+                                    <td><%= g.description %></td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</body>
+</html>

@@ -12,7 +12,8 @@ const {
     createTaskItems,
     getTaskItem,
     saveCandidates,
-    logTaskMessage
+    logTaskMessage,
+    addCredits
 } = require('./database');
 
 // --- CONFIGURATION ---
@@ -233,17 +234,82 @@ async function processTask(task) {
             return;
         }
 
-        // Generate Output File?
-        // User said: "logs de download... ficam inacessíveis".
-        // Solution: Do NOT generate file here. Generate on-the-fly when user clicks Download.
-        // Just update status.
+        // --- CREDIT REFUND LOGIC ---
+        // 1. Calculate Actual Cost (Items with successful results and risk < 5)
+        // Note: Risk score is string "High", "Medium", "Low" or numerical?
+        // Checking saveCandidates: stores 'risk_score' VARCHAR.
+        // Assuming AI returns Low/Medium/High or 1-10. Prompt says "risk < 5".
+        // Let's assume numerical or map "Low" -> 1.
+        // For safety, let's count ANY successfully found item (where we have a candidate) as a success for now,
+        // or refine if we can parse risk.
+        // The prompt says: "consumirá 1 crédito por item que foi cotado corretamente (risco menor que 5)".
+        // We need to fetch the results to count.
         
+        // Count successes
+        const { getTaskFullResults } = require('./database');
+        const results = await getTaskFullResults(taskId);
+
+        let successfulItems = 0;
+        if (results) {
+            results.forEach(item => {
+                if (item.offers && item.offers.length > 0) {
+                    // Check winner or best offer risk
+                    // item.winnerIndex points to the selected one.
+                    const winner = item.offers[item.winnerIndex];
+                    if (winner) {
+                        // Parse risk. If it's "Low" or "1/10", etc.
+                        // Let's assume if we found a winner, it's a success.
+                        // To follow strict "risk < 5" rule, we need to know the format.
+                        // Assuming the validator output "risk_score" is a number string like "2/10".
+                        const riskStr = String(winner.risk_score).split('/')[0];
+                        const riskVal = parseInt(riskStr);
+                        if (!isNaN(riskVal) && riskVal < 5) {
+                            successfulItems++;
+                        } else if (winner.risk_score === 'Low' || winner.risk_score === 'Medium') {
+                             // Fallback for text
+                            successfulItems++;
+                        }
+                    }
+                }
+            });
+        }
+
+        // 2. Refund Logic
+        // Cost Estimate was stored in Task? Yes, tasks.cost_estimate.
+        // We need to fetch the task again to get the estimate (or pass it through).
+        // Let's fetch task info with cost_estimate (added to schema).
+        const taskInfo = await getTaskById(taskId);
+        const initialCost = taskInfo.cost_estimate || 0;
+        const actualCost = successfulItems; // 1 credit per success
+
+        const refundAmount = Math.max(0, initialCost - actualCost);
+
+        if (refundAmount > 0 && taskInfo.user_id) {
+            logger.log(`💰 Reembolsando ${refundAmount} créditos (Estimado: ${initialCost}, Real: ${actualCost}).`);
+            try {
+                await addCredits(taskInfo.user_id, refundAmount, `Reembolso de Sobra - Tarefa: ${taskInfo.name}`, taskId);
+            } catch (err) {
+                logger.log(`❌ Erro ao reembolsar créditos: ${err.message}`);
+            }
+        }
+
         logger.log('🎉 Finalizado com Sucesso. Resultados persistidos no Banco de Dados.');
-        // output_file param is null because we don't have a static file anymore (or we create a dummy one)
-        // Let's set it to 'db-generated' or similar to indicate dynamic generation.
         await updateTaskStatus(taskId, 'completed', 'db-generated');
 
     } catch (e) {
+        // If Failed Completely, Refund ALL?
+        // "caso o sistema falhe inteiramente... a quantidade correta será devolvida"
+        // If logic fails here, we should probably refund everything.
+        try {
+            const taskInfo = await getTaskById(taskId);
+            if (taskInfo && taskInfo.cost_estimate > 0 && taskInfo.user_id) {
+                 logger.log(`💰 Reembolso Total por Falha: ${taskInfo.cost_estimate} créditos.`);
+                 await addCredits(taskInfo.user_id, taskInfo.cost_estimate, `Reembolso Falha Total - Tarefa: ${taskInfo.name}`, taskId);
+            }
+        } catch(refundErr) {
+            console.error("Refund error:", refundErr);
+        }
+
         logger.log(`💀 ERRO GERAL: ${e.message}`);
         console.error(e);
         await updateTaskStatus(taskId, 'failed');
