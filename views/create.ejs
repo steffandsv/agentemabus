@@ -62,190 +62,172 @@
                     <div class="card mb-3 bg-light">
                         <div class="card-body">
                             <h5 class="card-title">Dados de Entrada</h5>
-                            <p class="card-text text-muted small">Escolha uma das opções abaixo:</p>
                             
-                            <% if (user.role === 'admin') { %>
-                                <ul class="nav nav-tabs" id="inputTab" role="tablist">
-                                    <li class="nav-item" role="presentation">
-                                        <button class="nav-link active" id="file-tab" data-bs-toggle="tab" data-bs-target="#file-pane" type="button" role="tab">📁 Enviar Arquivo</button>
-                                    </li>
-                                    <li class="nav-item" role="presentation">
-                                        <button class="nav-link" id="text-tab" data-bs-toggle="tab" data-bs-target="#text-pane" type="button" role="tab">📝 Colar Texto</button>
-                                    </li>
-                                </ul>
-
-                                <div class="tab-content pt-3" id="inputTabContent">
-                                    <div class="tab-pane fade show active" id="file-pane" role="tabpanel">
-                                        <div class="mb-3">
-                                            <label class="form-label">Arquivo CSV</label>
-                                            <div class="input-group">
-                                                <input type="file" name="csvFile" class="form-control" accept=".csv">
-                                                <a href="/download-template" class="btn btn-outline-secondary">⬇️ Baixar Modelo</a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="tab-pane fade" id="text-pane" role="tabpanel">
-                                        <div class="mb-3">
-                                            <label class="form-label">Conteúdo do CSV</label>
-                                            <textarea name="csvText" class="form-control" rows="5" placeholder="ID;Descricao;valor_venda;quantidade&#10;1;Notebook i7;3500.00;2&#10;2;Mouse sem fio;50.00;10"></textarea>
-                                            <div class="form-text">Cole o conteúdo seguindo o cabeçalho <code>ID;Descricao;valor_venda;quantidade</code>.</div>
-                                        </div>
-                                    </div>
+                            <!-- Interactive Grid for Everyone -->
+                            <div id="grid-container">
+                                <div class="alert alert-info">
+                                    <strong>Créditos Disponíveis:</strong> <span id="user-credits"><%= user.current_credits %></span>
+                                    <br>
+                                    <strong>Custo Estimado:</strong> <span id="estimated-cost">0</span> créditos (1 por item)
+                                    <% if (user.role === 'admin') { %>
+                                        <span class="badge bg-warning text-dark">Admin (Isento)</span>
+                                    <% } %>
                                 </div>
-                            <% } else { %>
-                                <!-- Interactive Grid for Non-Admins -->
-                                <div id="grid-container">
-                                    <div class="alert alert-info">
-                                        <strong>Créditos Disponíveis:</strong> <span id="user-credits"><%= user.current_credits %></span>
-                                        <br>
-                                        <strong>Custo Estimado:</strong> <span id="estimated-cost">0</span> créditos (1 por item)
-                                    </div>
 
-                                    <table class="table table-bordered table-sm" id="items-grid">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th style="width: 5%">#</th>
-                                                <th style="width: 60%">Descrição do Item</th>
-                                                <th style="width: 15%">Max Preço (R$)</th>
-                                                <th style="width: 10%">Qtd</th>
-                                                <th style="width: 10%">Ação</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="items-body">
-                                            <!-- Rows added dynamically -->
-                                        </tbody>
-                                    </table>
+                                <table class="table table-bordered table-sm" id="items-grid">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 5%">#</th>
+                                            <th style="width: 60%">Descrição do Item</th>
+                                            <th style="width: 15%">Max Preço (R$)</th>
+                                            <th style="width: 10%">Qtd</th>
+                                            <th style="width: 10%">Ação</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="items-body">
+                                        <!-- Rows added dynamically -->
+                                    </tbody>
+                                </table>
+                                <div class="d-flex justify-content-between">
                                     <button type="button" class="btn btn-sm btn-success mb-3" onclick="addRow()"><i class="fas fa-plus"></i> Adicionar Item</button>
 
-                                    <input type="hidden" name="gridData" id="gridData">
+                                    <!-- Fallback File Upload for Admins or manual users -->
+                                    <div class="input-group input-group-sm w-auto mb-3">
+                                        <label class="input-group-text" for="fallbackCsv">Ou importar CSV</label>
+                                        <input type="file" class="form-control" id="fallbackCsv" name="csvFile" accept=".csv">
+                                    </div>
                                 </div>
 
-                                <script>
-                                    let rowCount = 0;
-                                    const userCredits = <%= user.current_credits %>;
+                                <input type="hidden" name="gridData" id="gridData">
+                            </div>
 
-                                    function addRow() {
+                            <script>
+                                let rowCount = 0;
+                                const userCredits = <%= user.current_credits %>;
+                                const isAdmin = <%= user.role === 'admin' %>;
+
+                                function addRow() {
+                                    rowCount++;
+                                    const tbody = document.getElementById('items-body');
+                                    const tr = document.createElement('tr');
+                                    tr.innerHTML = `
+                                        <td>${rowCount}</td>
+                                        <td><input type="text" class="form-control form-control-sm" placeholder="Ex: Notebook Dell i7" required></td>
+                                        <td><input type="number" step="0.01" class="form-control form-control-sm" placeholder="0.00" required></td>
+                                        <td><input type="number" class="form-control form-control-sm" value="1" required></td>
+                                        <td><button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">X</button></td>
+                                    `;
+                                    tbody.appendChild(tr);
+                                    updateCost();
+                                }
+
+                                function removeRow(btn) {
+                                    btn.closest('tr').remove();
+                                    updateCost();
+                                }
+
+                                function updateCost() {
+                                    const rows = document.querySelectorAll('#items-body tr').length;
+                                    document.getElementById('estimated-cost').innerText = rows;
+                                    const btn = document.querySelector('button[type="submit"]');
+
+                                    if (!isAdmin && rows > userCredits) {
+                                        btn.disabled = true;
+                                        btn.innerText = `Saldo Insuficiente (Faltam ${rows - userCredits})`;
+                                    } else if (rows === 0) {
+                                        // Allow submit if file is selected (logic handled in server), but for grid UX:
+                                        const fileInput = document.getElementById('fallbackCsv');
+                                        if (!fileInput.value) {
+                                             // Ideally we check both. But let's assume if grid is empty, maybe they want to upload file.
+                                             // For now, keep it simple.
+                                             btn.innerText = 'Adicione Itens ou CSV';
+                                        }
+                                    } else {
+                                        btn.disabled = false;
+                                        btn.innerText = '🚀 Decolar (Iniciar)';
+                                    }
+                                }
+
+                                // Initial Row
+                                addRow();
+
+                                // AI TR Upload Logic
+                                async function uploadTR(input) {
+                                    if (input.files.length === 0) return;
+                                    const formData = new FormData();
+
+                                    // Handle multiple files
+                                    for (let i = 0; i < input.files.length; i++) {
+                                        formData.append('pdfFiles', input.files[i]);
+                                    }
+
+                                    const statusSpan = document.getElementById('ai-status');
+                                    statusSpan.innerText = '⏳ Analisando documentos com I.A...';
+
+                                    try {
+                                        const res = await fetch('/api/process-tr', {
+                                            method: 'POST',
+                                            body: formData
+                                        });
+                                        const data = await res.json();
+
+                                        if (data.success) {
+                                            // 1. Fill Global Info
+                                            if (data.global_info) {
+                                                if (data.global_info.name) document.getElementById('taskName').value = data.global_info.name;
+                                                if (data.global_info.cep) document.getElementById('taskCep').value = data.global_info.cep;
+                                            }
+
+                                            // 2. Store Metadata
+                                            if (data.metadata) {
+                                                document.getElementById('metadataJSON').value = JSON.stringify(data.metadata);
+                                            }
+
+                                            // 3. Fill Items
+                                            if (data.items && data.items.length > 0) {
+                                                statusSpan.innerText = `✅ Processamento completo! ${data.items.length} itens encontrados.`;
+                                                populateGrid(data.items);
+                                            } else {
+                                                statusSpan.innerText = '⚠️ Processado, mas nenhum item foi identificado na lista.';
+                                            }
+                                        } else {
+                                            statusSpan.innerText = `❌ Erro: ${data.error || 'Falha desconhecida'}`;
+                                        }
+                                    } catch (e) {
+                                        statusSpan.innerText = `❌ Erro de conexão: ${e.message}`;
+                                    }
+                                    input.value = ''; // Reset
+                                }
+
+                                function populateGrid(items) {
+                                    const tbody = document.getElementById('items-body');
+                                    tbody.innerHTML = ''; // Clear existing
+                                    rowCount = 0;
+
+                                    items.forEach(item => {
                                         rowCount++;
-                                        const tbody = document.getElementById('items-body');
                                         const tr = document.createElement('tr');
                                         tr.innerHTML = `
                                             <td>${rowCount}</td>
-                                            <td><input type="text" class="form-control form-control-sm" placeholder="Ex: Notebook Dell i7" required></td>
-                                            <td><input type="number" step="0.01" class="form-control form-control-sm" placeholder="0.00" required></td>
-                                            <td><input type="number" class="form-control form-control-sm" value="1" required></td>
+                                            <td><input type="text" class="form-control form-control-sm" value="${item.description}" required></td>
+                                            <td><input type="number" step="0.01" class="form-control form-control-sm" value="${item.valor_venda}" required></td>
+                                            <td><input type="number" class="form-control form-control-sm" value="${item.quantidade}" required></td>
                                             <td><button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">X</button></td>
                                         `;
                                         tbody.appendChild(tr);
-                                        updateCost();
-                                    }
+                                    });
+                                    updateCost();
+                                }
 
-                                    function removeRow(btn) {
-                                        btn.closest('tr').remove();
-                                        updateCost();
-                                    }
-
-                                    function updateCost() {
-                                        const rows = document.querySelectorAll('#items-body tr').length;
-                                        document.getElementById('estimated-cost').innerText = rows;
-                                        const btn = document.querySelector('button[type="submit"]');
-
-                                        if (rows > userCredits) {
-                                            btn.disabled = true;
-                                            btn.innerText = `Saldo Insuficiente (Faltam ${rows - userCredits})`;
-                                        } else if (rows === 0) {
-                                            btn.disabled = true;
-                                            btn.innerText = 'Adicione Itens';
-                                        } else {
-                                            btn.disabled = false;
-                                            btn.innerText = '🚀 Decolar (Iniciar)';
-                                        }
-                                    }
-
-                                    // Initial Row
-                                    addRow();
-
-                                    // AI TR Upload Logic
-                                    async function uploadTR(input) {
-                                        if (input.files.length === 0) return;
-                                        const formData = new FormData();
-
-                                        // Handle multiple files
-                                        for (let i = 0; i < input.files.length; i++) {
-                                            formData.append('pdfFiles', input.files[i]);
-                                        }
-
-                                        const statusSpan = document.getElementById('ai-status');
-                                        statusSpan.innerText = '⏳ Analisando documentos com I.A...';
-
-                                        try {
-                                            const res = await fetch('/api/process-tr', {
-                                                method: 'POST',
-                                                body: formData
-                                            });
-                                            const data = await res.json();
-
-                                            if (data.success) {
-                                                // 1. Fill Global Info
-                                                if (data.global_info) {
-                                                    if (data.global_info.name) document.getElementById('taskName').value = data.global_info.name;
-                                                    if (data.global_info.cep) document.getElementById('taskCep').value = data.global_info.cep;
-                                                }
-
-                                                // 2. Store Metadata
-                                                if (data.metadata) {
-                                                    document.getElementById('metadataJSON').value = JSON.stringify(data.metadata);
-                                                }
-
-                                                // 3. Fill Items
-                                                if (data.items && data.items.length > 0) {
-                                                    statusSpan.innerText = `✅ Processamento completo! ${data.items.length} itens encontrados.`;
-                                                    populateGrid(data.items);
-                                                } else {
-                                                    statusSpan.innerText = '⚠️ Processado, mas nenhum item foi identificado na lista.';
-                                                }
-                                            } else {
-                                                statusSpan.innerText = `❌ Erro: ${data.error || 'Falha desconhecida'}`;
-                                            }
-                                        } catch (e) {
-                                            statusSpan.innerText = `❌ Erro de conexão: ${e.message}`;
-                                        }
-                                        input.value = ''; // Reset
-                                    }
-
-                                    function populateGrid(items) {
-                                        const tbody = document.getElementById('items-body');
-                                        tbody.innerHTML = ''; // Clear existing
-                                        rowCount = 0;
-
-                                        items.forEach(item => {
-                                            rowCount++;
-                                            const tr = document.createElement('tr');
-                                            tr.innerHTML = `
-                                                <td>${rowCount}</td>
-                                                <td><input type="text" class="form-control form-control-sm" value="${item.description}" required></td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm" value="${item.valor_venda}" required></td>
-                                                <td><input type="number" class="form-control form-control-sm" value="${item.quantidade}" required></td>
-                                                <td><button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">X</button></td>
-                                            `;
-                                            tbody.appendChild(tr);
-                                        });
-                                        updateCost();
-                                    }
-
-                                    // Intercept form submission to serialize grid
-                                    document.querySelector('form').addEventListener('submit', function(e) {
-                                        // Only process if user is NOT admin/mod using file upload
-                                        // But this script block is only rendered for non-admins (or when using grid)
-                                        // Wait, the IF condition above surrounds this entire block.
-
-                                        const rows = document.querySelectorAll('#items-body tr');
-                                        if (rows.length === 0) return; // Allow normal submit if empty? No, required.
-
+                                // Intercept form submission to serialize grid
+                                document.querySelector('form').addEventListener('submit', function(e) {
+                                    const rows = document.querySelectorAll('#items-body tr');
+                                    // If rows exist, serialize
+                                    if (rows.length > 0) {
                                         let data = "ID;Descricao;valor_venda;quantidade\n";
 
                                         rows.forEach((row, index) => {
                                             const inputs = row.querySelectorAll('input');
-                                            // Handle potential nulls if row structure changes? Assuming standard.
                                             if (inputs.length >= 3) {
                                                 const desc = inputs[0].value.replace(/;/g, ',') || 'Item Sem Nome';
                                                 const price = inputs[1].value || '0';
@@ -255,9 +237,9 @@
                                         });
 
                                         document.getElementById('gridData').value = data;
-                                    });
-                                </script>
-                            <% } %>
+                                    }
+                                });
+                            </script>
                         </div>
                     </div>
 

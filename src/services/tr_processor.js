@@ -28,7 +28,7 @@ async function processPDF(filePaths) {
 
         Extract three things:
         1. "global_info":
-           - "name": Create a concise task name using the Process Number (Processo/Pregão) and the Public Organ/Municipality name (e.g., "PE 12/2024 - Pref. São Paulo").
+           - "name": Create a concise task name using the Process Number (Processo/Pregão) and the Public Organ/Municipality name. IMPORTANT: You MUST include the Municipality and State (UF) if detected (e.g., "PE 000014 / 2025 - CAMARA MUNICIPAL DE BOITUVA / SP").
            - "cep": The ZIP code (CEP) for delivery (usually found near "Local de Entrega"). Format: 00000-000.
 
         2. "metadata": A simple key-value object containing important details about the bidding process (e.g., "prazo_entrega", "validade_proposta", "condicoes_pagamento", "garantia", "data_abertura", "objeto"). Only include found details.

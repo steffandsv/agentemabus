@@ -220,16 +220,26 @@ app.post('/create', isAuthenticated, upload.single('csvFile'), async (req, res) 
         fs.writeFileSync(filePath, gridData);
     }
 
-    // Calculate Cost & Check Credits (For non-admins)
+    // Calculate Cost
     if (gridData && gridData.trim().length > 0) {
         const lines = gridData.trim().split('\n');
-        // Header is line 0
-        costEstimate = Math.max(0, lines.length - 1);
+        costEstimate = Math.max(0, lines.length - 1); // Header is line 0
+    } else if (filePath) {
+        // Calculate cost from file if grid is empty (e.g. direct upload)
+        try {
+            const content = fs.readFileSync(filePath, 'utf8');
+            const lines = content.trim().split('\n');
+            costEstimate = Math.max(0, lines.length - 1); // Header is line 0
+        } catch(e) {
+            console.error("Error reading file for cost estimate:", e);
+        }
     }
 
-    // Only check credits for non-admins
+    // Check Credits (For non-admins)
     if (user.role !== 'admin') {
         if (user.current_credits < costEstimate) {
+             // Clean up file if rejected
+             if (req.file) fs.unlinkSync(req.file.path);
              return res.status(400).send(`Créditos insuficientes. Necessário: ${costEstimate}, Disponível: ${user.current_credits}`);
         }
     }
