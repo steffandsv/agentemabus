@@ -10,49 +10,41 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="/"><i class="fas fa-cube"></i> MABUS</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/"><i class="fas fa-radar"></i> Radar</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/create"><i class="fas fa-eye"></i> Oráculo</a>
-                    </li>
-                    <% if (user && user.role === 'admin') { %>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/admin/dashboard"><i class="fas fa-user-shield"></i> Admin</a>
-                    </li>
-                    <% } %>
-                </ul>
 
-                <% if (user) { %>
-                <div class="d-flex align-items-center">
-                    <div class="watts-container me-3" title="Sua Energia Potencial">
-                        <i class="fas fa-bolt text-warning"></i>
-                        <div class="watts-bar-wrapper">
-                            <%
-                                // Calculate percentage (Assuming generic max 1000 for visuals or relative)
-                                // Actually, let's just make it relative to 100 or something dynamic?
-                                // Let's assume 1000 is "full" for the bar visual, but allow overflow.
-                                const percentage = Math.min(100, (user.current_credits / 1000) * 100);
-                                const isLow = user.current_credits < 100; // Warning threshold
-                            %>
-                            <div class="watts-fill <%= isLow ? 'low-power' : '' %>" style="width: <%= percentage %>%"></div>
-                        </div>
-                        <span class="watts-text" id="header-watts-val"><%= user.current_credits %> W</span>
-                    </div>
-                    <a href="/logout" class="btn btn-outline-light btn-sm"><i class="fas fa-power-off"></i></a>
+<% if (user) { %>
+    <%- include('sidebar', { path: path }) %>
+<% } %>
+
+<div class="<%= user ? 'main-content' : '' %>">
+
+    <% if (user) { %>
+    <!-- Top Header HUD -->
+    <header class="top-header">
+        <div class="d-flex align-items-center gap-4">
+            <!-- Mobile Toggle -->
+            <button class="btn btn-outline-secondary d-md-none me-2" onclick="document.querySelector('.sidebar').classList.toggle('open')">
+                <i class="fas fa-bars"></i>
+            </button>
+
+            <!-- User Info -->
+            <div class="text-end me-4">
+                <small class="text-muted d-block" style="font-size: 0.7rem;">OPERADOR</small>
+                <span class="fw-bold text-main"><%= user.username %></span>
+            </div>
+
+            <!-- Watts Capacitor -->
+            <div class="watts-capacitor" title="Reserva de Energia">
+                <i class="fas fa-bolt text-gold fa-lg"></i>
+                <div class="capacitor-bar-container">
+                    <%
+                        const percentage = Math.min(100, (user.current_credits / 1000) * 100);
+                    %>
+                    <div class="capacitor-fill" style="width: <%= percentage %>%"></div>
                 </div>
-                <% } else { %>
-                    <a href="/login" class="btn btn-outline-light btn-sm">Login</a>
-                <% } %>
+                <span class="watts-value"><%= user.current_credits %> W</span>
             </div>
         </div>
-    </nav>
-    <div class="container">
+    </header>
+    <% } %>
+
+    <div class="container-fluid">

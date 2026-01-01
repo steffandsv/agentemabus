@@ -1,6 +1,6 @@
 <%- include('partials/header') %>
 
-<div class="row mb-5">
+<div class="row mb-4">
     <div class="col-12 text-center">
         <h1 class="brand-font display-4" style="text-shadow: 0 0 20px rgba(0, 71, 171, 0.5);">RADAR DE OPORTUNIDADES</h1>
         <p class="lead text-muted">Acesso Exclusivo à Inteligência de Mercado</p>
@@ -42,17 +42,17 @@
                 </div>
 
                 <!-- BLURRED CONTENT -->
-                <div class="blur-content">
+                <div class="blurred-content">
                     <h5 class="card-title">Prefeitura de XXXXXX - MG</h5>
                     <h6 class="card-subtitle mb-2 text-muted">PE 0XX/2025 - Mix Variado</h6>
                     <p class="card-text small">Oportunidade de alta margem detectada em portal obscuro.</p>
                 </div>
 
                 <!-- TEASER -->
-                <div class="position-absolute top-50 start-50 translate-middle w-100 px-4 text-center" style="z-index: 5;">
-                    <h5 class="text-warning text-shadow-black">OPORTUNIDADE DETECTADA</h5>
-                    <p class="small text-white text-shadow-black">Cidade Pequena (<20k hab).<br>Portal Exclusivo.</p>
-                    <button class="btn btn-warning btn-sm shadow-gold w-100">
+                <div class="lock-overlay w-100 px-4">
+                    <h5 class="text-warning" style="text-shadow: 0 0 10px #000;">OPORTUNIDADE DETECTADA</h5>
+                    <p class="small text-white" style="text-shadow: 0 0 10px #000;">Cidade Pequena (<20k hab).<br>Portal Exclusivo.</p>
+                    <button class="btn btn-warning btn-sm w-100" style="box-shadow: 0 0 10px #D4AF37;">
                         <i class="fas fa-bolt"></i> REVELAR (500 WATTS)
                     </button>
                 </div>
@@ -69,12 +69,12 @@
                     <span class="text-primary small"><i class="fas fa-user-secret"></i> Restrito</span>
                 </div>
                 <h5 class="card-title">Câmara Mun. de Bofete - SP</h5>
-                <div class="blur-content">
+                <div class="blurred-content">
                     <h6 class="card-subtitle mb-2 text-muted">PE 0XX/2025</h6>
                     <p class="card-text small">Licitação de Material de Consumo.</p>
                 </div>
                 <div class="mt-3">
-                    <button class="btn btn-primary btn-sm w-100 shadow-blue">
+                    <button class="btn btn-primary btn-sm w-100" style="box-shadow: 0 0 10px #0047AB;">
                         <i class="fas fa-bolt"></i> DESBLOQUEAR (150 WATTS)
                     </button>
                 </div>
@@ -82,34 +82,5 @@
         </div>
     </div>
 </div>
-
-<hr class="border-secondary my-5">
-
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div class="d-flex align-items-center gap-3">
-        <h2 class="brand-font mb-0">🗃️ Minhas Missões (Arquivo)</h2>
-        <div class="btn-group">
-            <a href="/" class="btn btn-outline-secondary btn-sm <%= !showArchived ? 'active' : '' %>">Ativos</a>
-            <a href="/?show_archived=true" class="btn btn-outline-secondary btn-sm <%= showArchived ? 'active' : '' %>">Arquivados</a>
-        </div>
-    </div>
-</div>
-
-<!-- EXISTING TASKS LIST (Legacy View) -->
-<% if (tasks.length === 0) { %>
-    <div class="text-center py-5 text-muted border border-secondary rounded border-dashed">
-        <i class="fas fa-inbox fa-3x mb-3 opacity-25"></i>
-        <p>Nenhuma missão ativa encontrada.</p>
-        <a href="/create" class="btn btn-primary mt-2">Iniciar Nova Missão</a>
-    </div>
-<% } else { %>
-    <div class="row g-4">
-        <% tasks.forEach(task => { %>
-            <div class="col-md-6 col-lg-4">
-                <%- include('partials/card', { task: task }) %>
-            </div>
-        <% }) %>
-    </div>
-<% } %>
 
 <%- include('partials/footer') %>

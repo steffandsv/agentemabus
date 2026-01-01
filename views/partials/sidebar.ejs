@@ -1,0 +1,32 @@
+<nav class="sidebar">
+    <div class="sidebar-brand">
+        <i class="fas fa-cube text-gold"></i> MABUS
+    </div>
+    <div class="nav flex-column">
+        <a href="/" class="nav-link <%= path === '/' ? 'active' : '' %>">
+            <i class="fas fa-radar"></i> RADAR
+        </a>
+        <a href="/oracle" class="nav-link <%= path === '/oracle' ? 'active' : '' %>">
+            <i class="fas fa-eye"></i> ORÁCULO
+        </a>
+        <a href="/sniper" class="nav-link <%= path === '/sniper' ? 'active' : '' %>">
+            <i class="fas fa-crosshairs"></i> SNIPER
+        </a>
+
+        <div class="mt-4 mb-2 px-3 text-muted small text-uppercase">Gestão</div>
+
+        <a href="/dashboard" class="nav-link <%= path === '/dashboard' ? 'active' : '' %>">
+            <i class="fas fa-tasks"></i> DASHBOARD
+        </a>
+
+        <% if (user && user.role === 'admin') { %>
+        <a href="/admin/dashboard" class="nav-link <%= path.startsWith('/admin') ? 'active' : '' %>">
+            <i class="fas fa-user-shield"></i> ADMIN
+        </a>
+        <% } %>
+
+        <a href="/logout" class="nav-link mt-auto">
+            <i class="fas fa-power-off"></i> SAIR
+        </a>
+    </div>
+</nav>

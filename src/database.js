@@ -214,8 +214,8 @@ async function createUser(userData) {
     const { username, password, role, full_name, cpf, cnpj } = userData;
     const hash = await bcrypt.hash(password, 10);
     await p.query(
-        "INSERT INTO users (username, password_hash, role, full_name, cpf, cnpj) VALUES (?, ?, ?, ?, ?, ?)",
-        [username, hash, role || 'user', full_name, cpf, cnpj]
+        "INSERT INTO users (username, password_hash, role, full_name, cpf, cnpj, current_credits) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [username, hash, role || 'user', full_name, cpf, cnpj, 500]
     );
 }
 

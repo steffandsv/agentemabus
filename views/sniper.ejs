@@ -1,0 +1,192 @@
+<%- include('partials/header') %>
+
+<div class="row mb-4">
+    <div class="col-12 text-center">
+        <h2 class="brand-font text-neon">🔫 SNIPER AUTOMÁTICO</h2>
+        <p class="text-muted">Execução e Cotação de Itens</p>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card bg-panel border-secondary shadow-lg">
+            <div class="card-body p-4">
+
+                <form action="/create" method="POST" enctype="multipart/form-data" id="sniperForm">
+                    <!-- HIDDEN DATA FIELDS -->
+                    <input type="hidden" name="metadataJSON" id="metadataJSON">
+                    <input type="hidden" name="gridData" id="gridData">
+
+                    <!-- TOP CONFIG -->
+                    <div class="row mb-4">
+                        <div class="col-md-8">
+                            <label class="form-label text-muted small uppercase">NOME DA MISSÃO</label>
+                            <input type="text" name="name" id="taskName" class="form-control bg-black text-white border-secondary" required placeholder="Ex: Pregão 42/2025">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small uppercase">CEP DESTINO</label>
+                            <input type="text" name="cep" id="taskCep" class="form-control bg-black text-white border-secondary" required placeholder="00000-000">
+                        </div>
+                    </div>
+
+                    <!-- MODULE SELECTOR -->
+                    <div class="mb-4">
+                        <label class="form-label text-muted small uppercase">MÓDULO DE INTELIGÊNCIA</label>
+                        <select name="moduleName" class="form-select bg-black text-white border-secondary">
+                            <% modules.forEach(function(mod) { %>
+                                <option value="<%= mod %>" <%= mod === 'smart' ? 'selected' : '' %>><%= mod.toUpperCase() %></option>
+                            <% }); %>
+                        </select>
+                    </div>
+
+                    <% if (userGroups && userGroups.length > 0) { %>
+                    <div class="mb-4">
+                        <label class="form-label text-muted small uppercase">VISIBILIDADE (GRUPO)</label>
+                        <select name="group_id" class="form-select bg-black text-white border-secondary">
+                            <option value="">PRIVADO (APENAS EU)</option>
+                            <% userGroups.forEach(function(group) { %>
+                                <option value="<%= group.id %>"><%= group.name %></option>
+                            <% }); %>
+                        </select>
+                    </div>
+                    <% } %>
+
+                    <!-- ITEM LIST AREA -->
+                    <div class="card bg-black border-secondary mb-4">
+                        <div class="card-header bg-transparent border-secondary d-flex justify-content-between align-items-center">
+                            <span class="text-white"><i class="fas fa-list"></i> LISTA DE ALVOS</span>
+                            <span class="badge bg-dark border border-secondary text-muted" id="item-count">0 ITENS</span>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive" style="max-height: 400px;">
+                                <table class="table table-dark table-hover mb-0 align-middle">
+                                    <thead class="sticky-top bg-black">
+                                        <tr class="text-muted small uppercase">
+                                            <th style="width:5%">#</th>
+                                            <th>DESCRIÇÃO</th>
+                                            <th style="width:15%">MAX (R$)</th>
+                                            <th style="width:10%">QTD</th>
+                                            <th style="width:5%"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="items-body">
+                                        <!-- Items go here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-transparent border-secondary d-flex justify-content-between">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addRow()">
+                                <i class="fas fa-plus"></i> ADICIONAR
+                            </button>
+                            <div class="d-flex align-items-center gap-2">
+                                <label class="btn btn-outline-secondary btn-sm cursor-pointer">
+                                    <i class="fas fa-file-csv"></i> IMPORTAR CSV
+                                    <input type="file" name="csvFile" hidden onchange="alert('CSV selecionado! (Mock)')">
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ACTION -->
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success btn-lg shadow-green" id="btnStart">
+                            <i class="fas fa-rocket"></i> INICIAR COTAÇÃO AUTOMÁTICA
+                        </button>
+                    </div>
+
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let rowCount = 0;
+
+    // Check for Oracle Data
+    document.addEventListener('DOMContentLoaded', () => {
+        const dataStr = sessionStorage.getItem('oracleData');
+        if (dataStr) {
+            try {
+                const data = JSON.parse(dataStr);
+
+                // Populate Headers
+                if (data.global_info) {
+                    if (data.global_info.name) document.getElementById('taskName').value = data.global_info.name;
+                    if (data.global_info.cep) document.getElementById('taskCep').value = data.global_info.cep;
+                }
+                if (data.metadata) document.getElementById('metadataJSON').value = JSON.stringify(data.metadata);
+
+                // Populate Items
+                if (data.items && Array.isArray(data.items)) {
+                    populateGrid(data.items);
+                }
+
+                // Clear session to prevent re-use
+                sessionStorage.removeItem('oracleData');
+
+            } catch(e) { console.error("Error loading Oracle data", e); }
+        } else {
+            // Add one empty row
+            addRow();
+        }
+    });
+
+    function addRow(item = {}) {
+        rowCount++;
+        const tbody = document.getElementById('items-body');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="text-muted">${rowCount}</td>
+            <td><input type="text" class="form-control form-control-sm bg-dark text-white border-0" value="${item.description || ''}" placeholder="Item..." required></td>
+            <td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-white border-0" value="${item.valor_venda || ''}" placeholder="0.00" required></td>
+            <td><input type="number" class="form-control form-control-sm bg-dark text-white border-0" value="${item.quantidade || 1}" required></td>
+            <td><button type="button" class="btn btn-link text-danger btn-sm" onclick="this.closest('tr').remove(); updateCount();"><i class="fas fa-times"></i></button></td>
+        `;
+        tbody.appendChild(tr);
+        updateCount();
+    }
+
+    function populateGrid(items) {
+        document.getElementById('items-body').innerHTML = '';
+        rowCount = 0;
+        items.forEach(item => addRow(item));
+    }
+
+    function updateCount() {
+        const count = document.getElementById('items-body').children.length;
+        document.getElementById('item-count').innerText = `${count} ITENS`;
+    }
+
+    // Form Interceptor to Serialize Grid
+    document.getElementById('sniperForm').addEventListener('submit', (e) => {
+        let data = "ID;Descricao;valor_venda;quantidade\n";
+        const rows = document.querySelectorAll('#items-body tr');
+        let validRows = 0;
+
+        rows.forEach((row, index) => {
+            const inputs = row.querySelectorAll('input');
+            const desc = inputs[0].value.replace(/;/g, ' ').trim();
+            const price = inputs[1].value || 0;
+            const qty = inputs[2].value || 1;
+
+            if (desc) {
+                data += `${index + 1};${desc};${price};${qty}\n`;
+                validRows++;
+            }
+        });
+
+        if (validRows === 0) {
+            e.preventDefault();
+            alert("Adicione pelo menos um item!");
+            return false;
+        }
+
+        document.getElementById('gridData').value = data;
+    });
+
+</script>
+
+<%- include('partials/footer') %>

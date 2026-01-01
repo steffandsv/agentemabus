@@ -1,277 +1,184 @@
 <%- include('partials/header') %>
 
-<div class="row">
-    <div class="col-12 mb-4 d-flex justify-content-between align-items-center">
-        <div>
-            <h1 class="brand-font">Missão: <%= task.name %></h1>
-            <p class="text-muted"><i class="fas fa-map-marker-alt"></i> CEP: <%= task.cep %> | <i class="fas fa-cube"></i> ID: <%= task.id %></p>
+<div class="row mb-3 align-items-center">
+    <div class="col-md-8">
+        <h2 class="brand-font text-white mb-0"><%= task.name %></h2>
+        <div class="d-flex align-items-center gap-2 text-muted small mt-1">
+            <span><i class="fas fa-cube"></i> <%= task.id %></span>
+            <span>|</span>
+            <span><i class="fas fa-map-marker-alt"></i> <%= task.cep %></span>
         </div>
-        <div>
-            <% if (task.status === 'completed') { %>
-                <a href="/download/<%= task.id %>" class="btn btn-success"><i class="fas fa-file-excel"></i> Baixar Relatório</a>
-            <% } %>
-            <a href="/" class="btn btn-secondary">Voltar</a>
-        </div>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="/dashboard" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left"></i> VOLTAR</a>
+        <% if (task.status === 'completed') { %>
+            <a href="/download/<%= task.id %>" class="btn btn-success btn-sm shadow-green"><i class="fas fa-file-excel"></i> RELATÓRIO</a>
+        <% } %>
     </div>
 </div>
 
-<div class="row">
-    <!-- LEFT: INFO & SNIPER RESULTS -->
+<div class="row g-4">
+    <!-- LEFT: SNIPER LIST -->
     <div class="col-lg-8">
 
         <!-- STATUS BAR -->
-        <div class="card mb-4 bg-dark border-secondary">
-            <div class="card-body d-flex align-items-center justify-content-between">
+        <div class="card bg-panel border-secondary mb-3">
+            <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center">
+                <span class="small text-muted uppercase">STATUS OPERACIONAL</span>
                 <div>
-                    <span class="text-white me-2">STATUS:</span>
-                    <span class="badge bg-<%= task.status === 'completed' ? 'success' : (task.status === 'running' ? 'primary' : (task.status === 'failed' ? 'danger' : 'secondary')) %> fs-6">
-                        <%= task.status === 'completed' ? 'CONCLUÍDO' : (task.status === 'running' ? 'EM EXECUÇÃO' : (task.status === 'pending' ? 'AGUARDANDO' : 'FALHA')) %>
-                    </span>
+                    <% if (task.status === 'running') { %>
+                        <span class="text-neon blink"><i class="fas fa-satellite-dish"></i> ESCANEANDO MERCADO...</span>
+                    <% } else if (task.status === 'completed') { %>
+                        <span class="text-success"><i class="fas fa-check"></i> MISSÃO CUMPRIDA</span>
+                    <% } else { %>
+                        <span class="text-muted"><%= task.status.toUpperCase() %></span>
+                    <% } %>
                 </div>
-                <% if (task.status === 'running') { %>
-                    <div class="spinner-border text-primary" role="status"></div>
-                <% } %>
             </div>
         </div>
 
-        <!-- SNIPER RESULTS GRID (The "Dopamine" Part) -->
-        <% if (taskItems && taskItems.length > 0) { %>
-        <div class="card card-gold mb-4">
-            <div class="card-header bg-transparent border-warning">
-                <h4 class="text-warning mb-0"><i class="fas fa-crosshairs"></i> RESULTADOS DO SNIPER</h4>
+        <!-- ITEMS GRID -->
+        <div class="card bg-black border-secondary">
+            <div class="card-header bg-transparent border-secondary text-white">
+                <i class="fas fa-list-ol"></i> RESULTADOS TÁTICOS
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-dark table-hover mb-0 align-middle">
-                        <thead>
-                            <tr>
-                                <th>Item</th>
-                                <th>Alvo (Max)</th>
-                                <th>Melhor Preço</th>
-                                <th>Fornecedor</th>
-                                <th>Ação</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <% taskItems.forEach(function(item) { %>
-                                <%
-                                    // Logic to determine if we found a price
-                                    const foundPrice = item.best_price && item.best_price > 0;
-                                    const isProfitable = foundPrice && item.best_price <= item.valor_venda;
-                                    // Mock "locked" state unless user paid (we assume locked by default for demo)
-                                    // In a real app, we check if item.is_unlocked (column doesn't exist yet, we mock UI)
-                                    const isLocked = true;
-                                %>
-                                <tr>
-                                    <td>
-                                        <small class="text-muted">Item <%= item.id %></small><br>
-                                        <span class="fw-bold"><%= item.description.substring(0, 50) %>...</span>
-                                    </td>
-                                    <td>R$ <%= parseFloat(item.valor_venda).toFixed(2) %></td>
-                                    <td>
-                                        <% if (foundPrice) { %>
-                                            <span class="<%= isProfitable ? 'text-success' : 'text-warning' %> fw-bold">
-                                                R$ <%= parseFloat(item.best_price).toFixed(2) %>
-                                            </span>
-                                            <% if (isProfitable) { %>
-                                                <br><small class="text-success">Lucro: <%= Math.round(((item.valor_venda - item.best_price)/item.valor_venda)*100) %>%</small>
-                                            <% } else { %>
-                                                <br><small class="text-warning">Acima (+<%= Math.round(((item.best_price - item.valor_venda)/item.valor_venda)*100) %>%)</small>
-                                            <% } %>
-                                        <% } else { %>
-                                            <span class="text-muted">---</span>
-                                        <% } %>
-                                    </td>
-                                    <td class="position-relative">
-                                        <% if (foundPrice) { %>
-                                            <div class="<%= isLocked ? 'blur-content' : '' %>">
-                                                <a href="#" class="text-white">Ver Loja</a><br>
-                                                <small class="text-muted">Mercado Livre</small>
-                                            </div>
-                                        <% } else { %>
-                                            <span class="text-muted">Não encontrado</span>
-                                        <% } %>
-                                    </td>
-                                    <td>
-                                        <% if (foundPrice) { %>
-                                            <button class="btn btn-sm btn-outline-warning" onclick="unlockItem(this)">
-                                                <i class="fas fa-lock"></i> <small>15W</small>
-                                            </button>
-                                        <% } else { %>
-                                            <button class="btn btn-sm btn-outline-secondary" disabled>
-                                                <i class="fas fa-search"></i>
-                                            </button>
-                                        <% } %>
-                                    </td>
-                                </tr>
-                            <% }); %>
-                        </tbody>
-                    </table>
-                </div>
+            <div class="table-responsive">
+                <table class="table table-dark table-hover mb-0 align-middle small">
+                    <thead>
+                        <tr class="text-muted">
+                            <th>ALVO</th>
+                            <th class="text-end">MAX (R$)</th>
+                            <th class="text-end">SNIPER (R$)</th>
+                            <th class="text-center">STATUS</th>
+                            <th class="text-end">AÇÃO</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% if (taskItems.length === 0) { %>
+                            <tr><td colspan="5" class="text-center text-muted py-4">Aguardando dados...</td></tr>
+                        <% } %>
+                        <% taskItems.forEach(item => {
+                            const hasPrice = item.best_price > 0;
+                            const profit = item.valor_venda - item.best_price;
+                            const margin = (profit / item.valor_venda) * 100;
+                            const isWin = hasPrice && profit >= 0;
+                        %>
+                        <tr>
+                            <td>
+                                <div class="text-white fw-bold"><%= item.description.substring(0, 40) %>...</div>
+                                <div class="text-muted" style="font-size: 0.75rem;">Qtd: <%= item.quantidade %></div>
+                            </td>
+                            <td class="text-end text-muted"><%= item.valor_venda.toFixed(2) %></td>
+                            <td class="text-end">
+                                <% if (hasPrice) { %>
+                                    <span class="<%= isWin ? 'text-success' : 'text-danger' %> fw-bold">
+                                        <%= item.best_price.toFixed(2) %>
+                                    </span>
+                                <% } else { %>
+                                    <span class="text-muted">---</span>
+                                <% } %>
+                            </td>
+                            <td class="text-center">
+                                <% if (isWin) { %>
+                                    <span class="badge bg-success text-dark"><i class="fas fa-arrow-up"></i> <%= margin.toFixed(0) %>%</span>
+                                <% } else if (hasPrice) { %>
+                                    <span class="badge bg-danger text-dark"><i class="fas fa-arrow-down"></i></span>
+                                <% } else { %>
+                                    <span class="spinner-grow spinner-grow-sm text-secondary" style="width: 0.5rem; height: 0.5rem;"></span>
+                                <% } %>
+                            </td>
+                            <td class="text-end">
+                                <% if (hasPrice) { %>
+                                    <button class="btn btn-outline-warning btn-sm py-0" style="font-size: 0.7rem;">
+                                        <i class="fas fa-lock"></i>
+                                    </button>
+                                <% } %>
+                            </td>
+                        </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
             </div>
         </div>
-        <% } %>
 
     </div>
 
-    <!-- RIGHT: LOGS & THOUGHTS -->
+    <!-- RIGHT: TERMINAL & STATS -->
     <div class="col-lg-4">
-        <!-- Thought Threads -->
-        <div class="card mb-3 bg-dark border-info">
-            <div class="card-header bg-info text-dark fw-bold">💭 Raciocínio da I.A. (Threads)</div>
-            <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
-                <div class="accordion accordion-flush bg-dark" id="thoughtsAccordion">
-                    <!-- Items will be injected here -->
-                    <div class="text-center p-3 text-muted" id="no-thoughts-msg">
-                        <small>Aguardando insights neurais...</small>
-                    </div>
+
+        <!-- TERMINAL TOGGLE -->
+        <div class="card bg-black border-secondary mb-3">
+            <div class="card-header bg-transparent border-secondary d-flex justify-content-between cursor-pointer" onclick="toggleTerminal()">
+                <span class="text-muted small"><i class="fas fa-terminal"></i> LOGS DO SISTEMA</span>
+                <i class="fas fa-chevron-down text-muted" id="term-icon"></i>
+            </div>
+            <div class="card-body p-0" id="terminal-body" style="display:none;">
+                <pre id="logs" class="p-3 m-0 bg-black text-success small border-0" style="height: 300px; overflow-y: auto; font-family: monospace;"></pre>
+            </div>
+        </div>
+
+        <!-- STATS CARD -->
+        <div class="card card-gold">
+            <div class="card-body text-center">
+                <h6 class="text-muted small uppercase mb-3">LUCRO PROJETADO</h6>
+                <%
+                    let totalProfit = 0;
+                    taskItems.forEach(i => {
+                        if (i.best_price > 0 && i.best_price < i.valor_venda) {
+                            totalProfit += (i.valor_venda - i.best_price) * i.quantidade;
+                        }
+                    });
+                %>
+                <h2 class="display-4 text-warning fw-bold mb-0">R$ <%= totalProfit.toFixed(2) %></h2>
+                <div class="mt-3">
+                    <button class="btn btn-warning w-100 shadow-gold fw-bold">
+                        <i class="fas fa-bolt"></i> DESBLOQUEAR RELATÓRIO
+                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- Real-time Logs -->
-        <div class="card bg-black text-white border-secondary">
-            <div class="card-header border-secondary d-flex justify-content-between">
-                <span>🖥️ Logs do Sistema</span>
-                <% if (task.status === 'running' || task.status === 'pending') { %>
-                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                <% } %>
-            </div>
-            <div class="card-body p-0">
-                <pre id="logs" class="p-3 m-0" style="height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.8em; color: #00ff00;"></pre>
-            </div>
-        </div>
     </div>
 </div>
 
 <script>
     const taskId = '<%= task.id %>';
-    const logsEl = document.getElementById('logs');
-    const accordionEl = document.getElementById('thoughtsAccordion');
-    const noThoughtsMsg = document.getElementById('no-thoughts-msg');
-    
-    let autoScroll = true;
-    let knownThoughts = new Set(); 
 
-    function unlockItem(btn) {
-        // Visual feedback only for prototype
-        const row = btn.closest('tr');
-        const blur = row.querySelector('.blur-content');
-        if (blur) {
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            setTimeout(() => {
-                blur.classList.remove('blur-content');
-                btn.className = 'btn btn-sm btn-success';
-                btn.innerHTML = '<i class="fas fa-check"></i>';
-                btn.disabled = true;
-            }, 500);
+    function toggleTerminal() {
+        const body = document.getElementById('terminal-body');
+        const icon = document.getElementById('term-icon');
+        if (body.style.display === 'none') {
+            body.style.display = 'block';
+            icon.className = 'fas fa-chevron-up text-white';
+        } else {
+            body.style.display = 'none';
+            icon.className = 'fas fa-chevron-down text-muted';
         }
     }
 
-    function createAccordionItem(itemId) {
-        const idClean = itemId ? itemId.replace(/[^a-zA-Z0-9]/g, '') : 'Global';
-        const html = `
-            <div class="accordion-item bg-dark border-secondary">
-                <h2 class="accordion-header" id="heading${idClean}">
-                    <button class="accordion-button collapsed bg-secondary text-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${idClean}">
-                        📦 Item ${itemId || 'Global'}
-                    </button>
-                </h2>
-                <div id="collapse${idClean}" class="accordion-collapse collapse" data-bs-parent="#thoughtsAccordion">
-                    <div class="accordion-body bg-dark text-white p-2" id="chat${idClean}">
-                        <!-- Chat bubbles go here -->
-                    </div>
-                </div>
-            </div>
-        `;
-        return html;
-    }
-
-    function formatContent(content) {
-        if (typeof content === 'string') {
-            return content.replace(/\n/g, '<br>');
-        }
-        if (typeof content === 'object') {
-            try {
-                if (content.term && content.risk !== undefined) {
-                    return `<strong>${content.term}</strong> (Risco: ${content.risk})<br><em>${content.reasoning}</em>`;
-                }
-                if (content.title && content.risk !== undefined) {
-                    return `<strong>${content.title}</strong><br>Risco: ${content.risk}<br><em>${content.reasoning}</em>`;
-                }
-                return '<pre class="text-warning mb-0" style="font-size:0.8em">' + JSON.stringify(content, null, 2) + '</pre>';
-            } catch (e) {
-                return JSON.stringify(content);
-            }
-        }
-        return String(content);
-    }
-
-    function appendThought(thought) {
-        if (noThoughtsMsg) noThoughtsMsg.style.display = 'none';
-        
-        const itemId = thought.itemId || 'Global';
-        const key = `${itemId}-${thought.timestamp}-${thought.stage}-${JSON.stringify(thought.content).substring(0, 20)}`;
-        if (knownThoughts.has(key)) return;
-        knownThoughts.add(key);
-
-        const idClean = itemId.replace(/[^a-zA-Z0-9]/g, '');
-        let chatContainer = document.getElementById(`chat${idClean}`);
-        
-        if (!chatContainer) {
-            accordionEl.insertAdjacentHTML('beforeend', createAccordionItem(itemId));
-            chatContainer = document.getElementById(`chat${idClean}`);
-        }
-
-        const bubbleHtml = `
-            <div class="chat-bubble mb-2 p-2 border border-secondary rounded bg-secondary text-white" style="font-size: 0.85em;">
-                <div class="d-flex justify-content-between text-info small border-bottom border-secondary mb-1">
-                    <span>${thought.stage}</span>
-                    <span>${thought.timestamp}</span>
-                </div>
-                <div>
-                    ${formatContent(thought.content)}
-                </div>
-            </div>
-        `;
-        chatContainer.insertAdjacentHTML('beforeend', bubbleHtml);
-    }
-
-    function parseLogs(text) {
-        const lines = text.split('\n');
-        let cleanLogs = "";
-
-        lines.forEach(line => {
-            if (line.includes('[PENSAMENTO]')) {
-                try {
-                    const jsonStr = line.substring(line.indexOf('[PENSAMENTO]') + 12);
-                    const thought = JSON.parse(jsonStr);
-                    appendThought(thought);
-                } catch (e) {
-                    console.error("Failed to parse thought:", e);
-                }
-            } else {
-                cleanLogs += line + '\n';
-            }
-        });
-        
-        return cleanLogs;
-    }
-
-    function fetchLogs() {
+    // Simple Log Fetcher
+    setInterval(() => {
         fetch('/api/logs/' + taskId)
             .then(r => r.text())
             .then(text => {
-                const cleanText = parseLogs(text);
-                if (logsEl.textContent !== cleanText) {
-                    logsEl.textContent = cleanText;
-                    if (autoScroll) logsEl.scrollTop = logsEl.scrollHeight;
+                const el = document.getElementById('logs');
+                if (el.innerText !== text) {
+                    el.innerText = text;
+                    el.scrollTop = el.scrollHeight;
                 }
             });
-    }
+    }, 2000);
 
-    setInterval(fetchLogs, 2000);
-    fetchLogs();
+    // Auto-refresh page on completion? Or just partial?
+    // For now, let's just refresh if status changes
+    const currentStatus = '<%= task.status %>';
+    if (currentStatus === 'running' || currentStatus === 'pending') {
+        setInterval(() => {
+            // Check status via logs or new API?
+            // Ideally we'd have a status API.
+            // We can infer from logs if "Finalizado" appears, or just reload every 10s
+        }, 10000);
+    }
 </script>
 
 <%- include('partials/footer') %>
