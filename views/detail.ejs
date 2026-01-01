@@ -1,37 +1,126 @@
 <%- include('partials/header') %>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Detalhes da Missão: <%= task.name %></h1>
-    <div>
-        <% if (task.status === 'completed') { %>
-            <a href="/download/<%= task.id %>" class="btn btn-success">📥 Baixar Excel</a>
-        <% } %>
-        <a href="/" class="btn btn-secondary">Voltar</a>
+<div class="row">
+    <div class="col-12 mb-4 d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="brand-font">Missão: <%= task.name %></h1>
+            <p class="text-muted"><i class="fas fa-map-marker-alt"></i> CEP: <%= task.cep %> | <i class="fas fa-cube"></i> ID: <%= task.id %></p>
+        </div>
+        <div>
+            <% if (task.status === 'completed') { %>
+                <a href="/download/<%= task.id %>" class="btn btn-success"><i class="fas fa-file-excel"></i> Baixar Relatório</a>
+            <% } %>
+            <a href="/" class="btn btn-secondary">Voltar</a>
+        </div>
     </div>
 </div>
 
 <div class="row">
-    <!-- Info Panel -->
-    <div class="col-md-4">
-        <div class="card mb-3">
-            <div class="card-header bg-light">Informações</div>
-            <ul class="list-group list-group-flush">
-                <li class="list-group-item"><strong>ID:</strong> <small><%= task.id %></small></li>
-                <li class="list-group-item"><strong>Status:</strong> 
-                    <span id="status-badge" class="badge bg-<%= task.status === 'completed' ? 'success' : (task.status === 'running' ? 'primary' : (task.status === 'failed' ? 'danger' : 'secondary')) %>">
-                        <%= task.status === 'completed' ? 'Concluído' : (task.status === 'running' ? 'Em Andamento' : (task.status === 'pending' ? 'Pendente' : 'Falha')) %>
+    <!-- LEFT: INFO & SNIPER RESULTS -->
+    <div class="col-lg-8">
+
+        <!-- STATUS BAR -->
+        <div class="card mb-4 bg-dark border-secondary">
+            <div class="card-body d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-white me-2">STATUS:</span>
+                    <span class="badge bg-<%= task.status === 'completed' ? 'success' : (task.status === 'running' ? 'primary' : (task.status === 'failed' ? 'danger' : 'secondary')) %> fs-6">
+                        <%= task.status === 'completed' ? 'CONCLUÍDO' : (task.status === 'running' ? 'EM EXECUÇÃO' : (task.status === 'pending' ? 'AGUARDANDO' : 'FALHA')) %>
                     </span>
-                </li>
-                <li class="list-group-item"><strong>CEP:</strong> <%= task.cep %></li>
-                <li class="list-group-item"><strong>Criado em:</strong> <%= new Date(task.created_at).toLocaleString('pt-BR') %></li>
-            </ul>
+                </div>
+                <% if (task.status === 'running') { %>
+                    <div class="spinner-border text-primary" role="status"></div>
+                <% } %>
+            </div>
         </div>
-        
-        <!-- Thought Threads (Accordion) -->
-        <div class="card mb-3 border-info">
-            <div class="card-header bg-info text-white">💭 Raciocínio da I.A. (Threads)</div>
+
+        <!-- SNIPER RESULTS GRID (The "Dopamine" Part) -->
+        <% if (taskItems && taskItems.length > 0) { %>
+        <div class="card card-gold mb-4">
+            <div class="card-header bg-transparent border-warning">
+                <h4 class="text-warning mb-0"><i class="fas fa-crosshairs"></i> RESULTADOS DO SNIPER</h4>
+            </div>
             <div class="card-body p-0">
-                <div class="accordion accordion-flush" id="thoughtsAccordion">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Alvo (Max)</th>
+                                <th>Melhor Preço</th>
+                                <th>Fornecedor</th>
+                                <th>Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% taskItems.forEach(function(item) { %>
+                                <%
+                                    // Logic to determine if we found a price
+                                    const foundPrice = item.best_price && item.best_price > 0;
+                                    const isProfitable = foundPrice && item.best_price <= item.valor_venda;
+                                    // Mock "locked" state unless user paid (we assume locked by default for demo)
+                                    // In a real app, we check if item.is_unlocked (column doesn't exist yet, we mock UI)
+                                    const isLocked = true;
+                                %>
+                                <tr>
+                                    <td>
+                                        <small class="text-muted">Item <%= item.id %></small><br>
+                                        <span class="fw-bold"><%= item.description.substring(0, 50) %>...</span>
+                                    </td>
+                                    <td>R$ <%= parseFloat(item.valor_venda).toFixed(2) %></td>
+                                    <td>
+                                        <% if (foundPrice) { %>
+                                            <span class="<%= isProfitable ? 'text-success' : 'text-warning' %> fw-bold">
+                                                R$ <%= parseFloat(item.best_price).toFixed(2) %>
+                                            </span>
+                                            <% if (isProfitable) { %>
+                                                <br><small class="text-success">Lucro: <%= Math.round(((item.valor_venda - item.best_price)/item.valor_venda)*100) %>%</small>
+                                            <% } else { %>
+                                                <br><small class="text-warning">Acima (+<%= Math.round(((item.best_price - item.valor_venda)/item.valor_venda)*100) %>%)</small>
+                                            <% } %>
+                                        <% } else { %>
+                                            <span class="text-muted">---</span>
+                                        <% } %>
+                                    </td>
+                                    <td class="position-relative">
+                                        <% if (foundPrice) { %>
+                                            <div class="<%= isLocked ? 'blur-content' : '' %>">
+                                                <a href="#" class="text-white">Ver Loja</a><br>
+                                                <small class="text-muted">Mercado Livre</small>
+                                            </div>
+                                        <% } else { %>
+                                            <span class="text-muted">Não encontrado</span>
+                                        <% } %>
+                                    </td>
+                                    <td>
+                                        <% if (foundPrice) { %>
+                                            <button class="btn btn-sm btn-outline-warning" onclick="unlockItem(this)">
+                                                <i class="fas fa-lock"></i> <small>15W</small>
+                                            </button>
+                                        <% } else { %>
+                                            <button class="btn btn-sm btn-outline-secondary" disabled>
+                                                <i class="fas fa-search"></i>
+                                            </button>
+                                        <% } %>
+                                    </td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <% } %>
+
+    </div>
+
+    <!-- RIGHT: LOGS & THOUGHTS -->
+    <div class="col-lg-4">
+        <!-- Thought Threads -->
+        <div class="card mb-3 bg-dark border-info">
+            <div class="card-header bg-info text-dark fw-bold">💭 Raciocínio da I.A. (Threads)</div>
+            <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                <div class="accordion accordion-flush bg-dark" id="thoughtsAccordion">
                     <!-- Items will be injected here -->
                     <div class="text-center p-3 text-muted" id="no-thoughts-msg">
                         <small>Aguardando insights neurais...</small>
@@ -39,19 +128,17 @@
                 </div>
             </div>
         </div>
-    </div>
-    
-    <!-- Real-time Logs -->
-    <div class="col-md-8">
-        <div class="card bg-dark text-white">
+
+        <!-- Real-time Logs -->
+        <div class="card bg-black text-white border-secondary">
             <div class="card-header border-secondary d-flex justify-content-between">
-                <span>🖥️ Logs do Sistema (Tempo Real)</span>
+                <span>🖥️ Logs do Sistema</span>
                 <% if (task.status === 'running' || task.status === 'pending') { %>
-                    <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
                 <% } %>
             </div>
             <div class="card-body p-0">
-                <pre id="logs" class="p-3 m-0" style="height: 600px; overflow-y: auto; font-family: monospace; font-size: 0.85em;"></pre>
+                <pre id="logs" class="p-3 m-0" style="height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.8em; color: #00ff00;"></pre>
             </div>
         </div>
     </div>
@@ -66,17 +153,32 @@
     let autoScroll = true;
     let knownThoughts = new Set(); 
 
+    function unlockItem(btn) {
+        // Visual feedback only for prototype
+        const row = btn.closest('tr');
+        const blur = row.querySelector('.blur-content');
+        if (blur) {
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            setTimeout(() => {
+                blur.classList.remove('blur-content');
+                btn.className = 'btn btn-sm btn-success';
+                btn.innerHTML = '<i class="fas fa-check"></i>';
+                btn.disabled = true;
+            }, 500);
+        }
+    }
+
     function createAccordionItem(itemId) {
         const idClean = itemId ? itemId.replace(/[^a-zA-Z0-9]/g, '') : 'Global';
         const html = `
-            <div class="accordion-item">
+            <div class="accordion-item bg-dark border-secondary">
                 <h2 class="accordion-header" id="heading${idClean}">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${idClean}">
+                    <button class="accordion-button collapsed bg-secondary text-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${idClean}">
                         📦 Item ${itemId || 'Global'}
                     </button>
                 </h2>
                 <div id="collapse${idClean}" class="accordion-collapse collapse" data-bs-parent="#thoughtsAccordion">
-                    <div class="accordion-body bg-light chat-container" id="chat${idClean}">
+                    <div class="accordion-body bg-dark text-white p-2" id="chat${idClean}">
                         <!-- Chat bubbles go here -->
                     </div>
                 </div>
@@ -90,18 +192,14 @@
             return content.replace(/\n/g, '<br>');
         }
         if (typeof content === 'object') {
-            // Pretty print objects
             try {
-                // If it looks like a Gemini term object
                 if (content.term && content.risk !== undefined) {
                     return `<strong>${content.term}</strong> (Risco: ${content.risk})<br><em>${content.reasoning}</em>`;
                 }
-                // If it looks like a validation result
                 if (content.title && content.risk !== undefined) {
                     return `<strong>${content.title}</strong><br>Risco: ${content.risk}<br><em>${content.reasoning}</em>`;
                 }
-                // Fallback for generic objects
-                return '<pre>' + JSON.stringify(content, null, 2) + '</pre>';
+                return '<pre class="text-warning mb-0" style="font-size:0.8em">' + JSON.stringify(content, null, 2) + '</pre>';
             } catch (e) {
                 return JSON.stringify(content);
             }
@@ -112,9 +210,7 @@
     function appendThought(thought) {
         if (noThoughtsMsg) noThoughtsMsg.style.display = 'none';
         
-        // Ensure itemId exists
         const itemId = thought.itemId || 'Global';
-
         const key = `${itemId}-${thought.timestamp}-${thought.stage}-${JSON.stringify(thought.content).substring(0, 20)}`;
         if (knownThoughts.has(key)) return;
         knownThoughts.add(key);
@@ -123,18 +219,17 @@
         let chatContainer = document.getElementById(`chat${idClean}`);
         
         if (!chatContainer) {
-            // Create accordion item
             accordionEl.insertAdjacentHTML('beforeend', createAccordionItem(itemId));
             chatContainer = document.getElementById(`chat${idClean}`);
         }
 
         const bubbleHtml = `
-            <div class="chat-bubble mb-2 p-2 border rounded bg-white">
-                <div class="chat-meta small text-muted d-flex justify-content-between">
-                    <span class="badge bg-secondary">${thought.stage}</span>
+            <div class="chat-bubble mb-2 p-2 border border-secondary rounded bg-secondary text-white" style="font-size: 0.85em;">
+                <div class="d-flex justify-content-between text-info small border-bottom border-secondary mb-1">
+                    <span>${thought.stage}</span>
                     <span>${thought.timestamp}</span>
                 </div>
-                <div class="chat-content mt-1">
+                <div>
                     ${formatContent(thought.content)}
                 </div>
             </div>
@@ -177,12 +272,6 @@
 
     setInterval(fetchLogs, 2000);
     fetchLogs();
-
-    setInterval(() => {
-         if (logsEl.textContent.includes('Finalizado com Sucesso') && !window.location.search.includes('done')) {
-             // Optional: reload or notify
-         }
-    }, 5000);
 </script>
 
 <%- include('partials/footer') %>

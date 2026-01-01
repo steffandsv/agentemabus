@@ -1,34 +1,227 @@
+:root {
+    --neon-blue: #0047AB;
+    --neon-blue-glow: #0056b3;
+    --matte-gold: #D4AF37;
+    --gold-glow: #f9d77e;
+    --hostile-grey: #6c757d;
+    --danger-red: #FF3333;
+    --bg-dark: #0f1012;
+    --bg-card: #1a1d21;
+    --text-primary: #e0e0e0;
+}
+
 body {
-    background-color: #f8f9fa;
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+h1, h2, h3, h4, h5, .brand-font {
+    font-family: 'Orbitron', sans-serif; /* Fallback if not loaded, added in header */
+    letter-spacing: 1px;
+}
+
+/* Navbar */
+.navbar {
+    background-color: #15171a !important;
+    border-bottom: 1px solid #333;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+}
+
+.navbar-brand {
+    color: var(--text-primary) !important;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+/* Watts Bar */
+.watts-container {
+    display: flex;
+    align-items: center;
+    background: #000;
+    border: 1px solid #333;
+    border-radius: 20px;
+    padding: 5px 15px;
+    box-shadow: 0 0 10px rgba(0, 71, 171, 0.3);
+}
+
+.watts-bar-wrapper {
+    width: 150px;
+    height: 10px;
+    background: #333;
+    border-radius: 5px;
+    margin: 0 10px;
+    overflow: hidden;
+    position: relative;
+}
+
+.watts-fill {
+    height: 100%;
+    background: var(--neon-blue);
+    box-shadow: 0 0 10px var(--neon-blue);
+    transition: width 0.5s ease, background-color 0.5s ease;
+}
+
+.watts-fill.low-power {
+    background: var(--danger-red);
+    box-shadow: 0 0 10px var(--danger-red);
+    animation: pulse-red 1s infinite;
+}
+
+.watts-text {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.9rem;
+    color: #fff;
+}
+
+@keyframes pulse-red {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+@keyframes pulse-gold {
+    0% { box-shadow: 0 0 5px var(--matte-gold); }
+    50% { box-shadow: 0 0 20px var(--gold-glow); }
+    100% { box-shadow: 0 0 5px var(--matte-gold); }
+}
+
+/* Cards (Loot Boxes) */
 .card {
-    border: none;
+    background-color: var(--bg-card);
+    border: 1px solid #333;
+    color: #fff;
+    transition: transform 0.2s, box-shadow 0.2s;
 }
 
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+
+.card-bronze {
+    border-left: 4px solid var(--hostile-grey);
+}
+
+.card-gold {
+    border: 1px solid var(--matte-gold);
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
+    animation: pulse-gold 3s infinite;
+}
+
+/* Oracle Blur */
+.blur-content {
+    filter: blur(6px);
+    user-select: none;
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.locked-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0,0,0,0.1);
+    z-index: 10;
+}
+
+.locked-overlay i {
+    font-size: 3rem;
+    color: var(--matte-gold);
+    margin-bottom: 10px;
+    text-shadow: 0 0 10px #000;
+}
+
+/* Buttons */
+.btn-primary {
+    background-color: var(--neon-blue);
+    border-color: var(--neon-blue);
+    box-shadow: 0 0 10px rgba(0, 71, 171, 0.5);
+}
+
+.btn-primary:hover {
+    background-color: var(--neon-blue-glow);
+    box-shadow: 0 0 20px rgba(0, 71, 171, 0.8);
+}
+
+.btn-warning {
+    background-color: var(--matte-gold);
+    border-color: var(--matte-gold);
+    color: #000;
+}
+
+.btn-watt {
+    position: relative;
+    overflow: hidden;
+}
+
+/* Hacker Terminal */
+.terminal-window {
+    background: #000;
+    border: 1px solid #333;
+    font-family: 'Courier New', monospace;
+    padding: 15px;
+    color: #0f0;
+    height: 300px;
+    overflow-y: auto;
+    border-radius: 5px;
+    box-shadow: inset 0 0 20px rgba(0, 255, 0, 0.1);
+}
+
+.terminal-line {
+    margin: 2px 0;
+    opacity: 0;
+    animation: fadeIn 0.1s forwards;
+}
+
+.terminal-cursor::after {
+    content: '_';
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    50% { opacity: 0; }
+}
+
+@keyframes fadeIn {
+    to { opacity: 1; }
+}
+
+/* Form inputs */
+.form-control, .form-select {
+    background-color: #2b3035;
+    border: 1px solid #495057;
+    color: #fff;
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: #2b3035;
+    color: #fff;
+    border-color: var(--neon-blue);
+    box-shadow: 0 0 5px rgba(0, 71, 171, 0.5);
+}
+
+.table {
+    color: #e0e0e0;
+}
+
+.table-light {
+    background-color: #2b3035;
+    color: #fff;
+}
+
+/* Detail Logs */
 pre#logs {
-    background-color: #1e1e1e;
+    background-color: #000;
     color: #00ff00;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-}
-
-/* Scrollbar for logs */
-pre#logs::-webkit-scrollbar {
-    width: 8px;
-}
-
-pre#logs::-webkit-scrollbar-track {
-    background: #1e1e1e;
-}
-
-pre#logs::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 4px;
-}
-
-pre#logs::-webkit-scrollbar-thumb:hover {
-    background: #555;
+    border: 1px solid #333;
+    padding: 15px;
 }
 
 /* Chat Bubbles for Thoughts */
@@ -36,45 +229,17 @@ pre#logs::-webkit-scrollbar-thumb:hover {
     max-height: 400px;
     overflow-y: auto;
     padding: 10px;
-    background-color: #e5ddd5; /* WhatsApp-ish background */
+    background-color: #1a1d21;
     border-radius: 5px;
 }
 
 .chat-bubble {
-    background-color: #fff;
+    background-color: #2b3035;
+    color: #fff;
     border-radius: 7px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
     padding: 8px 12px;
     margin-bottom: 10px;
     position: relative;
     max-width: 95%;
-}
-
-.chat-bubble::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -8px;
-    width: 0;
-    height: 0;
-    border: 8px solid transparent;
-    border-top-color: #fff;
-    border-right-color: #fff; /* Pointing left */
-    margin-top: 5px;
-}
-
-.chat-meta {
-    font-size: 0.75rem;
-    display: flex;
-    align-items: center;
-    margin-bottom: 4px;
-    border-bottom: 1px solid #f0f0f0;
-    padding-bottom: 4px;
-}
-
-.chat-content {
-    font-size: 0.9rem;
-    color: #111;
-    line-height: 1.4;
-    white-space: pre-wrap;
 }

@@ -1,311 +1,437 @@
 <%- include('partials/header') %>
 
+<!-- Oracle Overlay (Hidden by default) -->
+<div id="oracle-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; flex-direction:column; justify-content:center; align-items:center;">
+    <div class="terminal-window" style="width: 80%; max-width: 600px;">
+        <div id="terminal-content">
+            <div class="terminal-line">> INICIANDO PROTOCOLO ORÁCULO v3.0...</div>
+            <div class="terminal-line">> CARREGANDO MÓDULOS DE PREVISÃO...</div>
+            <span class="terminal-cursor"></span>
+        </div>
+    </div>
+</div>
+
 <div class="row justify-content-center">
-    <div class="col-md-8">
-        <h2 class="mb-4">✨ Nova Missão</h2>
-        <div class="card shadow">
+    <div class="col-md-10">
+
+        <!-- HEADER / ORACLE TRIGGER -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="brand-font mb-0">✨ Oráculo Mabus</h2>
+            <button type="button" class="btn btn-warning btn-lg shadow-gold" onclick="document.getElementById('trFile').click()">
+                <i class="fas fa-file-upload"></i> UPLOAD EDITAL (PDF)
+            </button>
+            <input type="file" id="trFile" accept=".pdf" style="display: none;" multiple onchange="uploadTR(this)">
+        </div>
+
+        <!-- ORACLE RESULT CARD (Initially Hidden) -->
+        <div id="oracle-result" class="card card-gold mb-5" style="display:none;">
+            <div class="card-header bg-transparent border-warning">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0 text-warning" id="oracle-title">OPORTUNIDADE DETECTADA</h4>
+                    <span class="badge bg-warning text-dark fs-5" id="oracle-score">IPM: 00</span>
+                </div>
+            </div>
             <div class="card-body">
-                <!-- AI TR Processor - MOVED TO TOP -->
-                <div class="mb-4 p-3 bg-light rounded border">
-                    <h5 class="mb-3">🤖 Automação com I.A</h5>
-                    <div class="d-flex align-items-center">
-                        <button type="button" class="btn btn-warning me-3" onclick="document.getElementById('trFile').click()">
-                            <i class="fas fa-magic"></i> Processar Editais/TRs com I.A
-                        </button>
-                        <input type="file" id="trFile" accept=".pdf" style="display: none;" multiple onchange="uploadTR(this)">
-                        <span id="ai-status" class="text-muted">Carregue um ou mais PDFs para preenchimento automático.</span>
+                <div class="row">
+                    <div class="col-md-4 border-end border-secondary">
+                        <h5 class="text-white-50">METADATA (PÚBLICO)</h5>
+                        <p id="oracle-teaser" class="fs-5 text-white">...</p>
+                        <div id="oracle-tags" class="mb-3"></div>
+                        <h3 class="text-warning" id="oracle-profit">R$ 0,00</h3>
+                        <p class="text-muted small">Potencial de Lucro Estimado</p>
+                    </div>
+                    <div class="col-md-8 position-relative">
+                        <h5 class="text-white-50">ESTRATÉGIA (CONFIDENCIAL)</h5>
+
+                        <!-- BLURRED CONTENT -->
+                        <div id="locked-content-container" class="position-relative">
+                            <div class="blur-content p-3">
+                                <h6>Análise de Mercado</h6>
+                                <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation.</p>
+                                <h6>Armadilhas Jurídicas</h6>
+                                <ul>
+                                    <li>Cláusula abusiva 4.2 detectada.</li>
+                                    <li>Exigência de laudo técnico ISO-9001.</li>
+                                </ul>
+                                <h6>Perfil do Vencedor</h6>
+                                <p>Trader generalista com capacidade de importação rápida.</p>
+                            </div>
+
+                            <!-- LOCK OVERLAY -->
+                            <div class="locked-overlay" id="lock-overlay">
+                                <i class="fas fa-lock"></i>
+                                <h4 class="text-white mb-3">CONTEÚDO CRIPTOGRAFADO</h4>
+                                <button class="btn btn-warning btn-lg pulse-btn" onclick="unlockOracle()">
+                                    <i class="fas fa-bolt"></i> DESCRIPTOGRAFAR (150 WATTS)
+                                </button>
+                            </div>
+
+                            <!-- UNLOCKED CONTENT (Initially Hidden) -->
+                            <div id="unlocked-content" style="display:none;" class="text-white p-3">
+                                <!-- Markdown injected here -->
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+
+        <div class="card shadow bg-dark border-secondary">
+            <div class="card-body">
+                <h5 class="mb-3 text-white-50">🔧 Configuração da Missão</h5>
 
                 <form action="/create" method="POST" enctype="multipart/form-data">
                     <input type="hidden" name="metadataJSON" id="metadataJSON">
 
-                    <div class="mb-3">
-                        <label class="form-label">Nome da Tarefa</label>
-                        <input type="text" name="name" id="taskName" class="form-control" required placeholder="Ex: Cotação TI - Lote 1">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">CEP de Destino</label>
-                        <input type="text" name="cep" id="taskCep" class="form-control" required placeholder="00000-000">
-                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-white">Nome da Tarefa</label>
+                            <input type="text" name="name" id="taskName" class="form-control" required placeholder="Ex: Cotação TI - Lote 1">
+                        </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">Link com mais detalhes</label>
-                        <input type="text" name="external_link" class="form-control" placeholder="https://...">
-                        <div class="form-text">Link para mais detalhes do processo.</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Módulo de IA</label>
-                        <select name="moduleName" class="form-select">
-                            <% modules.forEach(function(mod) { %>
-                                <option value="<%= mod %>" <%= mod === 'smart' ? 'selected' : '' %>><%= mod %></option>
-                            <% }); %>
-                        </select>
-                        <div class="form-text">Selecione qual "cérebro" executará a tarefa. O padrão agora é "Smart" (Gemini+Meli com fallback para Perplexity).</div>
-                    </div>
-
-                    <% if (userGroups && userGroups.length > 0) { %>
-                    <div class="mb-3">
-                        <label class="form-label">Grupo de Visibilidade</label>
-                        <select name="group_id" class="form-select">
-                            <option value="">-- Pessoal (Apenas Eu) --</option>
-                            <% userGroups.forEach(function(group) { %>
-                                <option value="<%= group.id %>"><%= group.name %></option>
-                            <% }); %>
-                        </select>
-                        <div class="form-text">Selecione um grupo para compartilhar esta tarefa com outros membros.</div>
-                    </div>
-                    <% } %>
-
-                    <div class="card mb-3 bg-light">
-                        <div class="card-body">
-                            <h5 class="card-title">Dados de Entrada</h5>
-                            
-                            <!-- Interactive Grid for Everyone -->
-                            <div id="grid-container">
-                                <div class="alert alert-info">
-                                    <strong>Créditos Disponíveis:</strong> <span id="user-credits"><%= user.current_credits %></span>
-                                    <br>
-                                    <strong>Custo Estimado:</strong> <span id="estimated-cost">0</span> créditos (1 por item)
-                                    <% if (user.role === 'admin') { %>
-                                        <span class="badge bg-warning text-dark">Admin (Isento)</span>
-                                    <% } %>
-                                </div>
-
-                                <table class="table table-bordered table-sm" id="items-grid">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th style="width: 5%">#</th>
-                                            <th style="width: 60%">Descrição do Item</th>
-                                            <th style="width: 15%">Max Preço (R$)</th>
-                                            <th style="width: 10%">Qtd</th>
-                                            <th style="width: 10%">Ação</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="items-body">
-                                        <!-- Rows added dynamically -->
-                                    </tbody>
-                                </table>
-                                <div class="d-flex justify-content-between mb-3">
-                                    <div class="btn-group">
-                                        <button type="button" class="btn btn-sm btn-success" id="btnAddRow" onclick="addRow()"><i class="fas fa-plus"></i> Adicionar Item</button>
-                                        <button type="button" class="btn btn-sm btn-primary" id="btnConfirm" onclick="toggleEdit()"><i class="fas fa-check"></i> Confirmar Itens</button>
-                                    </div>
-
-                                    <!-- Fallback File Upload for Admins or manual users -->
-                                    <div class="input-group input-group-sm w-auto">
-                                        <label class="input-group-text" for="fallbackCsv">Ou importar CSV</label>
-                                        <input type="file" class="form-control" id="fallbackCsv" name="csvFile" accept=".csv">
-                                    </div>
-                                </div>
-
-                                <input type="hidden" name="gridData" id="gridData">
-                            </div>
-
-                            <script>
-                                let rowCount = 0;
-                                let isLocked = false;
-                                const userCredits = <%= user.current_credits %>;
-                                const isAdmin = <%= user.role === 'admin' %>;
-
-                                function addRow() {
-                                    if(isLocked) return;
-                                    rowCount++;
-                                    const tbody = document.getElementById('items-body');
-                                    const tr = document.createElement('tr');
-                                    tr.innerHTML = `
-                                        <td>${rowCount}</td>
-                                        <td><input type="text" class="form-control form-control-sm" placeholder="Ex: Notebook Dell i7" required></td>
-                                        <td><input type="number" step="0.01" class="form-control form-control-sm" placeholder="0.00" required></td>
-                                        <td><input type="number" class="form-control form-control-sm" value="1" required></td>
-                                        <td><button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">X</button></td>
-                                    `;
-                                    tbody.appendChild(tr);
-                                    updateCost();
-                                }
-
-                                function removeRow(btn) {
-                                    if(isLocked) return;
-                                    btn.closest('tr').remove();
-                                    updateCost();
-                                }
-
-                                function toggleEdit() {
-                                    const btn = document.getElementById('btnConfirm');
-                                    const btnAdd = document.getElementById('btnAddRow');
-                                    const tbody = document.getElementById('items-body');
-                                    const inputs = tbody.querySelectorAll('input');
-                                    const removeBtns = tbody.querySelectorAll('.btn-danger');
-
-                                    if (!isLocked) {
-                                        // LOCK and SERIALIZE
-                                        if (tbody.children.length === 0) {
-                                            alert("Adicione pelo menos um item para confirmar.");
-                                            return;
-                                        }
-
-                                        let data = "ID;Descricao;valor_venda;quantidade\n";
-                                        const rows = tbody.querySelectorAll('tr');
-
-                                        for(let i=0; i<rows.length; i++) {
-                                            const rowInputs = rows[i].querySelectorAll('input');
-                                            if (rowInputs.length >= 3) {
-                                                const desc = rowInputs[0].value.replace(/;/g, ',').trim() || 'Item Sem Nome';
-                                                const price = rowInputs[1].value || '0';
-                                                const qty = rowInputs[2].value || '1';
-                                                data += `${i + 1};${desc};${price};${qty}\n`;
-                                            }
-                                        }
-
-                                        document.getElementById('gridData').value = data;
-
-                                        // UI Updates
-                                        inputs.forEach(inp => inp.disabled = true);
-                                        removeBtns.forEach(b => b.disabled = true);
-                                        btnAdd.disabled = true;
-                                        btn.innerHTML = '<i class="fas fa-edit"></i> Editar Itens';
-                                        btn.className = 'btn btn-sm btn-warning';
-                                        isLocked = true;
-
-                                        // Enable Submit (if it was blocked logic, but we handle that in updateCost)
-
-                                    } else {
-                                        // UNLOCK
-                                        inputs.forEach(inp => inp.disabled = false);
-                                        removeBtns.forEach(b => b.disabled = false);
-                                        btnAdd.disabled = false;
-                                        btn.innerHTML = '<i class="fas fa-check"></i> Confirmar Itens';
-                                        btn.className = 'btn btn-sm btn-primary';
-
-                                        document.getElementById('gridData').value = ""; // Clear to force re-confirm
-                                        isLocked = false;
-                                    }
-                                }
-
-                                function updateCost() {
-                                    const rows = document.querySelectorAll('#items-body tr').length;
-                                    document.getElementById('estimated-cost').innerText = rows;
-                                    const btn = document.querySelector('button[type="submit"]');
-
-                                    if (!isAdmin && rows > userCredits) {
-                                        btn.disabled = true;
-                                        btn.innerText = `Saldo Insuficiente (Faltam ${rows - userCredits})`;
-                                    } else if (rows === 0) {
-                                        const fileInput = document.getElementById('fallbackCsv');
-                                        if (!fileInput.value) {
-                                             btn.innerText = 'Adicione Itens ou CSV';
-                                        }
-                                    } else {
-                                        btn.disabled = false;
-                                        btn.innerText = '🚀 Decolar (Iniciar)';
-                                    }
-                                }
-
-                                // Initial Row
-                                addRow();
-
-                                // AI TR Upload Logic
-                                async function uploadTR(input) {
-                                    if (input.files.length === 0) return;
-                                    const formData = new FormData();
-
-                                    // Handle multiple files
-                                    for (let i = 0; i < input.files.length; i++) {
-                                        formData.append('pdfFiles', input.files[i]);
-                                    }
-
-                                    const statusSpan = document.getElementById('ai-status');
-                                    statusSpan.innerText = '⏳ Analisando documentos com I.A...';
-
-                                    try {
-                                        const res = await fetch('/api/process-tr', {
-                                            method: 'POST',
-                                            body: formData
-                                        });
-                                        const data = await res.json();
-
-                                        if (data.success) {
-                                            // 1. Fill Global Info
-                                            if (data.global_info) {
-                                                if (data.global_info.name) document.getElementById('taskName').value = data.global_info.name;
-                                                if (data.global_info.cep) document.getElementById('taskCep').value = data.global_info.cep;
-                                            }
-
-                                            // 2. Store Metadata
-                                            if (data.metadata) {
-                                                document.getElementById('metadataJSON').value = JSON.stringify(data.metadata);
-                                            }
-
-                                            // 3. Fill Items
-                                            if (data.items && data.items.length > 0) {
-                                                statusSpan.innerText = `✅ Processamento completo! ${data.items.length} itens encontrados.`;
-                                                populateGrid(data.items);
-                                            } else {
-                                                statusSpan.innerText = '⚠️ Processado, mas nenhum item foi identificado na lista.';
-                                            }
-                                        } else {
-                                            statusSpan.innerText = `❌ Erro: ${data.error || 'Falha desconhecida'}`;
-                                        }
-                                    } catch (e) {
-                                        statusSpan.innerText = `❌ Erro de conexão: ${e.message}`;
-                                    }
-                                    input.value = ''; // Reset
-                                }
-
-                                function populateGrid(items) {
-                                    const tbody = document.getElementById('items-body');
-                                    tbody.innerHTML = ''; // Clear existing
-                                    rowCount = 0;
-
-                                    // Unlock if locked to allow population
-                                    if (isLocked) toggleEdit();
-
-                                    items.forEach(item => {
-                                        rowCount++;
-                                        const tr = document.createElement('tr');
-                                        tr.innerHTML = `
-                                            <td>${rowCount}</td>
-                                            <td><input type="text" class="form-control form-control-sm" value="${item.description}" required></td>
-                                            <td><input type="number" step="0.01" class="form-control form-control-sm" value="${item.valor_venda}" required></td>
-                                            <td><input type="number" class="form-control form-control-sm" value="${item.quantidade}" required></td>
-                                            <td><button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">X</button></td>
-                                        `;
-                                        tbody.appendChild(tr);
-                                    });
-                                    updateCost();
-                                }
-
-                                // Form Submit Interceptor
-                                document.querySelector('form').addEventListener('submit', function(e) {
-                                    const gridData = document.getElementById('gridData').value;
-                                    const fileInput = document.getElementById('fallbackCsv');
-                                    const itemsCount = document.querySelectorAll('#items-body tr').length;
-
-                                    // If we have items but data is empty (user didn't click Confirm), force confirm or alert
-                                    if (itemsCount > 0 && (!gridData || gridData.trim().length === 0)) {
-                                        // Attempt auto-confirm?
-                                        // User asked to "force confirm". Better to block and ask to confirm.
-                                        e.preventDefault();
-                                        alert("Por favor, clique em 'Confirmar Itens' antes de enviar a tarefa.");
-                                        // Highlight button?
-                                        document.getElementById('btnConfirm').focus();
-                                        return false;
-                                    }
-                                });
-                            </script>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-white">CEP de Destino</label>
+                            <input type="text" name="cep" id="taskCep" class="form-control" required placeholder="00000-000">
                         </div>
                     </div>
 
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">🚀 Decolar (Iniciar)</button>
-                        <a href="/" class="btn btn-outline-secondary">Cancelar</a>
+                    <div class="mb-3">
+                        <label class="form-label text-white">Link com mais detalhes</label>
+                        <input type="text" name="external_link" class="form-control" placeholder="https://...">
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-white">Módulo de IA</label>
+                            <select name="moduleName" class="form-select">
+                                <% modules.forEach(function(mod) { %>
+                                    <option value="<%= mod %>" <%= mod === 'smart' ? 'selected' : '' %>><%= mod %></option>
+                                <% }); %>
+                            </select>
+                        </div>
+
+                        <% if (userGroups && userGroups.length > 0) { %>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-white">Grupo de Visibilidade</label>
+                            <select name="group_id" class="form-select">
+                                <option value="">-- Pessoal (Apenas Eu) --</option>
+                                <% userGroups.forEach(function(group) { %>
+                                    <option value="<%= group.id %>"><%= group.name %></option>
+                                <% }); %>
+                            </select>
+                        </div>
+                        <% } %>
+                    </div>
+
+                    <hr class="border-secondary">
+
+                    <h5 class="card-title text-white mb-3">📦 Grid de Itens</h5>
+
+                    <!-- Interactive Grid for Everyone -->
+                    <div id="grid-container">
+                        <div class="alert alert-dark border-secondary text-white">
+                            <i class="fas fa-bolt text-warning"></i> <strong>Seus Watts:</strong> <span id="user-credits"><%= user.current_credits %></span>
+                            <span class="mx-2">|</span>
+                            <strong>Custo da Missão:</strong> <span id="estimated-cost">0</span> Watts
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-dark table-striped table-sm" id="items-grid">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 5%">#</th>
+                                        <th style="width: 60%">Descrição do Item</th>
+                                        <th style="width: 15%">Max Preço (R$)</th>
+                                        <th style="width: 10%">Qtd</th>
+                                        <th style="width: 10%">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="items-body">
+                                    <!-- Rows added dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="d-flex justify-content-between mb-3">
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-success" id="btnAddRow" onclick="addRow()"><i class="fas fa-plus"></i> Adicionar Item</button>
+                                <button type="button" class="btn btn-sm btn-primary" id="btnConfirm" onclick="toggleEdit()"><i class="fas fa-check"></i> Confirmar Itens</button>
+                            </div>
+
+                            <div class="input-group input-group-sm w-auto">
+                                <label class="input-group-text bg-secondary text-white border-secondary" for="fallbackCsv">Importar CSV</label>
+                                <input type="file" class="form-control bg-dark text-white border-secondary" id="fallbackCsv" name="csvFile" accept=".csv">
+                            </div>
+                        </div>
+
+                        <input type="hidden" name="gridData" id="gridData">
+                    </div>
+
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg shadow-blue">🚀 INICIAR MISSÃO</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    // --- ORACLE & TERMINAL LOGIC ---
+    let realOracleData = null;
+
+    async function uploadTR(input) {
+        if (input.files.length === 0) return;
+
+        // Show Terminal
+        const overlay = document.getElementById('oracle-overlay');
+        const termContent = document.getElementById('terminal-content');
+        overlay.style.display = 'flex';
+        termContent.innerHTML = '<div class="terminal-line">> INICIANDO PROTOCOLO ORÁCULO v3.0...</div><span class="terminal-cursor"></span>';
+
+        // Fake Logs Animation
+        const fakeLogs = [
+            "Cruzando dados com CNPJ de concorrentes...",
+            "Detectando armadilhas jurídicas...",
+            "Calculando margem líquida oculta...",
+            "Acessando base de dados da Receita Federal...",
+            "Gerando matriz de risco...",
+            "Criptografando relatório estratégico..."
+        ];
+
+        let logInterval = setInterval(() => {
+            const log = fakeLogs[Math.floor(Math.random() * fakeLogs.length)];
+            const line = document.createElement('div');
+            line.className = 'terminal-line';
+            line.innerText = `> ${log}`;
+            termContent.insertBefore(line, termContent.lastElementChild);
+            // Auto scroll
+            const win = document.querySelector('.terminal-window');
+            win.scrollTop = win.scrollHeight;
+        }, 800);
+
+        // Real Upload
+        const formData = new FormData();
+        for (let i = 0; i < input.files.length; i++) {
+            formData.append('pdfFiles', input.files[i]);
+        }
+
+        try {
+            const res = await fetch('/api/process-tr', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            clearInterval(logInterval);
+            overlay.style.display = 'none';
+
+            if (data.success) {
+                realOracleData = data; // Store globally
+
+                // 1. Populate Form
+                if (data.global_info) {
+                    if (data.global_info.name) document.getElementById('taskName').value = data.global_info.name;
+                    if (data.global_info.cep) document.getElementById('taskCep').value = data.global_info.cep;
+                }
+                if (data.metadata) document.getElementById('metadataJSON').value = JSON.stringify(data.metadata);
+                if (data.items) populateGrid(data.items);
+
+                // 2. Show Oracle Card
+                renderOracleCard(data.metadata);
+
+            } else {
+                alert("Erro no Oráculo: " + (data.error || 'Desconhecido'));
+            }
+        } catch (e) {
+            clearInterval(logInterval);
+            overlay.style.display = 'none';
+            alert("Erro de conexão: " + e.message);
+        }
+        input.value = '';
+    }
+
+    function renderOracleCard(meta) {
+        const card = document.getElementById('oracle-result');
+        const m = meta.metadata || {}; // The 'metadata' inside oracle_analysis
+
+        document.getElementById('oracle-title').innerText = m.titulo_resumo || "OPORTUNIDADE DETECTADA";
+        document.getElementById('oracle-score').innerText = `IPM: ${m.ipm_score || 0}`;
+        document.getElementById('oracle-teaser').innerText = m.resumo_teaser || "Análise concluída.";
+        document.getElementById('oracle-profit').innerText = m.potencial_lucro_estimado || "R$ ???";
+
+        // Tags
+        const tagsContainer = document.getElementById('oracle-tags');
+        tagsContainer.innerHTML = '';
+        if (m.tags_gatilho) {
+            m.tags_gatilho.forEach(tag => {
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-secondary me-1';
+                badge.innerText = tag;
+                tagsContainer.appendChild(badge);
+            });
+        }
+
+        // Show Card
+        card.style.display = 'block';
+        card.scrollIntoView({ behavior: 'smooth' });
+
+        // Reset Lock
+        document.getElementById('lock-overlay').style.display = 'flex';
+        document.getElementById('unlocked-content').style.display = 'none';
+        document.querySelector('.blur-content').style.display = 'block';
+    }
+
+    function unlockOracle() {
+        // In a real app, call API to deduct credits
+        // For now, just unlock visually using the data we already have
+        if (!realOracleData || !realOracleData.metadata || !realOracleData.metadata.locked_content) return;
+
+        const locked = realOracleData.metadata.locked_content;
+        const container = document.getElementById('unlocked-content');
+
+        let html = `<h5>Análise Estratégica</h5>`;
+        html += `<div style="white-space: pre-wrap;">${locked.analise_completa_markdown || 'N/A'}</div>`;
+
+        if (locked.lista_armadilhas && locked.lista_armadilhas.length) {
+            html += `<h6 class="text-danger mt-3">⚠️ Armadilhas</h6><ul>`;
+            locked.lista_armadilhas.forEach(t => html += `<li>${t}</li>`);
+            html += `</ul>`;
+        }
+
+        container.innerHTML = html;
+
+        // Animate Unlock
+        const btn = document.querySelector('.pulse-btn');
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> LIBERANDO...';
+
+        setTimeout(() => {
+            // Visual feedback of spending watts could be added here
+            document.getElementById('lock-overlay').style.display = 'none';
+            document.querySelector('.blur-content').style.display = 'none';
+            container.style.display = 'block';
+        }, 1000);
+    }
+
+
+    // --- ORIGINAL GRID LOGIC ---
+    let rowCount = 0;
+    let isLocked = false;
+    const userCredits = <%= user.current_credits %>;
+    const isAdmin = <%= user.role === 'admin' %>;
+
+    function addRow() {
+        if(isLocked) return;
+        rowCount++;
+        const tbody = document.getElementById('items-body');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${rowCount}</td>
+            <td><input type="text" class="form-control form-control-sm" placeholder="Ex: Notebook Dell i7" required></td>
+            <td><input type="number" step="0.01" class="form-control form-control-sm" placeholder="0.00" required></td>
+            <td><input type="number" class="form-control form-control-sm" value="1" required></td>
+            <td><button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">X</button></td>
+        `;
+        tbody.appendChild(tr);
+        updateCost();
+    }
+
+    function removeRow(btn) {
+        if(isLocked) return;
+        btn.closest('tr').remove();
+        updateCost();
+    }
+
+    function toggleEdit() {
+        const btn = document.getElementById('btnConfirm');
+        const btnAdd = document.getElementById('btnAddRow');
+        const tbody = document.getElementById('items-body');
+        const inputs = tbody.querySelectorAll('input');
+        const removeBtns = tbody.querySelectorAll('.btn-danger');
+
+        if (!isLocked) {
+            // LOCK and SERIALIZE
+            if (tbody.children.length === 0) {
+                alert("Adicione pelo menos um item para confirmar.");
+                return;
+            }
+
+            let data = "ID;Descricao;valor_venda;quantidade\n";
+            const rows = tbody.querySelectorAll('tr');
+
+            for(let i=0; i<rows.length; i++) {
+                const rowInputs = rows[i].querySelectorAll('input');
+                if (rowInputs.length >= 3) {
+                    const desc = rowInputs[0].value.replace(/;/g, ',').trim() || 'Item Sem Nome';
+                    const price = rowInputs[1].value || '0';
+                    const qty = rowInputs[2].value || '1';
+                    data += `${i + 1};${desc};${price};${qty}\n`;
+                }
+            }
+
+            document.getElementById('gridData').value = data;
+
+            // UI Updates
+            inputs.forEach(inp => inp.disabled = true);
+            removeBtns.forEach(b => b.disabled = true);
+            btnAdd.disabled = true;
+            btn.innerHTML = '<i class="fas fa-edit"></i> Editar Itens';
+            btn.className = 'btn btn-sm btn-warning';
+            isLocked = true;
+        } else {
+            // UNLOCK
+            inputs.forEach(inp => inp.disabled = false);
+            removeBtns.forEach(b => b.disabled = false);
+            btnAdd.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check"></i> Confirmar Itens';
+            btn.className = 'btn btn-sm btn-primary';
+
+            document.getElementById('gridData').value = "";
+            isLocked = false;
+        }
+    }
+
+    function updateCost() {
+        const rows = document.querySelectorAll('#items-body tr').length;
+        document.getElementById('estimated-cost').innerText = rows;
+        const btn = document.querySelector('button[type="submit"]');
+
+        if (!isAdmin && rows > userCredits) {
+            btn.disabled = true;
+            btn.innerText = `Watts Insuficientes (Faltam ${rows - userCredits})`;
+        } else if (rows === 0) {
+            const fileInput = document.getElementById('fallbackCsv');
+            if (!fileInput.value) {
+                 btn.innerText = 'Adicione Itens ou CSV';
+            }
+        } else {
+            btn.disabled = false;
+            btn.innerText = '🚀 INICIAR MISSÃO';
+        }
+    }
+
+    function populateGrid(items) {
+        const tbody = document.getElementById('items-body');
+        tbody.innerHTML = '';
+        rowCount = 0;
+        if (isLocked) toggleEdit();
+
+        items.forEach(item => {
+            rowCount++;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${rowCount}</td>
+                <td><input type="text" class="form-control form-control-sm" value="${item.description}" required></td>
+                <td><input type="number" step="0.01" class="form-control form-control-sm" value="${item.valor_venda}" required></td>
+                <td><input type="number" class="form-control form-control-sm" value="${item.quantidade}" required></td>
+                <td><button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">X</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+        updateCost();
+    }
+
+    // Initial Row
+    addRow();
+
+</script>
 
 <%- include('partials/footer') %>

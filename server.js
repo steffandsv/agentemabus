@@ -29,7 +29,8 @@ const {
     addUserToGroup,
     addCredits,
     createTaskItems,
-    createTaskMetadata
+    createTaskMetadata,
+    getTaskFullResults // Imported here
 } = require('./src/database');
 const { startWorker } = require('./src/worker');
 const { generateExcelBuffer } = require('./src/export');
@@ -373,7 +374,24 @@ app.get('/task/:id', async (req, res) => {
     try {
         const task = await getTaskById(req.params.id);
         if (!task) return res.status(404).send('Task not found');
-        res.render('detail', { task });
+
+        // Fetch items and their "best" candidate for the Sniper View
+        const results = await getTaskFullResults(task.id);
+
+        // Transform results for view (simple array)
+        const taskItems = results.map(r => {
+            const winner = r.winnerIndex !== -1 ? r.offers[r.winnerIndex] : (r.offers[0] || null);
+            return {
+                id: r.id,
+                description: r.description,
+                valor_venda: r.valor_venda,
+                quantidade: r.quantidade,
+                best_price: winner ? winner.totalPrice : 0,
+                winner: winner
+            };
+        });
+
+        res.render('detail', { task, taskItems });
     } catch (e) {
         res.status(500).send(e.message);
     }
