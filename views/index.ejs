@@ -2,85 +2,28 @@
 
 <div class="row mb-4">
     <div class="col-12 text-center">
-        <h1 class="brand-font display-4" style="text-shadow: 0 0 20px rgba(0, 71, 171, 0.5);">RADAR DE OPORTUNIDADES</h1>
-        <p class="lead text-muted">Acesso Exclusivo à Inteligência de Mercado</p>
+        <h1 class="brand-font display-4" style="text-shadow: 0 0 20px rgba(0, 71, 171, 0.5); color: #fff;">RADAR DE OPORTUNIDADES</h1>
+        <p class="lead text-gray-400">Inteligência de Mercado em Tempo Real</p>
     </div>
 </div>
 
-<!-- RADAR SYSTEM (Mockup of Opportunities) -->
+<!-- RADAR SYSTEM (Opportunities) -->
 <div class="row g-4 mb-5">
+    <% if (opportunities && opportunities.length > 0) { %>
+        <% opportunities.forEach(opp => { %>
+            <!-- Admin/Radar Items are locked for standard users.
+                 Check if user is admin to unlock. -->
+            <% const isLocked = (user && user.role === 'admin') ? false : true; %>
 
-    <!-- EXAMPLE 1: BRONZE (FREE) -->
-    <div class="col-md-4">
-        <div class="card card-bronze h-100">
-            <div class="card-body d-flex flex-direction-column">
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="badge bg-secondary">NÍVEL BRONZE</span>
-                    <span class="text-muted small"><i class="fas fa-eye"></i> Visível</span>
-                </div>
-                <h5 class="card-title">Prefeitura de São João do Oeste - SC</h5>
-                <h6 class="card-subtitle mb-2 text-muted">PE 004/2025 - Eletrônicos</h6>
-                <p class="card-text small">Aquisição de periféricos para escritório. Baixa complexidade.</p>
-                <div class="mt-auto">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-success fw-bold">R$ 15.000,00</span>
-                        <span class="text-muted small">8 itens</span>
-                    </div>
-                    <button class="btn btn-outline-secondary btn-sm w-100 disabled">Análise Básica Disponível</button>
-                </div>
-            </div>
+            <%- include('partials/opportunity_card', { opp: opp, isLocked: isLocked }) %>
+        <% }) %>
+    <% } else { %>
+        <div class="col-12 text-center py-5">
+            <h3 class="text-white-50">Nenhuma oportunidade no radar no momento.</h3>
+            <p class="text-gray-400">Utilize o Oráculo para escanear seus próprios editais.</p>
+            <a href="/oracle" class="btn btn-primary mt-3">IR PARA O ORÁCULO</a>
         </div>
-    </div>
-
-    <!-- EXAMPLE 2: GOLD (LOCKED) -->
-    <div class="col-md-4">
-        <div class="card card-gold h-100 position-relative" style="overflow: hidden;">
-            <div class="card-body">
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="badge bg-warning text-dark">NÍVEL OURO</span>
-                    <span class="text-warning small"><i class="fas fa-lock"></i> Exclusivo</span>
-                </div>
-
-                <!-- BLURRED CONTENT -->
-                <div class="blurred-content">
-                    <h5 class="card-title">Prefeitura de XXXXXX - MG</h5>
-                    <h6 class="card-subtitle mb-2 text-muted">PE 0XX/2025 - Mix Variado</h6>
-                    <p class="card-text small">Oportunidade de alta margem detectada em portal obscuro.</p>
-                </div>
-
-                <!-- TEASER -->
-                <div class="lock-overlay w-100 px-4">
-                    <h5 class="text-warning" style="text-shadow: 0 0 10px #000;">OPORTUNIDADE DETECTADA</h5>
-                    <p class="small text-white" style="text-shadow: 0 0 10px #000;">Cidade Pequena (<20k hab).<br>Portal Exclusivo.</p>
-                    <button class="btn btn-warning btn-sm w-100" style="box-shadow: 0 0 10px #D4AF37;">
-                        <i class="fas fa-bolt"></i> REVELAR (500 WATTS)
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- EXAMPLE 3: SILVER (PARTIAL) -->
-    <div class="col-md-4">
-        <div class="card h-100 border-primary" style="box-shadow: 0 0 10px rgba(0, 71, 171, 0.3);">
-            <div class="card-body">
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="badge bg-primary">NÍVEL PRATA</span>
-                    <span class="text-primary small"><i class="fas fa-user-secret"></i> Restrito</span>
-                </div>
-                <h5 class="card-title">Câmara Mun. de Bofete - SP</h5>
-                <div class="blurred-content">
-                    <h6 class="card-subtitle mb-2 text-muted">PE 0XX/2025</h6>
-                    <p class="card-text small">Licitação de Material de Consumo.</p>
-                </div>
-                <div class="mt-3">
-                    <button class="btn btn-primary btn-sm w-100" style="box-shadow: 0 0 10px #0047AB;">
-                        <i class="fas fa-bolt"></i> DESBLOQUEAR (150 WATTS)
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <% } %>
 </div>
 
 <%- include('partials/footer') %>

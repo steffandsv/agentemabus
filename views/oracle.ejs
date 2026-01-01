@@ -1,54 +1,106 @@
 <%- include('partials/header') %>
 
-<div class="row mb-4">
-    <div class="col-12 text-center">
-        <h2 class="brand-font text-gold">🔮 ORÁCULO TÁTICO</h2>
-        <p class="text-muted">Análise Preditiva de Editais</p>
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12 text-center">
+            <h2 class="brand-font text-gold display-5" style="text-shadow: 0 0 15px rgba(212, 175, 55, 0.5);">🔮 ORÁCULO ESTRATÉGICO</h2>
+            <p class="text-gray-400">Envie seu edital (PDF) e descubra o oceano azul.</p>
+        </div>
     </div>
-</div>
 
-<div class="row justify-content-center">
-    <div class="col-md-8">
-        <!-- DRAG & DROP ZONE -->
-        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('trFile').click()">
-            <input type="file" id="trFile" accept=".pdf" style="display: none;" multiple onchange="handleFiles(this.files)">
-            <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
-            <h4 class="text-main">ARRASTE SEU EDITAL AQUI</h4>
-            <p class="text-muted small">Para a vidente analisar</p>
-        </div>
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-8 col-md-10">
 
-        <!-- MATRIX TERMINAL (LOADING) -->
-        <div class="matrix-terminal mt-4 rounded" id="terminal">
-            <div id="terminal-content"></div>
-        </div>
+            <!-- DRAG & DROP ZONE -->
+            <div class="drop-zone p-5 border-2 border-dashed border-primary rounded-3 text-center bg-dark-subtle"
+                 id="drop-zone" onclick="document.getElementById('trFile').click()"
+                 style="cursor: pointer; transition: all 0.3s; background: rgba(0,0,0,0.4);">
 
-        <!-- RESULT CARD (HIDDEN) -->
-        <div id="oracle-result" class="card card-gold mt-5" style="display:none;">
-            <div class="card-header bg-transparent border-warning d-flex justify-content-between align-items-center">
-                <h4 class="mb-0 text-warning" id="oracle-title">RELATÓRIO TÁTICO</h4>
-                <span class="badge bg-warning text-dark fs-5" id="oracle-score">IPM: 00</span>
+                <input type="file" id="trFile" accept=".pdf" style="display: none;" multiple onchange="handleFiles(this.files)">
+
+                <i class="fas fa-cloud-upload-alt fa-4x text-primary mb-3" style="text-shadow: 0 0 10px #0047AB;"></i>
+                <h3 class="text-white fw-light">ARRASTE SEU EDITAL AQUI</h3>
+                <p class="text-gray-400 small">A I.A. irá decifrar a estratégia oculta.</p>
             </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-5 border-end border-secondary">
-                        <h5 class="text-muted small uppercase">METADATA</h5>
-                        <p id="oracle-teaser" class="fs-5 text-white">...</p>
-                        <div id="oracle-tags" class="mb-3"></div>
-                        <h3 class="text-warning" id="oracle-profit">R$ 0,00</h3>
-                        <p class="text-muted small">Potencial Estimado</p>
-                    </div>
-                    <div class="col-md-7">
-                        <h5 class="text-muted small uppercase">ESTRATÉGIA</h5>
-                        <div id="strategy-content" class="text-white small" style="white-space: pre-wrap;">
-                            <!-- Markdown injected here -->
+
+            <!-- MATRIX TERMINAL (LOADING) -->
+            <div class="matrix-terminal mt-4 rounded bg-black border border-success p-3" id="terminal" style="display:none; height: 200px; overflow-y: auto; font-family: 'Courier New', monospace;">
+                <div id="terminal-content" class="text-success small"></div>
+            </div>
+
+            <!-- RESULT CARD (HIDDEN) -->
+            <div id="oracle-result" class="card card-gold mt-5 border-warning shadow-lg" style="display:none; background: #111;">
+                <div class="card-header bg-transparent border-warning d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0 text-warning brand-font" id="oracle-title">RELATÓRIO TÁTICO</h4>
+                    <span class="badge bg-warning text-dark fs-5" id="oracle-score">IPM: 00</span>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-5 border-end border-secondary">
+                            <h5 class="text-gray-500 small text-uppercase mb-3">METADATA</h5>
+
+                            <p id="oracle-teaser" class="fs-5 text-white fw-light mb-4">...</p>
+
+                            <div id="oracle-tags" class="mb-4"></div>
+
+                            <div class="p-3 bg-dark rounded border border-secondary mb-3">
+                                <small class="text-white-50 d-block">Potencial Estimado</small>
+                                <h3 class="text-success mb-0" id="oracle-profit">R$ 0,00</h3>
+                            </div>
+                        </div>
+                        <div class="col-md-7">
+                            <h5 class="text-gray-500 small text-uppercase mb-3">ESTRATÉGIA BLOQUEADA (VISUALIZAÇÃO)</h5>
+                            <div id="strategy-content" class="text-gray-300 small" style="white-space: pre-wrap; max-height: 400px; overflow-y: auto;">
+                                <!-- Markdown injected here -->
+                            </div>
                         </div>
                     </div>
                 </div>
+                <div class="card-footer bg-transparent border-warning text-end">
+                    <button class="btn btn-outline-light me-2" onclick="location.reload()">NOVA ANÁLISE</button>
+                    <button class="btn btn-primary btn-lg shadow-blue" onclick="sendToSniper()">
+                        <i class="fas fa-crosshairs"></i> ENVIAR PARA SNIPER
+                    </button>
+                </div>
             </div>
-            <div class="card-footer bg-transparent border-warning text-end">
-                <button class="btn btn-primary btn-lg shadow-blue" onclick="sendToSniper()">
-                    <i class="fas fa-crosshairs"></i> ENVIAR PARA SNIPER
-                </button>
+
+        </div>
+    </div>
+
+    <!-- HISTORY SECTION -->
+    <div class="row mt-5">
+        <div class="col-12 mb-3 px-4">
+            <h4 class="text-white border-bottom border-secondary pb-2"><i class="fas fa-history me-2"></i> Histórico de Análises</h4>
+        </div>
+
+        <div class="row px-4">
+            <% if (history && history.length > 0) { %>
+                <% history.forEach(opp => { %>
+                    <%- include('partials/opportunity_card', { opp: opp, isLocked: false }) %>
+                <% }) %>
+            <% } else { %>
+                <div class="col-12 text-center">
+                    <p class="text-white-50">Nenhuma análise realizada ainda.</p>
+                </div>
+            <% } %>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for History Details -->
+<div class="modal fade" id="oppModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="oppModalLabel">Detalhes da Oportunidade</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="oppModalBody">
+                <!-- Content loaded via JS -->
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" id="modalSendSniperBtn">Enviar para Sniper</button>
             </div>
         </div>
     </div>
@@ -58,33 +110,26 @@
     const dropZone = document.getElementById('drop-zone');
     const terminal = document.getElementById('terminal');
     const termContent = document.getElementById('terminal-content');
+    let currentOracleData = null;
 
-    let oracleData = null;
+    // History Data (Injected from server for modal use)
+    const historyData = <%- JSON.stringify(history || []) %>;
 
     // Drag & Drop Events
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('dragover');
-    });
-
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('dragover');
-    });
-
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('bg-dark'); });
+    dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('bg-dark'); });
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
-        dropZone.classList.remove('dragover');
+        dropZone.classList.remove('bg-dark');
         handleFiles(e.dataTransfer.files);
     });
 
     function handleFiles(files) {
         if (files.length === 0) return;
 
-        // UI Transition
         dropZone.style.display = 'none';
         terminal.style.display = 'block';
 
-        // Matrix Animation
         const logs = [
             "Inicializando núcleo de processamento...",
             "Lendo estrutura PDF...",
@@ -100,7 +145,7 @@
         const interval = setInterval(() => {
             if (i < logs.length) {
                 const line = document.createElement('div');
-                line.className = 'terminal-line';
+                line.style.marginBottom = '5px';
                 line.innerText = `> ${logs[i]}`;
                 termContent.appendChild(line);
                 terminal.scrollTop = terminal.scrollHeight;
@@ -108,7 +153,6 @@
             }
         }, 800);
 
-        // Upload
         const formData = new FormData();
         for (let i = 0; i < files.length; i++) {
             formData.append('pdfFiles', files[i]);
@@ -119,8 +163,10 @@
             .then(data => {
                 clearInterval(interval);
                 if (data.success) {
-                    oracleData = data;
+                    currentOracleData = data;
                     renderResult(data);
+                    // Refresh page after a short delay or just show result?
+                    // Showing result is better UX, page reload updates history.
                 } else {
                     termContent.innerHTML += `<div class="text-danger">> ERRO: ${data.error}</div>`;
                 }
@@ -135,38 +181,78 @@
         terminal.style.display = 'none';
         const card = document.getElementById('oracle-result');
         const m = data.metadata || {};
-        const locked = m.locked_content || {};
+        const locked = data.locked_content || {};
 
         document.getElementById('oracle-title').innerText = m.titulo_resumo || "ANÁLISE CONCLUÍDA";
         document.getElementById('oracle-score').innerText = `IPM: ${m.ipm_score || 0}`;
         document.getElementById('oracle-teaser').innerText = m.resumo_teaser || "Sem resumo.";
         document.getElementById('oracle-profit').innerText = m.potencial_lucro_estimado || "???";
 
-        // Tags
         const tagsContainer = document.getElementById('oracle-tags');
         tagsContainer.innerHTML = '';
         if (m.tags_gatilho) {
             m.tags_gatilho.forEach(tag => {
                 const badge = document.createElement('span');
-                badge.className = 'badge bg-dark border border-secondary me-1 text-muted';
+                badge.className = 'badge bg-dark border border-secondary me-1 text-info';
                 badge.innerText = tag;
                 tagsContainer.appendChild(badge);
             });
         }
 
-        // Strategy (Unlocked for simplicity in this flow, or kept "locked" until clicked)
-        // The user said: "Aparece o 'Relatório Tático'... Clica num botão: [ENVIAR PARA SNIPER]"
-        // We will show the report.
         document.getElementById('strategy-content').innerText = locked.analise_completa_markdown || "Sem dados estratégicos.";
-
         card.style.display = 'block';
     }
 
     function sendToSniper() {
-        if (!oracleData) return;
-        // Save to sessionStorage to pass to Sniper
-        sessionStorage.setItem('oracleData', JSON.stringify(oracleData));
+        if (!currentOracleData) return;
+        sessionStorage.setItem('oracleData', JSON.stringify(currentOracleData));
         window.location.href = '/sniper';
+    }
+
+    function openOpportunityDetails(id) {
+        const opp = historyData.find(h => h.id == id);
+        if (!opp) return;
+
+        // Construct Data for Sniper from DB structure
+        currentOracleData = {
+            metadata: opp.metadata_json,
+            locked_content: opp.locked_content_json,
+            items: opp.items_json
+        };
+
+        const modalBody = document.getElementById('oppModalBody');
+        const locked = opp.locked_content_json || {};
+        const meta = opp.metadata_json || {};
+
+        modalBody.innerHTML = `
+            <div class="row">
+                <div class="col-md-4">
+                    <h6 class="text-warning">INFO GERAL</h6>
+                    <p><strong>Edital:</strong> ${meta.edital_numero || opp.title}</p>
+                    <p><strong>Município:</strong> ${meta.municipio_uf || opp.municipality}</p>
+                    <p><strong>Valor:</strong> ${meta.valor_estimado_total}</p>
+                    <p><strong>IPM Score:</strong> <span class="badge bg-warning text-dark">${opp.ipm_score}</span></p>
+                    <hr>
+                    <h6 class="text-warning">ITENS DESTAQUE</h6>
+                    <ul>
+                        ${(locked.itens_destaque || []).map(i => `<li>${i}</li>`).join('')}
+                    </ul>
+                </div>
+                <div class="col-md-8">
+                    <h6 class="text-warning">ANÁLISE ESTRATÉGICA</h6>
+                    <div class="bg-dark p-3 rounded border border-secondary" style="white-space: pre-wrap; font-size: 0.9em; max-height: 400px; overflow-y: auto;">
+                        ${locked.analise_completa_markdown || 'Sem análise.'}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Update Button Binding
+        const btn = document.getElementById('modalSendSniperBtn');
+        btn.onclick = sendToSniper;
+
+        const modal = new bootstrap.Modal(document.getElementById('oppModal'));
+        modal.show();
     }
 </script>
 

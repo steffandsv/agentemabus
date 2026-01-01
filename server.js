@@ -30,7 +30,10 @@ const {
     addCredits,
     createTaskItems,
     createTaskMetadata,
-    getTaskFullResults
+    getTaskFullResults,
+    createOpportunity,
+    getRadarOpportunities,
+    getUserOpportunities
 } = require('./src/database');
 const { startWorker } = require('./src/worker');
 const { generateExcelBuffer } = require('./src/export');
@@ -114,8 +117,9 @@ const isAdmin = async (req, res, next) => {
 app.get('/', async (req, res) => {
     try {
         if (!req.session.userId) return res.redirect('/login');
-        // Radar is just the visual gallery now. Tasks moved to Dashboard.
-        res.render('index');
+        // Fetch Admin Opportunities (Radar)
+        const opportunities = await getRadarOpportunities();
+        res.render('index', { opportunities });
     } catch (e) {
         res.status(500).send(e.message);
     }
@@ -134,8 +138,13 @@ app.get('/dashboard', isAuthenticated, async (req, res) => {
 });
 
 // Module 2: ORACLE (Analysis)
-app.get('/oracle', isAuthenticated, (req, res) => {
-    res.render('oracle');
+app.get('/oracle', isAuthenticated, async (req, res) => {
+    try {
+        const history = await getUserOpportunities(req.session.userId);
+        res.render('oracle', { history });
+    } catch (e) {
+        res.status(500).send(e.message);
+    }
 });
 
 // Module 3: SNIPER (Execution/Create Task)
@@ -271,11 +280,32 @@ app.post('/api/process-tr', isAuthenticated, upload.array('pdfFiles'), async (re
     const filePaths = req.files.map(f => f.path);
 
     try {
-        const result = await processPDF(filePaths);
+        const result = await processPDF(filePaths); // Returns { metadata, locked_content, items }
         filePaths.forEach(p => fs.unlinkSync(p));
+
+        // Save to Database (Opportunities)
+        const opportunityData = {
+            title: result.metadata.edital_numero || 'Análise Sem Título',
+            municipality: result.metadata.municipio_uf || 'Desconhecido',
+            metadata: result.metadata,
+            locked_content: result.locked_content,
+            items: result.items,
+            ipm_score: result.metadata.ipm_score || 0
+        };
+
+        // If admin, assign to NULL (Radar) so it's public/global
+        const user = await getUserById(req.session.userId);
+        const targetUserId = (user && user.role === 'admin') ? null : req.session.userId;
+
+        await createOpportunity(targetUserId, opportunityData);
+
+        // Fetch updated history to verify (optional, frontend might just append)
+        // For now, return the result as before so the frontend animation finishes
         res.json({ success: true, ...result });
+
     } catch (e) {
         filePaths.forEach(p => { if(fs.existsSync(p)) fs.unlinkSync(p); });
+        console.error(e);
         res.status(500).json({ error: e.message });
     }
 });

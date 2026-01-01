@@ -154,6 +154,23 @@ async function initDB() {
             )
         `);
 
+        // --- OPPORTUNITIES (ORACLE/RADAR) TABLE ---
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS opportunities (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT, -- Null for Admin/Radar, Set for User History
+                title VARCHAR(255),
+                municipality VARCHAR(255),
+                metadata_json JSON, -- The Public Teaser
+                locked_content_json JSON, -- The Private Analysis
+                items_json JSON, -- Extracted Items for Sniper
+                ipm_score INT DEFAULT 0,
+                status VARCHAR(50) DEFAULT 'available', -- available, unlocked, archived
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+
         // Check for default admin
         const [users] = await pool.query("SELECT * FROM users WHERE username = 'admin'");
         if (users.length === 0) {
@@ -571,6 +588,50 @@ async function getTaskFullResults(taskId) {
     return results;
 }
 
+// --- OPPORTUNITIES (RADAR/ORACLE) FUNCTIONS ---
+
+async function createOpportunity(userId, data) {
+    const p = await getPool();
+    if (!p) throw new Error("DB not ready");
+
+    // data expects: { title, municipality, metadata, locked_content, items, ipm_score }
+    const sql = `INSERT INTO opportunities
+        (user_id, title, municipality, metadata_json, locked_content_json, items_json, ipm_score)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`;
+
+    await p.query(sql, [
+        userId || null, // If null, it's global/radar
+        data.title,
+        data.municipality,
+        JSON.stringify(data.metadata),
+        JSON.stringify(data.locked_content),
+        JSON.stringify(data.items),
+        data.ipm_score || 0
+    ]);
+}
+
+async function getRadarOpportunities() {
+    const p = await getPool();
+    if (!p) return [];
+    // Where user_id is NULL (Admin/System generated)
+    const [rows] = await p.query("SELECT * FROM opportunities WHERE user_id IS NULL ORDER BY created_at DESC");
+    return rows;
+}
+
+async function getUserOpportunities(userId) {
+    const p = await getPool();
+    if (!p) return [];
+    const [rows] = await p.query("SELECT * FROM opportunities WHERE user_id = ? ORDER BY created_at DESC", [userId]);
+    return rows;
+}
+
+async function getOpportunityById(id) {
+    const p = await getPool();
+    if (!p) return null;
+    const [rows] = await p.query("SELECT * FROM opportunities WHERE id = ?", [id]);
+    return rows[0];
+}
+
 module.exports = {
     initDB,
     createTask,
@@ -602,5 +663,9 @@ module.exports = {
     logTaskMessage,
     getTaskLogs,
     getTaskFullResults,
-    createTaskMetadata
+    createTaskMetadata,
+    createOpportunity,
+    getRadarOpportunities,
+    getUserOpportunities,
+    getOpportunityById
 };

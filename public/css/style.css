@@ -138,6 +138,15 @@ h1, h2, h3, h4, h5, .brand-font {
     box-shadow: 0 0 15px rgba(212, 175, 55, 0.1);
 }
 
+.card-silver {
+    border: 1px solid var(--neon-blue);
+    box-shadow: 0 0 15px rgba(0, 71, 171, 0.2);
+}
+
+.card-bronze {
+    border: 1px solid #555;
+}
+
 /* Blur & Lock */
 .blurred-content {
     filter: blur(8px);
@@ -187,6 +196,14 @@ h1, h2, h3, h4, h5, .brand-font {
 .text-neon { color: var(--neon-blue); }
 .text-gold { color: var(--gold); }
 .bg-black { background-color: #000 !important; }
+
+/* Gray Scales for Dark Mode */
+.text-gray-100 { color: #f8f9fa !important; }
+.text-gray-200 { color: #e9ecef !important; }
+.text-gray-300 { color: #dee2e6 !important; }
+.text-gray-400 { color: #ced4da !important; }
+.text-gray-500 { color: #adb5bd !important; }
+.text-gray-600 { color: #6c757d !important; }
 
 /* Mobile */
 @media (max-width: 768px) {
