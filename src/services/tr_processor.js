@@ -22,6 +22,7 @@ async function processPDF(filePaths) {
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         // SYSTEM PROMPT: ORÁCULO ESTRATÉGICO UNIVERSAL (v3.0)
+        // Note: Backticks in the prompt text are escaped to avoid template string termination errors.
         const prompt = `
 # SYSTEM PROMPT: ORÁCULO ESTRATÉGICO UNIVERSAL (v3.0)
 
@@ -83,7 +84,7 @@ O IPM mede a "ineficiência do mercado". Quanto maior a nota (0-100), menor a co
     * 00 pts: Registro de Preço para 12 meses (Risco de inflação).
 
 **FÓRMULA:**
-`IPM = (Pcidade * 2.0) + (Pportal * 2.5) + (Pcomplexidade * 2.0) + (Pbarreiras * 1.5) + (Pvalor * 1.0) + (Pvolume * 0.5) + (Ptempo * 0.5)`
+\`IPM = (Pcidade * 2.0) + (Pportal * 2.5) + (Pcomplexidade * 2.0) + (Pbarreiras * 1.5) + (Pvalor * 1.0) + (Pvolume * 0.5) + (Ptempo * 0.5)\`
 
 ---
 
@@ -94,26 +95,26 @@ Você deve retornar APENAS um JSON válido.
 ### 1. METADATA (Público - "O Teaser")
 Dados para gerar o Card de Dopamina. O usuário vê isso DE GRAÇA para decidir se gasta créditos.
 
-* `tipo_objeto_principal`: Classifique o objeto em UMA categoria macro (Ex: "Informática & T.I.", "Obras & Engenharia", "Limpeza & Químicos", "Alimentos", "Mobiliário", "Veículos", "Serviços Gerais", "Hospitalar", "Mix/Variedades").
-* `resumo_teaser`: Copywriting agressivo. Venda a oportunidade sem entregar o ouro. Fale sobre a "falha de mercado" encontrada.
-* `tags_estrategicas`: Palavras-chave que ativam a ganância (Ex: "Lote Mosaico", "Portal Oculto", "Sem Amostra").
-* `edital_numero`: O numero do edital ou processo.
-* `municipio_uf`: Municipio e UF (Ex: São Paulo - SP).
-* `ipm_score`: O score calculado.
-* `valor_estimado_total`: Valor total estimado formatado (Ex: R$ 100.000,00) ou "Sigiloso".
-* `classificacao_oportunidade`: "OCEANO AZUL", "OPORTUNIDADE", "RISCO ALTO".
-* `cor_hex`: "#D4AF37" (Ouro/Bom), "#C0C0C0" (Prata/Médio), "#CD7F32" (Bronze/Comum).
+* \`tipo_objeto_principal\`: Classifique o objeto em UMA categoria macro (Ex: "Informática & T.I.", "Obras & Engenharia", "Limpeza & Químicos", "Alimentos", "Mobiliário", "Veículos", "Serviços Gerais", "Hospitalar", "Mix/Variedades").
+* \`resumo_teaser\`: Copywriting agressivo. Venda a oportunidade sem entregar o ouro. Fale sobre a "falha de mercado" encontrada.
+* \`tags_estrategicas\`: Palavras-chave que ativam a ganância (Ex: "Lote Mosaico", "Portal Oculto", "Sem Amostra").
+* \`edital_numero\`: O numero do edital ou processo.
+* \`municipio_uf\`: Municipio e UF (Ex: São Paulo - SP).
+* \`ipm_score\`: O score calculado.
+* \`valor_estimado_total\`: Valor total estimado formatado (Ex: R$ 100.000,00) ou "Sigiloso".
+* \`classificacao_oportunidade\`: "OCEANO AZUL", "OPORTUNIDADE", "RISCO ALTO".
+* \`cor_hex\`: "#D4AF37" (Ouro/Bom), "#C0C0C0" (Prata/Médio), "#CD7F32" (Bronze/Comum).
 
 ### 2. LOCKED_CONTENT (Pago - "O Ouro")
 A análise técnica completa.
 
-* `analise_markdown`: Relatório formatado com detalhes dos pilares do IPM, pontos fortes e fracos.
-* `perfil_vencedor`: Quem ganha isso? (Ex: "Trader Generalista", "Fabricante Local", "Engenharia de Pequeno Porte").
-* `itens_destaque`: Array de strings com itens bons.
-* `armadilhas_identificadas`: Array de strings com riscos.
+* \`analise_markdown\`: Relatório formatado com detalhes dos pilares do IPM, pontos fortes e fracos.
+* \`perfil_vencedor\`: Quem ganha isso? (Ex: "Trader Generalista", "Fabricante Local", "Engenharia de Pequeno Porte").
+* \`itens_destaque\`: Array de strings com itens bons.
+* \`armadilhas_identificadas\`: Array de strings com riscos.
 
 ### 3. ITEMS (Extraction for Sniper)
-* `items`: An array of objects to populate the bidding grid. Each object must have:
+* \`items\`: An array of objects to populate the bidding grid. Each object must have:
    - "id": Item number.
    - "description": Full description of the item.
    - "valor_venda": Maximum unit price (numeric, no currency symbols). Use 0 if not found.
@@ -121,7 +122,7 @@ A análise técnica completa.
 
 ### EXEMPLO DE OUTPUT:
 
-```json
+\`\`\`json
 {
   "metadata": {
     "edital_numero": "PE 042/2025",
@@ -154,7 +155,7 @@ A análise técnica completa.
       { "id": "1", "description": "Item 1 desc...", "valor_venda": 100.00, "quantidade": 10 }
   ]
 }
-```
+\`\`\`
 
         Text to analyze:
         ${combinedText.substring(0, 100000)}
