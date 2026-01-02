@@ -273,15 +273,38 @@ app.post('/create', isAuthenticated, upload.single('csvFile'), async (req, res) 
     }
 });
 
-// TR Processing Endpoint (Oracle)
+// TR Processing Endpoint (Oracle) - STREAMING SSE
 app.post('/api/process-tr', isAuthenticated, upload.array('pdfFiles'), async (req, res) => {
     if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
 
     const filePaths = req.files.map(f => f.path);
 
+    // Set headers for Server-Sent Events (SSE)
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders(); // Establish connection immediately
+
+    const sendEvent = (type, data) => {
+        res.write(`event: ${type}\n`);
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    // Keep track of sent titles to avoid duplicates in the UI
+    let lastSentTitle = "";
+
     try {
-        const result = await processPDF(filePaths); // Returns { metadata, locked_content, items }
-        filePaths.forEach(p => fs.unlinkSync(p));
+        sendEvent('status', { message: 'Iniciando leitura do edital...' });
+
+        const result = await processPDF(filePaths, (thoughtTitle) => {
+            if (thoughtTitle && thoughtTitle !== lastSentTitle) {
+                sendEvent('thought', { title: thoughtTitle });
+                lastSentTitle = thoughtTitle;
+            }
+        });
+
+        // Clean up files
+        filePaths.forEach(p => { if(fs.existsSync(p)) fs.unlinkSync(p); });
 
         // Save to Database (Opportunities)
         const opportunityData = {
@@ -299,14 +322,16 @@ app.post('/api/process-tr', isAuthenticated, upload.array('pdfFiles'), async (re
 
         await createOpportunity(targetUserId, opportunityData);
 
-        // Fetch updated history to verify (optional, frontend might just append)
-        // For now, return the result as before so the frontend animation finishes
-        res.json({ success: true, ...result });
+        // Send Final Result
+        sendEvent('result', result);
+        res.write('event: end\ndata: "DONE"\n\n');
+        res.end();
 
     } catch (e) {
         filePaths.forEach(p => { if(fs.existsSync(p)) fs.unlinkSync(p); });
-        console.error(e);
-        res.status(500).json({ error: e.message });
+        console.error("Oracle Error:", e);
+        sendEvent('error', { message: e.message });
+        res.end();
     }
 });
 
