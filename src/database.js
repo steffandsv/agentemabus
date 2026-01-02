@@ -171,6 +171,16 @@ async function initDB() {
             )
         `);
 
+        // --- SETTINGS TABLE ---
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS settings (
+                setting_key VARCHAR(100) PRIMARY KEY,
+                setting_value TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        `);
+
         // Check for default admin
         const [users] = await pool.query("SELECT * FROM users WHERE username = 'admin'");
         if (users.length === 0) {
@@ -632,6 +642,24 @@ async function getOpportunityById(id) {
     return rows[0];
 }
 
+// --- SETTINGS FUNCTIONS ---
+async function getSetting(key) {
+    const p = await getPool();
+    if (!p) return null;
+    const [rows] = await p.query("SELECT setting_value FROM settings WHERE setting_key = ?", [key]);
+    return rows[0] ? rows[0].setting_value : null;
+}
+
+async function setSetting(key, value) {
+    const p = await getPool();
+    if (!p) return;
+    await p.query(`
+        INSERT INTO settings (setting_key, setting_value)
+        VALUES (?, ?)
+        ON DUPLICATE KEY UPDATE setting_value = ?
+    `, [key, value, value]);
+}
+
 module.exports = {
     initDB,
     createTask,
@@ -667,5 +695,7 @@ module.exports = {
     createOpportunity,
     getRadarOpportunities,
     getUserOpportunities,
-    getOpportunityById
+    getOpportunityById,
+    getSetting,
+    setSetting
 };

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const pdf = require('pdf-parse');
-const { callDeepSeekStream } = require('./deepseek');
+const { generateStream, PROVIDERS } = require('./ai_manager');
+const { getSetting } = require('../database');
 
 async function processPDF(filePaths, onThought = null) {
     try {
@@ -91,8 +92,12 @@ Retorne APENAS um JSON válido.
 ${combinedText.substring(0, 100000)}
 `;
 
-        // Only DeepSeek Reasoner
-        console.log(`[Oracle] Iniciando DeepSeek Reasoner...`);
+        // 1. Load Settings
+        const provider = await getSetting('oracle_provider') || PROVIDERS.DEEPSEEK;
+        const model = await getSetting('oracle_model') || 'deepseek-reasoner';
+        const apiKey = await getSetting('oracle_api_key') || process.env[`${provider.toUpperCase()}_API_KEY`] || process.env.DEEPSEEK_API_KEY;
+
+        console.log(`[Oracle] Iniciando com ${provider} (${model})...`);
 
         const messages = [
             { role: "system", content: "You are a helpful assistant. Return ONLY valid JSON." },
@@ -101,35 +106,34 @@ ${combinedText.substring(0, 100000)}
 
         // Thought Buffer to detect titles
         let thoughtBuffer = "";
+        let finalResponse = "";
+        let finalThoughts = "";
 
-        const result = await callDeepSeekStream(messages, "deepseek-reasoner", null, (chunk) => {
-             // Handle Reasoning Chunk (Thinking)
-             thoughtBuffer += chunk;
+        await new Promise((resolve, reject) => {
+            generateStream(
+                { provider, model, apiKey, messages },
+                {
+                    onThought: (chunk) => {
+                        thoughtBuffer += chunk;
+                        finalThoughts += chunk;
 
-             // Check for **Title** pattern
-             // We look for **TEXT** and ensure we haven't sent it yet.
-             // This regex finds the LAST occurrence of **...** which might be incomplete,
-             // so we actually want to find all occurrences and emit the new ones.
-
-             // Simplified approach: Regex match all \*\*(.*?)\*\*
-             // Check if we have a NEW title at the end of the buffer or if the buffer contains a title we haven't processed?
-             // Actually, since it streams, we might get "**Ana" then "lyzing**".
-             // We need to keep track of the last emitted title index.
-
-             // Let's try a regex that matches the *last* complete title in the buffer.
-             const matches = thoughtBuffer.match(/\*\*(.*?)\*\*/g);
-             if (matches && matches.length > 0) {
-                 const lastTitle = matches[matches.length - 1].replace(/\*\*/g, '').trim();
-                 // We rely on the calling function to dedup if needed, or we dedup here.
-                 // Ideally onThought is lightweight.
-                 if (onThought) onThought(lastTitle);
-             }
+                        // Check for **Title** pattern
+                        const matches = thoughtBuffer.match(/\*\*(.*?)\*\*/g);
+                        if (matches && matches.length > 0) {
+                            const lastTitle = matches[matches.length - 1].replace(/\*\*/g, '').trim();
+                            if (onThought) onThought(lastTitle);
+                        }
+                    },
+                    onChunk: (chunk) => {
+                        finalResponse += chunk;
+                    },
+                    onDone: () => resolve(),
+                    onError: (err) => reject(err)
+                }
+            );
         });
 
-        if (!result || !result.content) throw new Error("DeepSeek API falhou ou retornou vazio.");
-
-        const finalResponse = result.content;
-        const finalThoughts = result.reasoning_content || "";
+        if (!finalResponse) throw new Error("API falhou ou retornou vazio.");
 
         // --- JSON EXTRACTION & CLEANUP ---
         const jsonMatch = finalResponse.match(/```json([\s\S]*?)```/);

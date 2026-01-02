@@ -33,11 +33,14 @@ const {
     getTaskFullResults,
     createOpportunity,
     getRadarOpportunities,
-    getUserOpportunities
+    getUserOpportunities,
+    getSetting,
+    setSetting
 } = require('./src/database');
 const { startWorker } = require('./src/worker');
 const { generateExcelBuffer } = require('./src/export');
 const { processPDF } = require('./src/services/tr_processor');
+const { fetchModels } = require('./src/services/ai_manager');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -395,7 +398,65 @@ app.get('/admin/dashboard', isAdmin, async (req, res) => {
     const groups = await getAllGroups();
     res.render('admin_dashboard', { users, groups });
 });
-// ... (Keep existing API routes for reorder/tags/force-start/archive/download/admin-actions) ...
+
+// --- NEW ADMIN AI ROUTES ---
+app.get('/admin/ai-config', isAdmin, async (req, res) => {
+    try {
+        const settings = {
+            oracle_provider: await getSetting('oracle_provider'),
+            oracle_model: await getSetting('oracle_model'),
+            oracle_api_key: await getSetting('oracle_api_key'),
+            sniper_provider: await getSetting('sniper_provider'),
+            sniper_model: await getSetting('sniper_model'),
+            sniper_api_key: await getSetting('sniper_api_key')
+        };
+        res.render('admin_ai_config', { settings });
+    } catch (e) {
+        res.status(500).send(e.message);
+    }
+});
+
+app.post('/admin/ai-config/save', isAdmin, async (req, res) => {
+    const {
+        oracle_provider, oracle_model, oracle_api_key,
+        sniper_provider, sniper_model, sniper_api_key
+    } = req.body;
+
+    try {
+        if(oracle_provider) await setSetting('oracle_provider', oracle_provider);
+        if(oracle_model) await setSetting('oracle_model', oracle_model);
+        if(oracle_api_key && oracle_api_key.trim() !== '') await setSetting('oracle_api_key', oracle_api_key);
+
+        if(sniper_provider) await setSetting('sniper_provider', sniper_provider);
+        if(sniper_model) await setSetting('sniper_model', sniper_model);
+        if(sniper_api_key && sniper_api_key.trim() !== '') await setSetting('sniper_api_key', sniper_api_key);
+
+        req.flash('success', 'Configurações de IA atualizadas.');
+        res.redirect('/admin/ai-config');
+    } catch (e) {
+        req.flash('error', e.message);
+        res.redirect('/admin/ai-config');
+    }
+});
+
+app.post('/api/admin/fetch-models', isAdmin, async (req, res) => {
+    const { provider, apiKey } = req.body;
+    try {
+        // Fallback to Env if key empty
+        let effectiveKey = apiKey;
+        if (!effectiveKey || effectiveKey.trim() === '') {
+             if (provider === 'qwen') effectiveKey = process.env.DASHSCOPE_API_KEY; // example convention
+             if (provider === 'deepseek') effectiveKey = process.env.DEEPSEEK_API_KEY;
+             if (provider === 'gemini') effectiveKey = process.env.GEMINI_API_KEY;
+        }
+
+        const models = await fetchModels(provider, effectiveKey);
+        res.json(models);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // API endpoints (Some restricted?)
 app.post('/api/tasks/reorder', async (req, res) => { // Removed strict middleware for simplicity or add back
     if (req.body.orderedIds && Array.isArray(req.body.orderedIds)) {

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configurações de I.A - Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #050505; color: #eee; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { background-color: #111; border: 1px solid #333; }
+        .form-control, .form-select { background-color: #222; border-color: #444; color: #fff; }
+        .form-control:focus, .form-select:focus { background-color: #222; color: #fff; border-color: #00f3ff; box-shadow: 0 0 5px #00f3ff; }
+        .btn-neon { border: 1px solid #00f3ff; color: #00f3ff; background: transparent; transition: all 0.3s; }
+        .btn-neon:hover { background: #00f3ff; color: #000; box-shadow: 0 0 10px #00f3ff; }
+    </style>
+</head>
+<body>
+    <%- include('partials/header') %>
+
+    <div class="container mt-5">
+        <h2 class="mb-4"><i class="fas fa-brain text-info"></i> Configurações de Inteligência Artificial</h2>
+
+        <form action="/admin/ai-config/save" method="POST">
+
+            <!-- ORACLE CONFIG -->
+            <div class="card p-4 mb-4">
+                <h4 class="text-info mb-3">Oráculo (Análise de Editais)</h4>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Provedor</label>
+                        <select class="form-select provider-select" name="oracle_provider" data-target="oracle_model" id="oracle_provider">
+                            <option value="">Selecione...</option>
+                            <option value="deepseek" <%= settings.oracle_provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                            <option value="qwen" <%= settings.oracle_provider === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
+                            <option value="gemini" <%= settings.oracle_provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                            <option value="perplexity" <%= settings.oracle_provider === 'perplexity' ? 'selected' : '' %>>Perplexity</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">API Key</label>
+                        <input type="password" class="form-control api-key-input" name="oracle_api_key" id="oracle_api_key" value="<%= settings.oracle_api_key || '' %>" placeholder="Deixe vazio para usar ENV">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Modelo</label>
+                        <div class="input-group">
+                            <select class="form-select" name="oracle_model" id="oracle_model">
+                                <option value="<%= settings.oracle_model %>"><%= settings.oracle_model %></option>
+                            </select>
+                            <button type="button" class="btn btn-outline-secondary refresh-models" data-provider="oracle_provider" data-key="oracle_api_key" data-target="oracle_model">
+                                <i class="fas fa-sync"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SNIPER CONFIG -->
+            <div class="card p-4 mb-4">
+                <h4 class="text-warning mb-3">Sniper (Descoberta de Produtos)</h4>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Provedor</label>
+                        <select class="form-select provider-select" name="sniper_provider" data-target="sniper_model" id="sniper_provider">
+                            <option value="">Selecione...</option>
+                            <option value="gemini" <%= settings.sniper_provider === 'gemini' ? 'selected' : '' %>>Google Gemini (Recomendado)</option>
+                            <option value="qwen" <%= settings.sniper_provider === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
+                            <option value="deepseek" <%= settings.sniper_provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">API Key</label>
+                        <input type="password" class="form-control api-key-input" name="sniper_api_key" id="sniper_api_key" value="<%= settings.sniper_api_key || '' %>" placeholder="Deixe vazio para usar ENV">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Modelo</label>
+                        <div class="input-group">
+                            <select class="form-select" name="sniper_model" id="sniper_model">
+                                <option value="<%= settings.sniper_model %>"><%= settings.sniper_model %></option>
+                            </select>
+                            <button type="button" class="btn btn-outline-secondary refresh-models" data-provider="sniper_provider" data-key="sniper_api_key" data-target="sniper_model">
+                                <i class="fas fa-sync"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-neon w-100 btn-lg">SALVAR CONFIGURAÇÕES</button>
+        </form>
+    </div>
+
+    <%- include('partials/footer') %>
+
+    <script>
+        document.querySelectorAll('.refresh-models').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const providerSelect = document.getElementById(btn.dataset.provider);
+                const keyInput = document.getElementById(btn.dataset.key);
+                const targetSelect = document.getElementById(btn.dataset.target);
+
+                const provider = providerSelect.value;
+                const apiKey = keyInput.value;
+
+                if(!provider) {
+                    alert('Selecione um provedor primeiro.');
+                    return;
+                }
+
+                // Show loading
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+                try {
+                    const res = await fetch('/api/admin/fetch-models', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ provider, apiKey })
+                    });
+
+                    if(!res.ok) throw new Error(await res.text());
+
+                    const models = await res.json();
+
+                    // Clear and populate
+                    targetSelect.innerHTML = '';
+                    models.forEach(m => {
+                        const opt = document.createElement('option');
+                        opt.value = m.id;
+                        opt.textContent = m.name;
+                        opt.title = m.description;
+                        targetSelect.appendChild(opt);
+                    });
+
+                    alert('Modelos carregados com sucesso!');
+
+                } catch(e) {
+                    alert('Erro ao carregar modelos: ' + e.message);
+                } finally {
+                    btn.innerHTML = '<i class="fas fa-sync"></i>';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

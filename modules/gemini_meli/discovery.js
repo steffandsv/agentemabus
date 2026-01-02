@@ -1,66 +1,67 @@
-const path = require('path');
-const fs = require('fs');
-const { askGemini } = require('../../src/services/gemini');
-const { googleSearch } = require('../../src/google_services'); // Legacy, or we create a new one? Keeping legacy for now if needed.
+const { GoogleGenerativeAI } = require("@google/generative-ai"); // Legacy for now or replace?
+const { getSetting } = require('../../src/database');
+const { generateStream, PROVIDERS } = require('../../src/services/ai_manager');
 
-// Helper: Simple template engine
-function renderTemplate(template, data) {
-    return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
-        return data[key] || `[${key} not found]`;
-    });
-}
+/**
+ * Discovery Phase: Understand the item and strategy.
+ * Uses AI Config.
+ */
+async function analyzeItemStrategy(itemDescription) {
+    // Load Settings
+    const provider = await getSetting('sniper_provider') || PROVIDERS.GEMINI;
+    const model = await getSetting('sniper_model') || 'gemini-2.0-flash-exp';
+    const apiKey = await getSetting('sniper_api_key') || process.env.GEMINI_API_KEY;
 
-function extractJson(text) {
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
-    if (jsonMatch) return jsonMatch[1];
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start !== -1 && end !== -1) return text.substring(start, end + 1);
-    return text;
-}
+    // Prompt
+    const prompt = `
+    Você é um especialista em compras públicas e e-commerce.
+    Analise o seguinte item de um edital de licitação: "${itemDescription}"
 
-// 1. Discover Models (GEMINI ONLY)
-async function discoverModels(description) {
-    const templatePath = path.join(__dirname, 'prompts/model_discovery.txt');
-    let template;
+    Determine a melhor estratégia de busca:
+    1. "SPECIFIC_BRAND": O item exige uma marca/modelo específico ou é muito técnico? (Ex: "Notebook Dell Latitude 5420", "Iphone 15").
+    2. "GENERIC_OPTIMIZED": O item é genérico e aceita similares? (Ex: "Caneta azul", "Cadeira de escritório").
+
+    Retorne APENAS um JSON:
+    {
+        "strategy": "SPECIFIC_BRAND" | "GENERIC_OPTIMIZED",
+        "search_terms": ["termo 1", "termo 2"], // Termos otimizados para busca no Mercado Livre/Google
+        "negative_terms": ["usado", "defeito"], // Termos para excluir
+        "min_price_estimate": 100.00, // Estimativa conservadora de preço mínimo
+        "required_specs": ["spec1", "spec2"] // Lista de specs obrigatórias
+    }
+    `;
+
     try {
-        template = fs.readFileSync(templatePath, 'utf-8');
+        let resultText = "";
+
+        // Use AI Manager (simulate non-stream via stream if needed, or just collect)
+        await new Promise((resolve, reject) => {
+            generateStream(
+                { provider, model, apiKey, messages: [{ role: 'user', content: prompt }] },
+                {
+                    onChunk: (chunk) => { resultText += chunk; },
+                    onDone: () => resolve(),
+                    onError: (e) => reject(e)
+                }
+            );
+        });
+
+        // JSON Extract
+        const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("No JSON found");
+        return JSON.parse(jsonMatch[0]);
+
     } catch (e) {
-        return [{ term: description.substring(0, 50), risk: 0, reasoning: "Template Error" }];
-    }
-
-    let webContext = "N/A";
-    try {
-        const googleQuery = `melhor custo beneficio ${description.substring(0, 60)} 2024 review`;
-        const searchResults = await googleSearch(googleQuery);
-        if (searchResults && searchResults.length > 0) {
-            webContext = searchResults.map(r => `- ${r.title}: ${r.snippet}`).join('\n');
-        }
-    } catch (err) {
-        console.warn("[AI] Google Search failed:", err.message);
-    }
-
-    const prompt = renderTemplate(template, {
-        DESCRIPTION: description,
-        WEB_CONTEXT: webContext
-    });
-
-    const resultText = await askGemini(prompt);
-
-    try {
-        const jsonStr = extractJson(resultText);
-        const parsed = JSON.parse(jsonStr);
-        if (Array.isArray(parsed.search_terms)) {
-            if (typeof parsed.search_terms[0] === 'string') {
-                return parsed.search_terms.map(t => ({ term: t, risk: 0, reasoning: "Legacy format" }));
-            }
-            return parsed.search_terms;
-        }
-        return [{ term: description.substring(0, 50), risk: 0, reasoning: "Fallback" }];
-    } catch (e) {
-        console.error("Error parsing discoverModels:", e);
-        return [{ term: description.substring(0, 50), risk: 0, reasoning: "Parse Error" }];
+        console.error("Discovery AI Failed:", e);
+        // Fallback
+        return {
+            strategy: "GENERIC_OPTIMIZED",
+            search_terms: [itemDescription],
+            negative_terms: [],
+            min_price_estimate: 0,
+            required_specs: []
+        };
     }
 }
 
-module.exports = { discoverModels };
+module.exports = { analyzeItemStrategy };
