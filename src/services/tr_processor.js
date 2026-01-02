@@ -1,8 +1,9 @@
 const fs = require('fs');
 const pdf = require('pdf-parse');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Initialize the new GenAI Client
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 async function processPDF(filePaths) {
     try {
@@ -17,9 +18,6 @@ async function processPDF(filePaths) {
             const data = await pdf(dataBuffer);
             combinedText += `\n--- START OF FILE ${filePath} ---\n` + data.text + `\n--- END OF FILE ${filePath} ---\n`;
         }
-
-        // Use the requested model: gemini-2.5-flash
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         // SYSTEM PROMPT: ORÁCULO ESTRATÉGICO UNIVERSAL (v3.0)
         // Note: Backticks in the prompt text are escaped to avoid template string termination errors.
@@ -161,27 +159,82 @@ A análise técnica completa.
         ${combinedText.substring(0, 100000)}
         `;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        let textResponse = response.text();
+        // Generate content with Thinking enabled
+        const response = await genAI.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                thinkingConfig: {
+                    includeThoughts: true
+                }
+            }
+        });
 
-        // Cleanup markdown if AI ignores instruction
-        textResponse = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+        // Extract Response and Thoughts
+        let textResponse = "";
+        let thoughtsText = "";
 
-        // Find start and end of JSON if extra text exists
-        const jsonStart = textResponse.indexOf('{');
-        const jsonEnd = textResponse.lastIndexOf('}');
-        if (jsonStart !== -1 && jsonEnd !== -1) {
-            textResponse = textResponse.substring(jsonStart, jsonEnd + 1);
+        // Iterate through candidates and parts to find text and thoughts
+        if (response.candidates && response.candidates.length > 0) {
+            const candidate = response.candidates[0];
+            if (candidate.content && candidate.content.parts) {
+                for (const part of candidate.content.parts) {
+                    if (part.text) {
+                        if (part.thought) {
+                            thoughtsText += part.text + "\n";
+                        } else {
+                            textResponse += part.text;
+                        }
+                    }
+                }
+            }
         }
 
-        const parsed = JSON.parse(textResponse);
+        // --- ROBUST JSON EXTRACTION ---
+        // 1. Try to find JSON between ```json and ```
+        const jsonMatch = textResponse.match(/```json([\s\S]*?)```/);
+        let jsonString = "";
 
-        // Normalize structure for controller
+        if (jsonMatch && jsonMatch[1]) {
+            jsonString = jsonMatch[1].trim();
+        } else {
+            // 2. Fallback: Try to find the first { and last }
+            const start = textResponse.indexOf('{');
+            const end = textResponse.lastIndexOf('}');
+            if (start !== -1 && end !== -1) {
+                jsonString = textResponse.substring(start, end + 1);
+            } else {
+                // 3. Fallback: Use the whole text (likely to fail if dirty)
+                jsonString = textResponse.trim();
+            }
+        }
+
+        let parsed;
+        try {
+            parsed = JSON.parse(jsonString);
+        } catch (e) {
+            console.error("JSON Parse Error:", e);
+            console.error("Raw Text Response:", textResponse);
+            throw new Error("A I.A. não retornou um JSON válido. Erro: " + e.message);
+        }
+
+        // Normalize structure
+        if (!parsed.global_info) parsed.global_info = {};
+        if (!parsed.metadata) parsed.metadata = {};
+        if (!parsed.locked_content) parsed.locked_content = {};
+        if (!parsed.items) parsed.items = [];
+
+        // Inject Thoughts into Locked Content
+        if (thoughtsText) {
+            parsed.locked_content.ai_thoughts = thoughtsText.trim();
+            // Also append to markdown for visibility if frontend doesn't handle the new field yet
+            parsed.locked_content.analise_markdown += `\n\n---\n\n### 🧠 Pensamentos da I.A. (Bastidores)\n\n${thoughtsText.trim()}`;
+        }
+
         return {
-            metadata: parsed.metadata || {},
-            locked_content: parsed.locked_content || {},
-            items: parsed.items || []
+            metadata: parsed.metadata,
+            locked_content: parsed.locked_content,
+            items: parsed.items
         };
 
     } catch (e) {
