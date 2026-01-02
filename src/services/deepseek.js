@@ -34,7 +34,7 @@ async function callDeepSeek(messages, model = "deepseek-chat") {
         };
     } catch (error) {
         console.error(`DeepSeek API Error (${model}):`, error.message);
-        return null;
+        throw error; // Re-throw to let the fallback logic handle it
     }
 }
 

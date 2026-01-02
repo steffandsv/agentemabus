@@ -37,22 +37,39 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-5 border-end border-secondary">
-                            <h5 class="text-gray-500 small text-uppercase mb-3">METADATA</h5>
-
-                            <p id="oracle-teaser" class="fs-5 text-white fw-light mb-4">...</p>
-
-                            <div id="oracle-tags" class="mb-4"></div>
-
-                            <div class="p-3 bg-dark rounded border border-secondary mb-3">
-                                <small class="text-white-50 d-block">Potencial Estimado</small>
-                                <h3 class="text-success mb-0" id="oracle-profit">R$ 0,00</h3>
-                            </div>
+                            <h5 class="text-muted small uppercase">METADATA</h5>
+                            <p id="oracle-teaser" class="fs-5 text-white">...</p>
+                            <div id="oracle-tags" class="mb-3"></div>
+                            <h3 class="text-warning" id="oracle-profit">R$ 0,00</h3>
+                            <p class="text-muted small">Potencial Estimado</p>
                         </div>
                         <div class="col-md-7">
-                            <h5 class="text-gray-500 small text-uppercase mb-3">ESTRATÉGIA BLOQUEADA (VISUALIZAÇÃO)</h5>
-                            <div id="strategy-content" class="text-gray-300 small" style="white-space: pre-wrap; max-height: 400px; overflow-y: auto;">
-                                <!-- Markdown injected here -->
+                            <h5 class="text-muted small uppercase">ESTRATÉGIA</h5>
+
+                            <!-- TABS FOR ANALYSIS VS THOUGHTS -->
+                            <ul class="nav nav-tabs border-secondary mb-3" id="analysisTab" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active text-warning bg-transparent border-0" id="report-tab" data-bs-toggle="tab" data-bs-target="#report-pane" type="button" role="tab">Relatório Final</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link text-info bg-transparent border-0" id="thoughts-tab" data-bs-toggle="tab" data-bs-target="#thoughts-pane" type="button" role="tab">🧠 Pensamentos da I.A.</button>
+                                </li>
+                            </ul>
+
+                            <div class="tab-content">
+                                <div class="tab-pane fade show active" id="report-pane" role="tabpanel">
+                                    <div id="strategy-content" class="text-white small" style="white-space: pre-wrap; max-height: 400px; overflow-y: auto;">
+                                        <!-- Markdown injected here -->
+                                    </div>
+                                </div>
+                                <div class="tab-pane fade" id="thoughts-pane" role="tabpanel">
+                                    <div id="thoughts-content" class="text-info small font-monospace" style="white-space: pre-wrap; max-height: 400px; overflow-y: auto; background: rgba(0, 20, 40, 0.5); padding: 10px; border-radius: 5px;">
+                                        <!-- Thoughts injected here -->
+                                        <span class="text-muted">Nenhum pensamento registrado.</span>
+                                    </div>
+                                </div>
                             </div>
+
                         </div>
                     </div>
                 </div>
@@ -110,9 +127,8 @@
     const dropZone = document.getElementById('drop-zone');
     const terminal = document.getElementById('terminal');
     const termContent = document.getElementById('terminal-content');
-    let currentOracleData = null;
 
-    // History Data (Injected from server for modal use)
+    let oracleData = null;
     const historyData = <%- JSON.stringify(history || []) %>;
 
     // Drag & Drop Events
@@ -165,8 +181,6 @@
                 if (data.success) {
                     currentOracleData = data;
                     renderResult(data);
-                    // Refresh page after a short delay or just show result?
-                    // Showing result is better UX, page reload updates history.
                 } else {
                     termContent.innerHTML += `<div class="text-danger">> ERRO: ${data.error}</div>`;
                 }
@@ -199,7 +213,10 @@
             });
         }
 
+        // Strategy & Thoughts
         document.getElementById('strategy-content').innerText = locked.analise_completa_markdown || "Sem dados estratégicos.";
+        document.getElementById('thoughts-content').innerText = locked.ai_thoughts || "Nenhum pensamento registrado pela I.A.";
+
         card.style.display = 'block';
     }
 
@@ -209,11 +226,21 @@
         window.location.href = '/sniper';
     }
 
+    // Helper to escape HTML to prevent XSS in Modal
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
     function openOpportunityDetails(id) {
         const opp = historyData.find(h => h.id == id);
         if (!opp) return;
 
-        // Construct Data for Sniper from DB structure
         currentOracleData = {
             metadata: opp.metadata_json,
             locked_content: opp.locked_content_json,
@@ -224,30 +251,42 @@
         const locked = opp.locked_content_json || {};
         const meta = opp.metadata_json || {};
 
+        // Use safe escape for content injected via innerHTML
+        const safeMarkdown = escapeHtml(locked.analise_completa_markdown || 'Sem análise.');
+        const safeThoughts = escapeHtml(locked.ai_thoughts || '');
+
+        const thoughtsHtml = safeThoughts ?
+            `<div class="mt-4 p-3 rounded border border-info" style="background: rgba(0,40,60,0.5)">
+                <h6 class="text-info"><i class="fas fa-brain"></i> Pensamentos da I.A.</h6>
+                <div class="text-info small font-monospace" style="white-space: pre-wrap; max-height: 200px; overflow-y: auto;">
+                    ${safeThoughts}
+                </div>
+            </div>` : '';
+
+        const highlights = (locked.itens_destaque || []).map(i => `<li>${escapeHtml(i)}</li>`).join('');
+
         modalBody.innerHTML = `
             <div class="row">
                 <div class="col-md-4">
                     <h6 class="text-warning">INFO GERAL</h6>
-                    <p><strong>Edital:</strong> ${meta.edital_numero || opp.title}</p>
-                    <p><strong>Município:</strong> ${meta.municipio_uf || opp.municipality}</p>
-                    <p><strong>Valor:</strong> ${meta.valor_estimado_total}</p>
+                    <p><strong>Edital:</strong> ${escapeHtml(meta.edital_numero || opp.title)}</p>
+                    <p><strong>Município:</strong> ${escapeHtml(meta.municipio_uf || opp.municipality)}</p>
+                    <p><strong>Valor:</strong> ${escapeHtml(meta.valor_estimado_total)}</p>
                     <p><strong>IPM Score:</strong> <span class="badge bg-warning text-dark">${opp.ipm_score}</span></p>
                     <hr>
                     <h6 class="text-warning">ITENS DESTAQUE</h6>
-                    <ul>
-                        ${(locked.itens_destaque || []).map(i => `<li>${i}</li>`).join('')}
-                    </ul>
+                    <ul>${highlights}</ul>
                 </div>
                 <div class="col-md-8">
                     <h6 class="text-warning">ANÁLISE ESTRATÉGICA</h6>
                     <div class="bg-dark p-3 rounded border border-secondary" style="white-space: pre-wrap; font-size: 0.9em; max-height: 400px; overflow-y: auto;">
-                        ${locked.analise_completa_markdown || 'Sem análise.'}
+                        ${safeMarkdown}
                     </div>
+                    ${thoughtsHtml}
                 </div>
             </div>
         `;
 
-        // Update Button Binding
         const btn = document.getElementById('modalSendSniperBtn');
         btn.onclick = sendToSniper;
 

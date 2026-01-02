@@ -1,6 +1,7 @@
 const fs = require('fs');
 const pdf = require('pdf-parse');
 const { GoogleGenAI } = require("@google/genai");
+const { callDeepSeek } = require('./deepseek');
 
 // Initialize the new GenAI Client
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -21,7 +22,7 @@ async function processPDF(filePaths) {
 
         // SYSTEM PROMPT: ORÁCULO ESTRATÉGICO UNIVERSAL (v3.0)
         // Note: Backticks in the prompt text are escaped to avoid template string termination errors.
-        const prompt = `
+        const promptText = `
 # SYSTEM PROMPT: ORÁCULO ESTRATÉGICO UNIVERSAL (v3.0)
 
 Você é o ORÁCULO DE LICITAÇÕES, a I.A. mais sofisticada do mercado para análise de compras governamentais.
@@ -159,63 +160,131 @@ A análise técnica completa.
         ${combinedText.substring(0, 100000)}
         `;
 
-        // Generate content with Thinking enabled
-        const response = await genAI.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                thinkingConfig: {
-                    includeThoughts: true
-                }
-            }
-        });
+        // FALLBACK LOGIC
+        // Order: gemini-2.5-pro -> deepseek-reasoner -> gemini-2.5-flash -> deepseek-chat
+        const models = [
+            { provider: 'google', model: 'gemini-2.5-pro' },
+            { provider: 'deepseek', model: 'deepseek-reasoner' },
+            { provider: 'google', model: 'gemini-2.5-flash' },
+            { provider: 'deepseek', model: 'deepseek-chat' }
+        ];
 
-        // Extract Response and Thoughts
-        let textResponse = "";
-        let thoughtsText = "";
+        let lastError = null;
+        let finalResponse = null;
+        let finalThoughts = null;
 
-        // Iterate through candidates and parts to find text and thoughts
-        if (response.candidates && response.candidates.length > 0) {
-            const candidate = response.candidates[0];
-            if (candidate.content && candidate.content.parts) {
-                for (const part of candidate.content.parts) {
-                    if (part.text) {
-                        if (part.thought) {
-                            thoughtsText += part.text + "\n";
-                        } else {
-                            textResponse += part.text;
+        for (const config of models) {
+            console.log(`[Oracle] Tentando modelo: ${config.model} (${config.provider})...`);
+            try {
+                if (config.provider === 'google') {
+                    const response = await genAI.models.generateContent({
+                        model: config.model,
+                        contents: promptText,
+                        config: {
+                            thinkingConfig: { includeThoughts: true }
+                        }
+                    });
+
+                    // Extract content from Google response
+                    let text = "";
+                    let thoughts = "";
+                    if (response.candidates && response.candidates.length > 0) {
+                        const candidate = response.candidates[0];
+                        if (candidate.content && candidate.content.parts) {
+                            for (const part of candidate.content.parts) {
+                                if (part.text) {
+                                    if (part.thought) thoughts += part.text + "\n";
+                                    else text += part.text;
+                                }
+                            }
                         }
                     }
+                    if (!text) throw new Error("Google API retornou resposta vazia.");
+                    finalResponse = text;
+                    finalThoughts = thoughts;
+                    break; // Success
+
+                } else if (config.provider === 'deepseek') {
+                    // Adapt prompt for DeepSeek (Chat format)
+                    const messages = [
+                        { role: "system", content: "You are a helpful assistant. Return ONLY valid JSON." },
+                        { role: "user", content: promptText }
+                    ];
+
+                    const result = await callDeepSeek(messages, config.model);
+                    if (!result || !result.content) throw new Error("DeepSeek API falhou ou retornou vazio.");
+
+                    finalResponse = result.content;
+                    finalThoughts = result.reasoning_content || "";
+                    break; // Success
                 }
+
+            } catch (e) {
+                console.error(`[Oracle] Erro com ${config.model}:`, e.message);
+                lastError = e;
+                // Only continue if error is 429 (Resource Exhausted) or similar transient error
+                // Check if message contains 429 or "RESOURCE_EXHAUSTED" or "quota"
+                const isQuotaError = e.message.includes("429") || e.message.includes("RESOURCE_EXHAUSTED") || e.message.includes("quota");
+
+                if (!isQuotaError) {
+                    // If it's a logic error (not quota), maybe we should stop?
+                    // But user said "Esta lógica deve ser acionada APENAS no caso de erro código 429."
+                    // So if it is NOT a quota error, we throw immediately.
+                    throw e;
+                }
+                // If it IS a quota error, continue loop
             }
         }
 
+        if (!finalResponse) {
+            throw new Error("Todos os modelos falharam. Último erro: " + (lastError ? lastError.message : "Desconhecido"));
+        }
+
         // --- ROBUST JSON EXTRACTION ---
-        // 1. Try to find JSON between ```json and ```
-        const jsonMatch = textResponse.match(/```json([\s\S]*?)```/);
+        // 1. Regex for JSON block
+        const jsonMatch = finalResponse.match(/```json([\s\S]*?)```/);
         let jsonString = "";
 
         if (jsonMatch && jsonMatch[1]) {
             jsonString = jsonMatch[1].trim();
         } else {
-            // 2. Fallback: Try to find the first { and last }
-            const start = textResponse.indexOf('{');
-            const end = textResponse.lastIndexOf('}');
+            // 2. Fallback: Find { and }
+            const start = finalResponse.indexOf('{');
+            const end = finalResponse.lastIndexOf('}');
             if (start !== -1 && end !== -1) {
-                jsonString = textResponse.substring(start, end + 1);
+                jsonString = finalResponse.substring(start, end + 1);
             } else {
-                // 3. Fallback: Use the whole text (likely to fail if dirty)
-                jsonString = textResponse.trim();
+                jsonString = finalResponse.trim();
             }
         }
+
+        // 3. SANITIZATION (Fix for "Unexpected token c" etc.)
+        // Remove potentially dangerous control characters, but keep newlines
+        // Sometimes "thoughts" leak into the text without delimiters if the model is bad.
+        // We hope the extraction above worked.
+        // We can try to strip trailing characters if parsing fails.
 
         let parsed;
         try {
             parsed = JSON.parse(jsonString);
         } catch (e) {
-            console.error("JSON Parse Error:", e);
-            console.error("Raw Text Response:", textResponse);
-            throw new Error("A I.A. não retornou um JSON válido. Erro: " + e.message);
+            console.error("JSON Parse Error (Attempt 1):", e.message);
+            // Attempt to clean trailing commas or bad chars?
+            // "Unexpected token c" at the end suggests garbage.
+            // Try to look for the last '}' again and slice strictly
+            const lastBrace = jsonString.lastIndexOf('}');
+            if (lastBrace !== -1 && lastBrace < jsonString.length - 1) {
+                jsonString = jsonString.substring(0, lastBrace + 1);
+                try {
+                    parsed = JSON.parse(jsonString);
+                } catch (e2) {
+                    console.error("JSON Parse Error (Attempt 2):", e2.message);
+                    console.error("Raw Text Response:", finalResponse);
+                    throw new Error("A I.A. não retornou um JSON válido. Erro: " + e.message);
+                }
+            } else {
+                throw new Error("A I.A. não retornou um JSON válido. Erro: " + e.message);
+            }
         }
 
         // Normalize structure
@@ -224,11 +293,10 @@ A análise técnica completa.
         if (!parsed.locked_content) parsed.locked_content = {};
         if (!parsed.items) parsed.items = [];
 
-        // Inject Thoughts into Locked Content
-        if (thoughtsText) {
-            parsed.locked_content.ai_thoughts = thoughtsText.trim();
-            // Also append to markdown for visibility if frontend doesn't handle the new field yet
-            parsed.locked_content.analise_markdown += `\n\n---\n\n### 🧠 Pensamentos da I.A. (Bastidores)\n\n${thoughtsText.trim()}`;
+        // Inject Thoughts
+        if (finalThoughts) {
+            parsed.locked_content.ai_thoughts = finalThoughts.trim();
+            parsed.locked_content.analise_markdown += `\n\n---\n\n### 🧠 Pensamentos da I.A. (Bastidores)\n\n${finalThoughts.trim()}`;
         }
 
         return {
