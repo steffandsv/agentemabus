@@ -1,16 +1,17 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai"); // Legacy for now or replace?
 const { getSetting } = require('../../src/database');
-const { generateStream, PROVIDERS } = require('../../src/services/ai_manager');
+const { generateText, PROVIDERS } = require('../../src/services/ai_manager');
 
 /**
  * Discovery Phase: Understand the item and strategy.
  * Uses AI Config.
+ * @param {string} itemDescription
+ * @param {object} config { provider, model, apiKey }
  */
-async function analyzeItemStrategy(itemDescription) {
-    // Load Settings
-    const provider = await getSetting('sniper_provider') || PROVIDERS.GEMINI;
-    const model = await getSetting('sniper_model') || 'gemini-2.0-flash-exp';
-    const apiKey = await getSetting('sniper_api_key') || process.env.GEMINI_API_KEY;
+async function analyzeItemStrategy(itemDescription, config = {}) {
+    // Load Settings (Fallback to DB if config missing props)
+    const provider = config.provider || await getSetting('sniper_provider') || PROVIDERS.GEMINI;
+    const model = config.model || await getSetting('sniper_model') || 'gemini-2.0-flash-exp';
+    const apiKey = config.apiKey || await getSetting('sniper_api_key') || process.env.GEMINI_API_KEY;
 
     // Prompt
     const prompt = `
@@ -32,19 +33,8 @@ async function analyzeItemStrategy(itemDescription) {
     `;
 
     try {
-        let resultText = "";
-
-        // Use AI Manager (simulate non-stream via stream if needed, or just collect)
-        await new Promise((resolve, reject) => {
-            generateStream(
-                { provider, model, apiKey, messages: [{ role: 'user', content: prompt }] },
-                {
-                    onChunk: (chunk) => { resultText += chunk; },
-                    onDone: () => resolve(),
-                    onError: (e) => reject(e)
-                }
-            );
-        });
+        const messages = [{ role: 'user', content: prompt }];
+        const resultText = await generateText({ provider, model, apiKey, messages });
 
         // JSON Extract
         const jsonMatch = resultText.match(/\{[\s\S]*\}/);

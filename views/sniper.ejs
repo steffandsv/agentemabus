@@ -39,6 +39,17 @@
                         </select>
                     </div>
 
+                    <!-- AI PROVIDER OVERRIDE (Optional) -->
+                    <div class="mb-4">
+                        <label class="form-label text-muted small uppercase">PROVEDOR DE I.A. (OPCIONAL)</label>
+                        <select name="aiProvider" class="form-select bg-black text-white border-secondary">
+                            <option value="">PADRÃO DO SISTEMA</option>
+                            <option value="qwen">QWEN (ALIBABA)</option>
+                            <option value="gemini">GOOGLE GEMINI</option>
+                            <option value="deepseek">DEEPSEEK</option>
+                        </select>
+                    </div>
+
                     <% if (userGroups && userGroups.length > 0) { %>
                     <div class="mb-4">
                         <label class="form-label text-muted small uppercase">VISIBILIDADE (GRUPO)</label>

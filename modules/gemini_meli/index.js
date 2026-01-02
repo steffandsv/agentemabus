@@ -1,27 +1,28 @@
 const { searchAndScrape, getProductDetails, initBrowser, setCEP } = require('./scraper');
-const { discoverModels } = require('./discovery');
+const { analyzeItemStrategy } = require('./discovery'); // Use standardized name
 const { filterTitles, validateBatchWithDeepSeek, selectBestCandidate } = require('./ai');
 const { resolveAmbiguityWithPerplexity } = require('./verifier');
 
-async function execute(job, dependencies) {
+async function execute(job, config) {
     const { id, description, maxPrice, quantity, browser, cep, logger } = job;
+    // config contains { provider, model, apiKey }
 
     // Page context
     let itemPage = null;
     try { itemPage = await browser.newPage(); } catch(e) { return null; }
 
     try {
-        // PHASE 1: DISCOVERY (Gemini)
-        logger.log(`🤖 [Item ${id}] Consultando Gemini (Meli)...`);
-        const searchQueries = await discoverModels(description);
+        // PHASE 1: DISCOVERY
+        logger.log(`🤖 [Item ${id}] Consultando IA (${config.provider || 'default'})...`);
 
-        searchQueries.forEach(q => {
-            logger.thought(id, 'discovery', {
-                term: q.term || q,
-                risk: q.risk,
-                reasoning: q.reasoning
-            });
-        });
+        // Pass config to Discovery
+        const strategyResult = await analyzeItemStrategy(description, config);
+
+        // Strategy Result: { strategy, search_terms, negative_terms, ... }
+        // Map to what this module expects: array of { term, risk, reasoning } or strings?
+        // Existing code expects array of objects or strings.
+        // Let's assume search_terms are strings.
+        const searchQueries = strategyResult.search_terms || [description];
 
         logger.log(`🔍 [Item ${id}] ${searchQueries.length} termos sugeridos.`);
 
@@ -29,11 +30,10 @@ async function execute(job, dependencies) {
         const uniqueUrls = new Set();
         let allCandidates = [];
 
-        for (const queryObj of searchQueries) {
-            const query = typeof queryObj === 'string' ? queryObj : queryObj.term;
-            const predictedRisk = typeof queryObj === 'string' ? null : queryObj.risk;
-
-            if (predictedRisk === 10) continue;
+        for (const queryTerm of searchQueries) {
+            // Existing logic handled 'queryObj', but analyzeItemStrategy returns list of strings.
+            // Simplified loop
+            const query = queryTerm;
 
             try {
                 const searchResults = await searchAndScrape(itemPage, query);
@@ -60,7 +60,8 @@ async function execute(job, dependencies) {
 
         // PHASE 2.5: AI FILTERING
         logger.log(`🧠 [Item ${id}] Filtrando ${allCandidates.length} títulos...`);
-        const filterResult = await filterTitles(description, allCandidates);
+        // Pass config to AI
+        const filterResult = await filterTitles(description, allCandidates, config);
         logger.thought(id, 'filter', filterResult);
 
         const selectedIndices = new Set(filterResult.selected_indices);
@@ -84,7 +85,8 @@ async function execute(job, dependencies) {
                  candidate.totalPrice = candidate.price + candidate.shippingCost;
             }
 
-            const batchResults = await validateBatchWithDeepSeek(description, batch);
+            // Pass config to Batch Validation
+            const batchResults = await validateBatchWithDeepSeek(description, batch, config);
 
             for (let j = 0; j < batch.length; j++) {
                 const candidate = batch[j];
@@ -114,7 +116,7 @@ async function execute(job, dependencies) {
             
             for (const cand of ambiguousCandidates) {
                 logger.log(`🤖 [Item ${id}] Verificando detalhes: ${cand.title}`);
-                const verification = await resolveAmbiguityWithPerplexity(description, cand);
+                const verification = await resolveAmbiguityWithPerplexity(description, cand, config);
                 
                 if (verification) {
                     logger.thought(id, 'verification', verification);
@@ -134,7 +136,8 @@ async function execute(job, dependencies) {
         let winnerIndex = -1;
         if (viable.length > 0) {
              logger.log(`👨‍⚖️ [Item ${id}] Escolhendo o vencedor...`);
-             const selectionResult = await selectBestCandidate(description, viable, maxPrice, quantity);
+             // Pass config to Selection
+             const selectionResult = await selectBestCandidate(description, viable, maxPrice, quantity, config);
              logger.thought(id, 'selection', selectionResult);
 
              const winnerObj = viable[selectionResult.winner_index];

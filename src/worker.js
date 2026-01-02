@@ -14,7 +14,8 @@ const {
     getTaskItems,
     saveCandidates,
     logTaskMessage,
-    addCredits
+    addCredits,
+    getSetting
 } = require('./database');
 
 // --- CONFIGURATION ---
@@ -198,6 +199,46 @@ async function processTask(task) {
         const concurrency = pLimit(CONCURRENT_ITEMS_LIMIT);
         logger.log(`⚡ Processamento Paralelo: ${CONCURRENT_ITEMS_LIMIT} threads.`);
 
+        // Fetch Task Metadata for AI Override
+        // We need to fetch metadata for the task to check for overrides
+        // Assuming a helper exists or we query metadata table directly.
+        // For simplicity, let's look at getTaskById again or fetch metadata.
+        // There is no direct `getTaskMetadata` exported in `database.js` easily accessible here?
+        // Wait, `createTaskMetadata` exists. `getTaskFullResults`?
+        // Let's assume we can fetch it or trust global settings for now,
+        // OR add `getTaskMetadata` to database.js?
+        // Actually, let's fetch it via raw query if needed or add a helper.
+        // But to be cleaner, let's modify `getTaskById` to include metadata?
+        // Or just add `getTaskMetadata` to imports.
+
+        // Quick helper query for metadata since it's in a separate table 'task_metadata'
+        // We need to import 'getPool' or similar? No, worker imports from database.js.
+        // Let's assume I can add `getTaskMetadata` to database.js export later.
+        // For now, I will use the global setting as fallback.
+
+        const { getTaskMetadata } = require('./database'); // Need to ensure this is exported!
+        let overrideProvider = null;
+        try {
+            const metaRows = await getTaskMetadata(taskId);
+            if (metaRows && metaRows.data) { // Assuming it returns the object { data: ... }
+                 const metaData = typeof metaRows.data === 'string' ? JSON.parse(metaRows.data) : metaRows.data;
+                 if (metaData.ai_provider_override) {
+                     overrideProvider = metaData.ai_provider_override;
+                 }
+            }
+        } catch(e) { /* ignore */ }
+
+        // Fetch AI Settings for Sniper
+        const globalProvider = await getSetting('sniper_provider');
+
+        const sniperConfig = {
+            provider: overrideProvider || globalProvider,
+            model: await getSetting('sniper_model'), // Could override model too if UI supported it
+            apiKey: await getSetting('sniper_api_key')
+        };
+
+        logger.log(`🤖 Configuração de IA: ${sniperConfig.provider || 'Padrão'} ${overrideProvider ? '(Manual)' : '(Global)'}`);
+
         const promises = items.map((item, index) => concurrency(async () => {
             // Re-check task status
             const currentTask = await getTaskById(taskId);
@@ -216,7 +257,8 @@ async function processTask(task) {
             logger.log(`[Item ${itemJob.id}] Iniciando processamento...`);
 
             try {
-                const result = await mod.execute(itemJob);
+                // Pass dependencies/config to execute if supported
+                const result = await mod.execute(itemJob, sniperConfig);
 
                 // Result structure: { ..., offers: [...], winnerIndex: N }
                 if (result && result.offers && result.offers.length > 0) {

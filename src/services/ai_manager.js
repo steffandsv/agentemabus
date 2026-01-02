@@ -1,5 +1,6 @@
 const fetch = require('node-fetch');
 const { getSetting } = require('../database');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 /**
  * AI Manager
@@ -26,8 +27,6 @@ async function fetchModels(provider, apiKey) {
         if (provider === PROVIDERS.QWEN) {
             // DashScope doesn't have a simple public "list models" endpoint like OpenAI.
             // We return the known supported list + any found if we can verify the key.
-            // Verification: simple call to a cheap endpoint?
-            // For now, return hardcoded list as per docs.
             return [
                 { id: 'qwen-max', name: 'Qwen-Max (Trillion Params)', description: 'Most capable model for complex reasoning.' },
                 { id: 'qwen-plus', name: 'Qwen-Plus', description: 'Balanced performance and speed.' },
@@ -46,9 +45,6 @@ async function fetchModels(provider, apiKey) {
             return data.data.map(m => ({ id: m.id, name: m.id, description: 'DeepSeek Model' }));
         }
         else if (provider === PROVIDERS.GEMINI) {
-             // Gemini usually requires Google GenAI SDK listModels, but we can return hardcoded for simplicity
-             // or try to hit REST API if KEY allows.
-             // Given constraint, hardcoded is safer/faster for UI now.
              return [
                  { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash (Experimental)', description: 'Fastest multimodal.' },
                  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'High reasoning.' },
@@ -87,16 +83,83 @@ async function generateStream(config, callbacks) {
             await streamQwen(apiKey, model, messages, onThought, onChunk, onDone, onError);
         } else if (provider === PROVIDERS.DEEPSEEK) {
             await streamDeepSeek(apiKey, model, messages, onThought, onChunk, onDone, onError);
+        } else if (provider === PROVIDERS.GEMINI) {
+            await streamGemini(apiKey, model, messages, onThought, onChunk, onDone, onError);
+        } else if (provider === PROVIDERS.PERPLEXITY) {
+             // Fallback for Perplexity non-stream
+             const text = await generateText(config);
+             if (onChunk) onChunk(text);
+             if (onDone) onDone();
         } else {
-            // Fallback for non-streaming providers (simulate stream)
-            // Implementation for Gemini/Perplexity non-stream for now to save time,
-            // or implement real stream if crucial.
-            // The prompt asked primarily for Qwen integration and DeepSeek/Gemini existing.
-            // We will implement simple request and emit one chunk for them if stream complex.
             if (onError) onError(new Error(`Provider ${provider} streaming not fully implemented yet.`));
         }
     } catch (e) {
         if (onError) onError(e);
+    }
+}
+
+/**
+ * Generate Text (Promise wrapper for non-streaming calls)
+ * @param {object} config { provider, model, apiKey, messages }
+ * @returns {Promise<string>}
+ */
+async function generateText(config) {
+    const { provider, model, apiKey, messages } = config;
+    if (!apiKey) throw new Error("Missing API Key");
+
+    if (provider === PROVIDERS.GEMINI) {
+        try {
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const m = genAI.getGenerativeModel({ model: model });
+
+            // Construct full prompt from messages including System instructions
+            // Gemini doesn't strictly support 'system' role in generateContent well without specific beta APIs or using 'user' role.
+            // Concatenating content is safer for standard models.
+            let fullPrompt = "";
+            for (const msg of messages) {
+                if (msg.role === 'system') fullPrompt += `[SYSTEM INSTRUCTION]: ${msg.content}\n\n`;
+                else if (msg.role === 'user') fullPrompt += `[USER]: ${msg.content}\n\n`;
+                else fullPrompt += `[MODEL]: ${msg.content}\n\n`;
+            }
+
+            const result = await m.generateContent(fullPrompt);
+            return result.response.text();
+        } catch (e) {
+            throw new Error(`Gemini Error: ${e.message}`);
+        }
+    }
+    else if (provider === PROVIDERS.PERPLEXITY) {
+        // Perplexity (OpenAI Compatible)
+        try {
+            const response = await fetch('https://api.perplexity.ai/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: messages
+                })
+            });
+            const data = await response.json();
+            if (data.error) throw new Error(JSON.stringify(data.error));
+            return data.choices[0].message.content;
+        } catch(e) {
+            throw new Error(`Perplexity Error: ${e.message}`);
+        }
+    }
+    // Reuse stream logic for Qwen/DeepSeek if they support non-stream endpoints,
+    // or just collect the stream. Collecting stream is safer for unified logic.
+    else {
+        let fullText = "";
+        return new Promise((resolve, reject) => {
+            generateStream(config, {
+                onChunk: (chunk) => fullText += chunk,
+                onDone: () => resolve(fullText),
+                onError: (e) => reject(e)
+            });
+        });
     }
 }
 
@@ -106,16 +169,11 @@ async function streamQwen(apiKey, model, messages, onThought, onChunk, onDone, o
     // DashScope OpenAI Compatible Endpoint
     const url = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
 
-    // Check if thinking is needed/supported
-    // Qwen-Max doesn't strictly have "thinking" params in standard API unless specific model version?
-    // Docs say "enable_thinking": true in extra_body for Qwen3/DeepThinking models.
-    // Let's assume standard behavior first.
-
     const body = {
         model: model,
         messages: messages,
         stream: true,
-        incremental_output: true // Recommended by DashScope
+        incremental_output: true
     };
 
     try {
@@ -124,7 +182,7 @@ async function streamQwen(apiKey, model, messages, onThought, onChunk, onDone, o
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
-                'X-DashScope-SSE': 'enable' // Explicitly enable SSE
+                'X-DashScope-SSE': 'enable'
             },
             body: JSON.stringify(body)
         });
@@ -134,30 +192,26 @@ async function streamQwen(apiKey, model, messages, onThought, onChunk, onDone, o
             throw new Error(`Qwen API Error: ${response.status} - ${txt}`);
         }
 
-        // Parse SSE
-        // node-fetch v2 returns NodeJS stream in body
+        let buffer = '';
         response.body.on('data', (chunk) => {
-            const lines = chunk.toString().split('\n');
+            buffer += chunk.toString();
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // Keep partial line in buffer
+
             for (const line of lines) {
                 if (line.trim() === '') continue;
                 if (line.startsWith('data: ')) {
                     const dataStr = line.substring(6).trim();
                     if (dataStr === '[DONE]') {
-                        if (onDone) onDone();
-                        return;
+                        // Normally wait for 'end' but can signal early if needed
+                        continue;
                     }
                     try {
                         const json = JSON.parse(dataStr);
-                        // Standard OpenAI Format usually
                         const delta = json.choices[0].delta;
-
-                        // Check for reasoning/thoughts (Qwen Deep Thinking?)
                         if (delta.reasoning_content) {
-                            if (onThought) onThought(delta.reasoning_content); // This gives raw text, need title extraction logic upstream?
-                            // Wait, the "title" extraction logic was in tr_processor.
-                            // Here we just pass the raw thought chunk.
+                            if (onThought) onThought(delta.reasoning_content);
                         }
-
                         if (delta.content) {
                             if (onChunk) onChunk(delta.content);
                         }
@@ -168,13 +222,8 @@ async function streamQwen(apiKey, model, messages, onThought, onChunk, onDone, o
             }
         });
 
-        response.body.on('end', () => {
-            if (onDone) onDone(); // Fallback if [DONE] missed
-        });
-
-        response.body.on('error', (err) => {
-            if (onError) onError(err);
-        });
+        response.body.on('end', () => { if (onDone) onDone(); });
+        response.body.on('error', (err) => { if (onError) onError(err); });
 
     } catch (e) {
         if (onError) onError(e);
@@ -228,4 +277,38 @@ async function streamDeepSeek(apiKey, model, messages, onThought, onChunk, onDon
     }
 }
 
-module.exports = { PROVIDERS, fetchModels, generateStream };
+async function streamGemini(apiKey, model, messages, onThought, onChunk, onDone, onError) {
+    try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const m = genAI.getGenerativeModel({ model: model });
+
+        // Construct History
+        // Gemini expects { role: 'user'|'model', parts: [{ text: ... }] }
+        // Simple adaptation:
+        const geminiHistory = messages.map(msg => ({
+            role: msg.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: msg.content }]
+        }));
+
+        // Extract last message as the prompt
+        const lastMsg = geminiHistory.pop();
+
+        const chat = m.startChat({
+            history: geminiHistory
+        });
+
+        const result = await chat.sendMessageStream(lastMsg.parts[0].text);
+
+        for await (const chunk of result.stream) {
+            const chunkText = chunk.text();
+            if (onChunk) onChunk(chunkText);
+        }
+
+        if (onDone) onDone();
+
+    } catch (e) {
+        if (onError) onError(e);
+    }
+}
+
+module.exports = { PROVIDERS, fetchModels, generateStream, generateText };
