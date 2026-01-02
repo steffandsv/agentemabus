@@ -36,6 +36,7 @@ jobs:
             echo "DB_DB=${{ secrets.DB_DB }}" >> .env
             echo "DB_USER=${{ secrets.DB_USER }}" >> .env
             echo "DB_PASS=${{ secrets.DB_PASS }}" >> .env
+            echo "QWEN_KEY=${{ secrets.QWEN_KEY }}" >> .env
             echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
             echo "GOOGLE_SEARCH_API_KEY=${{ secrets.GOOGLE_SEARCH_API_KEY }}" >> .env
             echo "GOOGLE_SEARCH_CX=${{ secrets.GOOGLE_SEARCH_CX }}" >> .env
