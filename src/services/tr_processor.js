@@ -34,7 +34,17 @@ async function processPDF(filePaths, onThought = null) {
 
         // Fallback: Check if we have Qwen Key, if not try to use what's configured in DB/Env,
         // but the prompt explicitly asked for this logic. We will try to stick to it if keys exist.
-        const qwenKey = process.env.DASHSCOPE_API_KEY || process.env.QWEN_KEY;
+        let qwenKey = process.env.DASHSCOPE_API_KEY || process.env.QWEN_KEY;
+
+        // Try getting Qwen Key from DB if not in Env
+        if (!qwenKey) {
+             const dbOracleKey = await getSetting('oracle_api_key');
+             const dbOracleProvider = await getSetting('oracle_provider');
+             if (dbOracleProvider === 'qwen' && dbOracleKey) {
+                 qwenKey = dbOracleKey;
+             }
+        }
+
         let apiKey = qwenKey;
 
         if (!qwenKey) {

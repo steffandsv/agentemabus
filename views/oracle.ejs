@@ -50,7 +50,7 @@
     #loadingCanvas {
         position: fixed;
         top: 0; left: 0; width: 100%; height: 100%;
-        z-index: 9998;
+        z-index: 9999; /* On top of everything */
         display: none;
     }
 
@@ -58,8 +58,8 @@
         display: none;
         position: fixed;
         top: 0; left: 0; width: 100%; height: 100%;
-        background: black; /* Absolute Black */
-        z-index: 9999;
+        background: transparent; /* Transparent so Canvas is visible if behind, or irrelevant if Canvas is on top */
+        z-index: 9998;
         flex-direction: column;
         justify-content: center;
         align-items: center;
