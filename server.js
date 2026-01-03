@@ -167,7 +167,7 @@ app.post('/create', isAuthenticated, upload.single('csvFile'), async (req, res) 
     const { name, cep, csvText, moduleName, external_link, gridData, group_id, metadataJSON } = req.body;
     const user = res.locals.user;
 
-    let filePath = req.file ? req.file.path : null;
+    let filePath = req.file ? req.file.path : (req.body.existingFilePath && req.body.existingFilePath.startsWith('uploads/') ? req.body.existingFilePath : null);
     let costEstimate = 0;
 
     // Handle File / Grid Logic (Unified)
@@ -306,8 +306,8 @@ app.post('/api/process-tr', isAuthenticated, upload.array('pdfFiles'), async (re
             }
         });
 
-        // Clean up files
-        filePaths.forEach(p => { if(fs.existsSync(p)) fs.unlinkSync(p); });
+        // Clean up files (KEEPING FOR SNIPER IMPORT)
+        // filePaths.forEach(p => { if(fs.existsSync(p)) fs.unlinkSync(p); });
 
         // Save to Database (Opportunities)
         const opportunityData = {
@@ -326,6 +326,7 @@ app.post('/api/process-tr', isAuthenticated, upload.array('pdfFiles'), async (re
         await createOpportunity(targetUserId, opportunityData);
 
         // Send Final Result
+        result.file_path = filePaths[0];
         sendEvent('result', result);
         res.write('event: end\ndata: "DONE"\n\n');
         res.end();
