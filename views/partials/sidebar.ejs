@@ -20,8 +20,11 @@
         </a>
 
         <% if (user && user.role === 'admin') { %>
-        <a href="/admin/dashboard" class="nav-link <%= path.startsWith('/admin') ? 'active' : '' %>">
+        <a href="/admin/dashboard" class="nav-link <%= path === '/admin/dashboard' ? 'active' : '' %>">
             <i class="fas fa-user-shield"></i> ADMIN
+        </a>
+        <a href="/admin/ai-config" class="nav-link <%= path === '/admin/ai-config' ? 'active' : '' %>">
+            <i class="fas fa-robot"></i> GERENCIAR I.A.
         </a>
         <% } %>
 
