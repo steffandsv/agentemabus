@@ -1,7 +1,8 @@
 <%- include('partials/header') %>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
 <style>
-    /* Specific overrides for Oracle V4 */
+    /* Specific overrides for Oracle V5 */
     .drop-zone-container {
         display: flex;
         justify-content: center;
@@ -45,12 +46,19 @@
         margin-top: 10px;
     }
 
-    /* NEURAL PULSE LOADING */
+    /* NEURAL STORM CANVAS */
+    #loadingCanvas {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 9998;
+        display: none;
+    }
+
     #loadingOverlay {
         display: none;
         position: fixed;
         top: 0; left: 0; width: 100%; height: 100%;
-        background: var(--void-bg);
+        background: black; /* Absolute Black */
         z-index: 9999;
         flex-direction: column;
         justify-content: center;
@@ -58,33 +66,22 @@
         text-align: center;
     }
 
-    .neural-orb {
-        width: 100px;
-        height: 100px;
-        border-radius: 50%;
-        background: radial-gradient(circle, var(--neon-cyan) 0%, transparent 70%);
-        box-shadow: 0 0 30px var(--neon-cyan);
-        animation: orb-pulse 1.5s infinite ease-in-out;
-        margin-bottom: 40px;
-    }
-
-    @keyframes orb-pulse {
-        0% { transform: scale(0.8); opacity: 0.6; }
-        50% { transform: scale(1.2); opacity: 1; }
-        100% { transform: scale(0.8); opacity: 0.6; }
-    }
-
-    .synapse-text {
+    .glitch-text {
         font-family: var(--font-tech);
         color: var(--neon-cyan);
-        font-size: 1.2rem;
-        height: 30px;
-        opacity: 0;
-        transition: opacity 0.5s;
+        font-size: 1.5rem;
+        position: absolute;
+        text-shadow: 0 0 5px var(--neon-cyan);
+        animation: glitch-anim 0.3s infinite;
     }
 
-    .synapse-text.active {
-        opacity: 1;
+    @keyframes glitch-anim {
+        0% { opacity: 1; transform: translate(0); }
+        20% { opacity: 0.8; transform: translate(-2px, 2px); }
+        40% { opacity: 1; transform: translate(2px, -2px); }
+        60% { opacity: 0.8; transform: translate(-2px, -2px); }
+        80% { opacity: 1; transform: translate(2px, 2px); }
+        100% { opacity: 1; transform: translate(0); }
     }
 
     /* SHOP / RESULT */
@@ -142,6 +139,25 @@
         position: relative;
     }
 
+    /* WIDGETS */
+    .strategy-item {
+        background: #1a1a1a;
+        border-left: 3px solid var(--neon-cyan);
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 0 5px 5px 0;
+    }
+    .strategy-icon { font-size: 1.5rem; margin-right: 10px; }
+    .strategy-title { color: #fff; font-weight: bold; }
+
+    .finance-table { width: 100%; border-collapse: collapse; }
+    .finance-table td { padding: 8px; border-bottom: 1px solid #333; }
+    .finance-label { color: #aaa; }
+    .finance-value { text-align: right; color: #fff; font-family: var(--font-tech); }
+    .alert-high { color: var(--alert-red) !important; text-shadow: 0 0 5px var(--alert-red); font-weight: bold; }
+
+    .risk-list-item { color: #ff6b6b; margin-bottom: 5px; }
+
     /* Import Button */
     .btn-sniper-import {
         background: linear-gradient(90deg, #009245 0%, #FCEE21 100%);
@@ -170,7 +186,7 @@
     <div class="row mb-5">
         <div class="col-12 text-center">
             <h1 class="brand-font text-neon" style="font-size: 3rem; text-shadow: var(--neon-glow);">ORÁCULO ESTRATÉGICO</h1>
-            <p class="text-muted">PROTOCOL V4.0 - WAR ROOM</p>
+            <p class="text-muted">PROTOCOL V5.0 - NEURAL SYMPHONY</p>
         </div>
     </div>
 
@@ -194,7 +210,6 @@
             <div id="classificacaoDisplay" class="h4 mb-3" style="letter-spacing: 3px;">---</div>
             <div id="tagsDisplay" class="mb-4"></div>
             <p id="resumoDisplay" class="lead text-gray-200 w-75 mx-auto fst-italic">"..."</p>
-            <div id="valorTotalDisplay" class="mt-3 badge bg-dark border border-secondary p-2 fs-5 font-monospace"></div>
         </div>
 
         <!-- LOCKED MODULES GRID -->
@@ -222,18 +237,9 @@
     </div>
 </div>
 
-<!-- LOADING OVERLAY -->
-<div id="loadingOverlay">
-    <div class="neural-orb"></div>
-    <div id="synapseContainer">
-        <div class="synapse-text active">Mabus Core: Iniciando leitura neural...</div>
-        <div class="synapse-text">Descriptografando camadas do PDF...</div>
-        <div class="synapse-text">Cruzando CNPJ do órgão com histórico de calote...</div>
-        <div class="synapse-text">Detectando armadilhas jurídicas ocultas...</div>
-        <div class="synapse-text">Calculando Potencial de Lucro (ROI)...</div>
-        <div class="synapse-text">Gerando Estratégia de Vitória...</div>
-    </div>
-</div>
+<!-- LOADING OVERLAY (Neural Storm) -->
+<canvas id="loadingCanvas"></canvas>
+<div id="loadingOverlay"></div>
 
 <%- include('partials/footer') %>
 
@@ -242,17 +248,100 @@
     const fileInput = document.getElementById('pdfFiles');
     const uploadForm = document.getElementById('uploadForm');
     const overlay = document.getElementById('loadingOverlay');
+    const canvas = document.getElementById('loadingCanvas');
+    const ctx = canvas.getContext('2d');
     const uploadContainer = document.getElementById('uploadContainer');
     const resultContainer = document.getElementById('resultContainer');
 
-    // Synapse Animation
-    const synapseTexts = document.querySelectorAll('.synapse-text');
-    let synapseIndex = 0;
-    setInterval(() => {
-        synapseTexts.forEach(el => el.classList.remove('active'));
-        synapseIndex = (synapseIndex + 1) % synapseTexts.length;
-        synapseTexts[synapseIndex].classList.add('active');
-    }, 2500);
+    // NEURAL STORM LOGIC
+    const NEURAL_FRAGMENTS = [
+      "LENDO: Cláusula 4.1...", "SCAN: CNPJ Órgão...", "ALERTA: Histórico Calote...",
+      "BUSCA: Preço Teto...", "DECRYPT: Tabela Price...", "ANÁLISE: Fluxo Caixa...",
+      "VARREDURA: Concorrentes...", "DETECTADO: Lote Mosaico...", "CALCULANDO: ROI...",
+      "ESTRATÉGIA: Impugnação...", "CONECTANDO: Banco Central..."
+    ];
+
+    let animationId;
+    let nodes = [];
+    let fragments = [];
+
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function initNeuralStorm() {
+        nodes = [];
+        fragments = [];
+        // Create Nodes
+        for(let i=0; i<50; i++) {
+            nodes.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                vx: (Math.random() - 0.5) * 2,
+                vy: (Math.random() - 0.5) * 2
+            });
+        }
+    }
+
+    function drawNeuralStorm() {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Update & Draw Nodes
+        ctx.strokeStyle = 'rgba(0, 229, 255, 0.2)';
+        ctx.fillStyle = '#00E5FF';
+
+        nodes.forEach((node, i) => {
+            node.x += node.vx;
+            node.y += node.vy;
+
+            if(node.x < 0 || node.x > canvas.width) node.vx *= -1;
+            if(node.y < 0 || node.y > canvas.height) node.vy *= -1;
+
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Connect nearby
+            nodes.forEach((other, j) => {
+                if(i !== j) {
+                    const dx = node.x - other.x;
+                    const dy = node.y - other.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if(dist < 150) {
+                        ctx.beginPath();
+                        ctx.moveTo(node.x, node.y);
+                        ctx.lineTo(other.x, other.y);
+                        ctx.stroke();
+                    }
+                }
+            });
+        });
+
+        // Glitch Text Fragments
+        if(Math.random() < 0.1) { // 10% chance to add text per frame
+             const text = NEURAL_FRAGMENTS[Math.floor(Math.random() * NEURAL_FRAGMENTS.length)];
+             fragments.push({
+                 text: text,
+                 x: Math.random() * canvas.width * 0.8 + 50,
+                 y: Math.random() * canvas.height * 0.8 + 50,
+                 life: 60 // frames
+             });
+        }
+
+        fragments.forEach((frag, i) => {
+            frag.life--;
+            ctx.font = '20px "Courier New", monospace';
+            ctx.fillStyle = `rgba(0, 229, 255, ${frag.life / 60})`;
+            ctx.fillText(frag.text, frag.x, frag.y);
+            if(frag.life <= 0) fragments.splice(i, 1);
+        });
+
+        animationId = requestAnimationFrame(drawNeuralStorm);
+    }
 
     // Drag & Drop UI
     ['dragenter', 'dragover'].forEach(eventName => {
@@ -279,7 +368,12 @@
     async function handleUpload() {
         if (fileInput.files.length === 0) return;
 
+        // Start Animation
         overlay.style.display = 'flex';
+        canvas.style.display = 'block';
+        initNeuralStorm();
+        drawNeuralStorm();
+
         const formData = new FormData(uploadForm);
 
         try {
@@ -314,22 +408,27 @@
                 }
             }
 
+            // Stop Animation
+            cancelAnimationFrame(animationId);
             overlay.style.display = 'none';
+            canvas.style.display = 'none';
             uploadContainer.style.display = 'none';
             resultContainer.style.display = 'block';
 
         } catch (error) {
             console.error(error);
             alert("Erro ao processar: " + error.message);
+            cancelAnimationFrame(animationId);
             overlay.style.display = 'none';
+            canvas.style.display = 'none';
         }
     }
 
     function renderResult(data) {
-        const meta = data.metadata || {};
-        const locked = data.locked_content || {};
+        const meta = data.metadata || {}; // public_teaser
+        const locked = data.locked_content || {}; // locked_modules
 
-        // 1. Header
+        // 1. Header (Teaser)
         const score = meta.ipm_score || 0;
         const scoreColor = score >= 80 ? 'var(--mabus-gold)' : (score >= 50 ? 'var(--neon-cyan)' : 'var(--alert-red)');
 
@@ -339,31 +438,66 @@
         document.getElementById('classificacaoDisplay').innerText = meta.classificacao || 'ANÁLISE CONCLUÍDA';
         document.getElementById('classificacaoDisplay').style.color = scoreColor;
 
-        document.getElementById('resumoDisplay').innerText = `"${meta.resumo_poderoso || 'Sem resumo.'}"`;
-        document.getElementById('valorTotalDisplay').innerText = meta.valor_estimado_total || 'Sigiloso';
+        document.getElementById('resumoDisplay').innerText = `"${meta.resumo_glitch || meta.resumo_poderoso || '...'}"`;
 
         const tagsContainer = document.getElementById('tagsDisplay');
         tagsContainer.innerHTML = '';
-        if (meta.tags_elite) {
-            meta.tags_elite.forEach(tag => {
-                tagsContainer.innerHTML += `<span class="elite-tag">${tag}</span>`;
-            });
-        }
+        const tags = meta.tags_visuais || meta.tags_elite || [];
+        tags.forEach(tag => {
+            tagsContainer.innerHTML += `<span class="elite-tag">${tag}</span>`;
+        });
 
-        // 2. Modules
+        // 2. Modules (Atomic Widgets)
         const grid = document.getElementById('modulesGrid');
         grid.innerHTML = '';
 
-        // Helper to render card
-        const createCard = (key, moduleData) => {
+        const createWidget = (key, moduleData) => {
             if (!moduleData) return;
-            const title = moduleData.titulo || key;
-            const content = Array.isArray(moduleData.conteudo_oculto)
-                ? moduleData.conteudo_oculto.map(i => `• ${i.item || i}: ${i.motivo || ''}`).join('<br>')
-                : moduleData.conteudo_oculto;
-
+            const title = moduleData.titulo || key.toUpperCase();
             const cost = moduleData.custo_watts || 100;
             const cardId = `module-${key}`;
+
+            let contentHtml = '';
+
+            // WIDGET LOGIC:
+            // Strategy (taticas)
+            if (moduleData.taticas && Array.isArray(moduleData.taticas)) {
+                contentHtml = moduleData.taticas.map(t => `
+                    <div class="strategy-item">
+                        <div class="d-flex align-items-center">
+                            <span class="strategy-icon">${t.icone || '🔹'}</span>
+                            <div>
+                                <div class="strategy-title">${t.titulo}</div>
+                                <small class="text-muted">${marked.parseInline(t.texto || '')}</small>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            // Financial (dados)
+            else if (moduleData.dados && Array.isArray(moduleData.dados)) {
+                contentHtml = '<table class="finance-table"><tbody>';
+                contentHtml += moduleData.dados.map(d => `
+                    <tr>
+                        <td class="finance-label">${d.label}</td>
+                        <td class="finance-value ${d.alerta === 'ALTO RISCO' ? 'alert-high' : ''}">${d.valor}</td>
+                    </tr>
+                `).join('');
+                contentHtml += '</tbody></table>';
+            }
+            // Risks (lista_riscos) or Fallback
+            else if (moduleData.lista_riscos && Array.isArray(moduleData.lista_riscos)) {
+                contentHtml = moduleData.lista_riscos.map(r => `
+                    <div class="risk-list-item"><i class="fas fa-exclamation-triangle"></i> ${marked.parseInline(r)}</div>
+                `).join('');
+            }
+            // Fallback for V4 data or other structures
+            else if (moduleData.conteudo_oculto) {
+                 const text = Array.isArray(moduleData.conteudo_oculto)
+                    ? moduleData.conteudo_oculto.map(i => `• ${i.item || i}: ${i.motivo || ''}`).join('<br>')
+                    : moduleData.conteudo_oculto;
+                 contentHtml = marked.parse(text);
+            }
 
             const html = `
                 <div class="col-md-6">
@@ -374,7 +508,7 @@
                         </div>
                         <div class="module-body">
                             <div class="blurred-text" id="blur-${key}">
-                                ${content}
+                                ${contentHtml}
                             </div>
                             <div class="unlock-overlay" id="overlay-${key}">
                                 <button class="btn btn-unlock" onclick="unlockModule('${key}', ${cost})">
@@ -388,37 +522,29 @@
             grid.innerHTML += html;
         };
 
-        // Render specific known keys from the prompt structure
-        if (locked.estrategia_vitoria) createCard('estrategia_vitoria', locked.estrategia_vitoria);
-        if (locked.analise_risco_financeiro) createCard('analise_risco_financeiro', locked.analise_risco_financeiro);
-        if (locked.itens_alpha) createCard('itens_alpha', locked.itens_alpha);
-        if (locked.perfil_inimigo) createCard('perfil_inimigo', locked.perfil_inimigo);
+        // Render known modules from V5 prompt
+        if (locked.estrategia_vitoria) createWidget('estrategia_vitoria', locked.estrategia_vitoria);
+        if (locked.analise_financeira) createWidget('analise_financeira', locked.analise_financeira);
+        if (locked.armadilhas_juridicas) createWidget('armadilhas_juridicas', locked.armadilhas_juridicas);
+
+        // Fallback for V4 keys if V5 not present
+        if (!locked.estrategia_vitoria && locked.analise_risco_financeiro) createWidget('analise_risco_financeiro', locked.analise_risco_financeiro);
 
         // 3. Sniper Form Setup
         document.getElementById('sniperName').value = meta.edital_numero || 'Oracle Mission';
         document.getElementById('sniperMetadata').value = JSON.stringify(meta);
 
-        // Pass the file path if available (Server now returns it and doesn't delete it)
         if (data.file_path) {
             document.getElementById('sniperExistingFilePath').value = data.file_path;
         }
 
-        // Use `gridData` with a dummy CSV header to satisfy validator if needed.
         document.getElementById('sniperGridData').value = "ID;Descricao;valor_venda;quantidade\n";
     }
 
-    // Unlock Logic
     window.unlockModule = function(key, cost) {
-        // In a real app, call backend to deduct. Here we simulate visual.
-        // Check balance (visual only)
-        // ...
-
         const blur = document.getElementById(`blur-${key}`);
         const overlay = document.getElementById(`overlay-${key}`);
-
         if (blur) blur.classList.remove('blurred-text');
         if (overlay) overlay.style.display = 'none';
-
-        // Animate text reveal (simple color transition handled by CSS removal of class)
     };
 </script>
