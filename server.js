@@ -281,14 +281,14 @@ app.post('/create', isAuthenticated, upload.single('csvFile'), async (req, res) 
 app.post('/api/sniper/parse-pdf', isAuthenticated, upload.array('pdfFiles'), async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) throw new Error("Nenhum arquivo enviado.");
-        const items = await extractItemsFromPdf(req.files);
+        const result = await extractItemsFromPdf(req.files);
 
         // Clean up uploads immediately after parsing
         req.files.forEach(f => {
             if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
         });
 
-        res.json({ items });
+        res.json(result);
     } catch (e) {
         // Clean up on error too
         if (req.files) req.files.forEach(f => { if(fs.existsSync(f.path)) fs.unlinkSync(f.path); });

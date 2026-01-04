@@ -179,11 +179,17 @@
 
             if (data.error) throw new Error(data.error);
 
+            // Fill Metadata
+            if (data.metadata) {
+                if (data.metadata.name) document.getElementById('taskName').value = data.metadata.name;
+                if (data.metadata.cep) document.getElementById('taskCep').value = data.metadata.cep;
+            }
+
             if (data.items && data.items.length > 0) {
                 populateGrid(data.items);
-                alert(`Sucesso! ${data.items.length} itens extraídos.`);
+                alert(`Sucesso! ${data.items.length} itens extraídos.\nMetadados preenchidos.`);
             } else {
-                alert("Nenhum item encontrado.");
+                alert("Nenhum item encontrado. Verifique se o PDF contém uma tabela legível.");
             }
         } catch (e) {
             console.error(e);
