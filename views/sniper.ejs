@@ -1,13 +1,109 @@
 <%- include('partials/header') %>
 
+<style>
+    /* Specific overrides for Sniper V2 (Oracle Style) */
+    .drop-zone-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 50vh;
+    }
+
+    .drop-zone {
+        width: 70%;
+        min-height: 350px;
+        border: 1px dashed var(--neon-cyan);
+        background: rgba(0,0,0,0.6); /* Transparente para Dark Mode */
+        border-radius: 15px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.4s ease;
+        position: relative;
+        cursor: pointer;
+    }
+
+    [data-theme="light"] .drop-zone {
+        background: rgba(255,255,255,0.8);
+        border-color: var(--neon-cyan);
+    }
+
+    .drop-zone:hover {
+        box-shadow: var(--neon-glow);
+        transform: scale(1.02);
+    }
+
+    .drop-zone-text {
+        font-family: var(--font-title);
+        font-size: 1.5rem;
+        color: var(--neon-cyan);
+        margin-top: 20px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+    }
+
+    .drop-zone-sub {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        margin-top: 10px;
+    }
+
+    /* Form Container (Hidden Initially) */
+    #sniperFormContainer {
+        display: none;
+        animation: fadeIn 0.5s ease;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Loading Overlay */
+    #loadingOverlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8);
+        z-index: 9999;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .spinner-neon {
+        width: 50px;
+        height: 50px;
+        border: 4px solid transparent;
+        border-top: 4px solid var(--neon-cyan);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        box-shadow: 0 0 15px var(--neon-cyan);
+    }
+
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
+
 <div class="row mb-4">
     <div class="col-12 text-center">
         <h2 class="brand-font text-neon">🔫 SNIPER AUTOMÁTICO</h2>
-        <p class="text-muted">Execução e Cotação de Itens</p>
+        <p class="text-muted">Importação Inteligente de Editais</p>
     </div>
 </div>
 
-<div class="row justify-content-center">
+<!-- UPLOAD ZONE -->
+<div id="uploadContainer" class="drop-zone-container">
+    <label for="pdfFiles" class="drop-zone" id="dropZoneArea">
+        <i class="fas fa-file-pdf fa-4x text-neon mb-3"></i>
+        <div class="drop-zone-text">ARRASTE O EDITAL AQUI</div>
+        <div class="drop-zone-sub">A I.A. irá ler e preencher tudo automaticamente</div>
+        <input type="file" id="pdfFiles" accept=".pdf" multiple hidden onchange="handlePdfUpload()">
+    </label>
+</div>
+
+<!-- FORM CONTAINER (Results) -->
+<div class="row justify-content-center" id="sniperFormContainer">
     <div class="col-md-10">
         <div class="card bg-panel border-secondary shadow-lg">
             <div class="card-body p-4">
@@ -21,7 +117,7 @@
                     <div class="row mb-4">
                         <div class="col-md-8">
                             <label class="form-label text-muted small uppercase">NOME DA MISSÃO</label>
-                            <input type="text" name="name" id="taskName" class="form-control bg-black text-white border-secondary" required placeholder="Ex: Pregão 42/2025">
+                            <input type="text" name="name" id="taskName" class="form-control bg-black text-white border-secondary" required placeholder="Ex: Município - Pregão 42/2025">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label text-muted small uppercase">CEP DESTINO</label>
@@ -44,7 +140,7 @@
                     <!-- ITEM LIST AREA -->
                     <div class="card bg-black border-secondary mb-4">
                         <div class="card-header bg-transparent border-secondary d-flex justify-content-between align-items-center">
-                            <span class="text-white"><i class="fas fa-list"></i> LISTA DE ALVOS</span>
+                            <span class="text-white"><i class="fas fa-list"></i> ITENS IDENTIFICADOS</span>
                             <span class="badge bg-dark border border-secondary text-muted" id="item-count">0 ITENS</span>
                         </div>
                         <div class="card-body p-0">
@@ -67,25 +163,22 @@
                         </div>
                         <div class="card-footer bg-transparent border-secondary d-flex justify-content-between flex-wrap gap-2">
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addRow()">
-                                <i class="fas fa-plus"></i> ADICIONAR
+                                <i class="fas fa-plus"></i> ADICIONAR MANUALMENTE
                             </button>
                             <div class="d-flex align-items-center gap-2">
                                 <label class="btn btn-outline-secondary btn-sm cursor-pointer" title="Importar CSV Simples">
-                                    <i class="fas fa-file-csv"></i> CSV
+                                    <i class="fas fa-file-csv"></i> IMPORTAR CSV
                                     <input type="file" name="csvFile" hidden onchange="alert('CSV selecionado!')">
                                 </label>
-
-                                <label class="btn btn-outline-warning btn-sm cursor-pointer" id="btnPdf" title="I.A. lê o PDF e preenche">
-                                    <i class="fas fa-file-pdf"></i> PDF AUTO-FILL (IA)
-                                    <input type="file" id="pdfInput" multiple accept=".pdf" hidden onchange="uploadPdf()">
-                                </label>
-                                <span id="pdfLoading" class="text-warning small" style="display:none;"><i class="fas fa-spinner fa-spin"></i> Lendo...</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- ACTION -->
-                    <div class="d-grid">
+                    <div class="d-grid gap-2">
+                         <button type="button" class="btn btn-outline-danger" onclick="resetUpload()">
+                            <i class="fas fa-undo"></i> CANCELAR / NOVO UPLOAD
+                        </button>
                         <button type="submit" class="btn btn-success btn-lg shadow-green" id="btnStart">
                             <i class="fas fa-rocket"></i> INICIAR COTAÇÃO AUTOMÁTICA
                         </button>
@@ -98,37 +191,94 @@
     </div>
 </div>
 
+<!-- Loading Overlay -->
+<div id="loadingOverlay">
+    <div class="spinner-neon mb-3"></div>
+    <div class="text-neon h4">PROCESSANDO EDITAL...</div>
+    <div class="text-muted small">Extraindo itens e metadados com I.A.</div>
+</div>
+
 <script>
     let rowCount = 0;
+    const dropZone = document.getElementById('dropZoneArea');
+    const uploadContainer = document.getElementById('uploadContainer');
+    const formContainer = document.getElementById('sniperFormContainer');
+    const loadingOverlay = document.getElementById('loadingOverlay');
 
-    // Check for Oracle Data
-    document.addEventListener('DOMContentLoaded', () => {
-        const dataStr = sessionStorage.getItem('oracleData');
-        if (dataStr) {
-            try {
-                const data = JSON.parse(dataStr);
-
-                // Populate Headers
-                if (data.global_info) {
-                    if (data.global_info.name) document.getElementById('taskName').value = data.global_info.name;
-                    if (data.global_info.cep) document.getElementById('taskCep').value = data.global_info.cep;
-                }
-                if (data.metadata) document.getElementById('metadataJSON').value = JSON.stringify(data.metadata);
-
-                // Populate Items
-                if (data.items && Array.isArray(data.items)) {
-                    populateGrid(data.items);
-                }
-
-                // Clear session to prevent re-use
-                sessionStorage.removeItem('oracleData');
-
-            } catch(e) { console.error("Error loading Oracle data", e); }
-        } else {
-            // Add one empty row
-            addRow();
-        }
+    // Drag & Drop
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault(); e.stopPropagation();
+            dropZone.classList.add('dragover');
+        }, false);
     });
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault(); e.stopPropagation();
+            dropZone.classList.remove('dragover');
+        }, false);
+    });
+    dropZone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        document.getElementById('pdfFiles').files = files;
+        handlePdfUpload();
+    });
+
+    async function handlePdfUpload() {
+        const input = document.getElementById('pdfFiles');
+        if (input.files.length === 0) return;
+
+        // Show Loading
+        loadingOverlay.style.display = 'flex';
+
+        const formData = new FormData();
+        for (let i = 0; i < input.files.length; i++) {
+            formData.append('pdfFiles', input.files[i]);
+        }
+
+        try {
+            const res = await fetch('/api/sniper/parse-pdf', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            if (data.error) throw new Error(data.error);
+
+            // Hide Upload, Show Form
+            uploadContainer.style.display = 'none';
+            formContainer.style.display = 'flex';
+
+            // Fill Data
+            if (data.metadata) {
+                if (data.metadata.name) document.getElementById('taskName').value = data.metadata.name;
+                if (data.metadata.cep) document.getElementById('taskCep').value = data.metadata.cep;
+            }
+
+            if (data.items && data.items.length > 0) {
+                populateGrid(data.items);
+            } else {
+                addRow(); // Add empty row if none
+                alert("Nenhum item detectado automaticamente. Preencha manualmente.");
+            }
+
+        } catch (e) {
+            console.error(e);
+            alert("Erro na leitura do PDF: " + e.message);
+            loadingOverlay.style.display = 'none';
+        } finally {
+            loadingOverlay.style.display = 'none';
+            input.value = '';
+        }
+    }
+
+    function resetUpload() {
+        formContainer.style.display = 'none';
+        uploadContainer.style.display = 'flex';
+        document.getElementById('items-body').innerHTML = '';
+        document.getElementById('taskName').value = '';
+        document.getElementById('taskCep').value = '';
+    }
 
     function addRow(item = {}) {
         rowCount++;
@@ -154,51 +304,6 @@
     function updateCount() {
         const count = document.getElementById('items-body').children.length;
         document.getElementById('item-count').innerText = `${count} ITENS`;
-    }
-
-    async function uploadPdf() {
-        const input = document.getElementById('pdfInput');
-        const loading = document.getElementById('pdfLoading');
-
-        if (input.files.length === 0) return;
-
-        const formData = new FormData();
-        for (let i = 0; i < input.files.length; i++) {
-            formData.append('pdfFiles', input.files[i]);
-        }
-
-        loading.style.display = 'inline-block';
-        document.getElementById('btnPdf').classList.add('disabled');
-
-        try {
-            const res = await fetch('/api/sniper/parse-pdf', {
-                method: 'POST',
-                body: formData
-            });
-            const data = await res.json();
-
-            if (data.error) throw new Error(data.error);
-
-            // Fill Metadata
-            if (data.metadata) {
-                if (data.metadata.name) document.getElementById('taskName').value = data.metadata.name;
-                if (data.metadata.cep) document.getElementById('taskCep').value = data.metadata.cep;
-            }
-
-            if (data.items && data.items.length > 0) {
-                populateGrid(data.items);
-                alert(`Sucesso! ${data.items.length} itens extraídos.\nMetadados preenchidos.`);
-            } else {
-                alert("Nenhum item encontrado. Verifique se o PDF contém uma tabela legível.");
-            }
-        } catch (e) {
-            console.error(e);
-            alert("Erro na leitura do PDF: " + e.message);
-        } finally {
-            loading.style.display = 'none';
-            document.getElementById('btnPdf').classList.remove('disabled');
-            input.value = ''; // Reset
-        }
     }
 
     // Form Interceptor to Serialize Grid
