@@ -29,27 +29,6 @@
                         </div>
                     </div>
 
-                    <!-- MODULE SELECTOR -->
-                    <div class="mb-4">
-                        <label class="form-label text-muted small uppercase">MÓDULO DE INTELIGÊNCIA</label>
-                        <select name="moduleName" class="form-select bg-black text-white border-secondary">
-                            <% modules.forEach(function(mod) { %>
-                                <option value="<%= mod %>" <%= mod === 'smart' ? 'selected' : '' %>><%= mod.toUpperCase() %></option>
-                            <% }); %>
-                        </select>
-                    </div>
-
-                    <!-- AI PROVIDER OVERRIDE (Optional) -->
-                    <div class="mb-4">
-                        <label class="form-label text-muted small uppercase">PROVEDOR DE I.A. (OPCIONAL)</label>
-                        <select name="aiProvider" class="form-select bg-black text-white border-secondary">
-                            <option value="">PADRÃO DO SISTEMA</option>
-                            <option value="qwen">QWEN (ALIBABA)</option>
-                            <option value="gemini">GOOGLE GEMINI</option>
-                            <option value="deepseek">DEEPSEEK</option>
-                        </select>
-                    </div>
-
                     <% if (userGroups && userGroups.length > 0) { %>
                     <div class="mb-4">
                         <label class="form-label text-muted small uppercase">VISIBILIDADE (GRUPO)</label>
@@ -86,15 +65,21 @@
                                 </table>
                             </div>
                         </div>
-                        <div class="card-footer bg-transparent border-secondary d-flex justify-content-between">
+                        <div class="card-footer bg-transparent border-secondary d-flex justify-content-between flex-wrap gap-2">
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addRow()">
                                 <i class="fas fa-plus"></i> ADICIONAR
                             </button>
                             <div class="d-flex align-items-center gap-2">
-                                <label class="btn btn-outline-secondary btn-sm cursor-pointer">
-                                    <i class="fas fa-file-csv"></i> IMPORTAR CSV
-                                    <input type="file" name="csvFile" hidden onchange="alert('CSV selecionado! (Mock)')">
+                                <label class="btn btn-outline-secondary btn-sm cursor-pointer" title="Importar CSV Simples">
+                                    <i class="fas fa-file-csv"></i> CSV
+                                    <input type="file" name="csvFile" hidden onchange="alert('CSV selecionado!')">
                                 </label>
+
+                                <label class="btn btn-outline-warning btn-sm cursor-pointer" id="btnPdf" title="I.A. lê o PDF e preenche">
+                                    <i class="fas fa-file-pdf"></i> PDF AUTO-FILL (IA)
+                                    <input type="file" id="pdfInput" multiple accept=".pdf" hidden onchange="uploadPdf()">
+                                </label>
+                                <span id="pdfLoading" class="text-warning small" style="display:none;"><i class="fas fa-spinner fa-spin"></i> Lendo...</span>
                             </div>
                         </div>
                     </div>
@@ -169,6 +154,45 @@
     function updateCount() {
         const count = document.getElementById('items-body').children.length;
         document.getElementById('item-count').innerText = `${count} ITENS`;
+    }
+
+    async function uploadPdf() {
+        const input = document.getElementById('pdfInput');
+        const loading = document.getElementById('pdfLoading');
+
+        if (input.files.length === 0) return;
+
+        const formData = new FormData();
+        for (let i = 0; i < input.files.length; i++) {
+            formData.append('pdfFiles', input.files[i]);
+        }
+
+        loading.style.display = 'inline-block';
+        document.getElementById('btnPdf').classList.add('disabled');
+
+        try {
+            const res = await fetch('/api/sniper/parse-pdf', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            if (data.error) throw new Error(data.error);
+
+            if (data.items && data.items.length > 0) {
+                populateGrid(data.items);
+                alert(`Sucesso! ${data.items.length} itens extraídos.`);
+            } else {
+                alert("Nenhum item encontrado.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Erro na leitura do PDF: " + e.message);
+        } finally {
+            loading.style.display = 'none';
+            document.getElementById('btnPdf').classList.remove('disabled');
+            input.value = ''; // Reset
+        }
     }
 
     // Form Interceptor to Serialize Grid

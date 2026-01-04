@@ -41,6 +41,7 @@ const { startWorker } = require('./src/worker');
 const { generateExcelBuffer } = require('./src/export');
 const { processPDF } = require('./src/services/tr_processor');
 const { fetchModels } = require('./src/services/ai_manager');
+const { extractItemsFromPdf } = require('./src/services/pdf_parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -227,7 +228,7 @@ app.post('/create', isAuthenticated, upload.single('csvFile'), async (req, res) 
         input_file: filePath,
         log_file: path.join('logs', `${taskId}.txt`),
         external_link: external_link,
-        module_name: moduleName,
+        module_name: moduleName || 'gemini_meli', // Default module
         user_id: user.id,
         cost_estimate: costEstimate,
         group_id: validGroupId
@@ -273,6 +274,25 @@ app.post('/create', isAuthenticated, upload.single('csvFile'), async (req, res) 
         res.redirect('/dashboard'); // Redirect to Dashboard
     } catch (e) {
         res.status(500).send(e.message);
+    }
+});
+
+// PDF Parsing Endpoint (Sniper Auto-fill)
+app.post('/api/sniper/parse-pdf', isAuthenticated, upload.array('pdfFiles'), async (req, res) => {
+    try {
+        if (!req.files || req.files.length === 0) throw new Error("Nenhum arquivo enviado.");
+        const items = await extractItemsFromPdf(req.files);
+
+        // Clean up uploads immediately after parsing
+        req.files.forEach(f => {
+            if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
+        });
+
+        res.json({ items });
+    } catch (e) {
+        // Clean up on error too
+        if (req.files) req.files.forEach(f => { if(fs.existsSync(f.path)) fs.unlinkSync(f.path); });
+        res.status(500).json({ error: e.message });
     }
 });
 

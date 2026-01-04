@@ -32,6 +32,10 @@
                 <span class="fw-bold text-main"><%= user.username %></span>
             </div>
 
+            <button id="themeToggle" class="btn btn-sm btn-outline-secondary me-3" onclick="toggleTheme()" title="Alternar Tema">
+                <i class="fas fa-sun"></i>
+            </button>
+
             <!-- Watts Capacitor -->
             <div class="watts-capacitor" title="Reserva de Energia">
                 <i class="fas fa-bolt text-gold fa-lg"></i>
@@ -45,6 +49,29 @@
             </div>
         </div>
     </header>
+
+<script>
+    function toggleTheme() {
+        const body = document.body;
+        const current = body.getAttribute('data-theme');
+        const next = current === 'light' ? 'dark' : 'light';
+        body.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+
+        const icon = document.querySelector('#themeToggle i');
+        if(icon) icon.className = next === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+    }
+
+    // Init Theme
+    (function() {
+        const saved = localStorage.getItem('theme') || 'dark';
+        document.body.setAttribute('data-theme', saved);
+        document.addEventListener('DOMContentLoaded', () => {
+             const icon = document.querySelector('#themeToggle i');
+             if(icon) icon.className = saved === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+        });
+    })();
+</script>
     <% } %>
 
     <div class="container-fluid">

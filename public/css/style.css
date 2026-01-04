@@ -35,6 +35,20 @@
     --text-muted: #6c757d;
 }
 
+[data-theme="light"] {
+    --void-bg: #f4f6f9;
+    --card-surface: #ffffff;
+    --input-bg: #e9ecef;
+    --border-subtle: #dee2e6;
+    --border-highlight: #ced4da;
+    --text-main: #212529;
+    --text-muted: #495057;
+    --neon-cyan: #0d6efd;
+    --neon-glow: 0 0 5px rgba(13, 110, 253, 0.2);
+    --mabus-gold: #b08d26;
+    --bg-black: var(--input-bg);
+}
+
 body {
     background-color: var(--void-bg);
     color: var(--text-main);
@@ -242,7 +256,7 @@ h1, h2, h3, h4, h5, .brand-font {
 /* Utility */
 .text-neon { color: var(--neon-cyan); }
 .text-gold { color: var(--mabus-gold); }
-.bg-black { background-color: #000 !important; }
+.bg-black { background-color: var(--input-bg) !important; color: var(--text-main) !important; }
 
 /* Gray Scales for Dark Mode */
 .text-gray-100 { color: #f8f9fa !important; }
