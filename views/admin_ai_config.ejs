@@ -13,6 +13,8 @@
         .form-control:focus, .form-select:focus { background-color: #222; color: #fff; border-color: #00f3ff; box-shadow: 0 0 5px #00f3ff; }
         .btn-neon { border: 1px solid #00f3ff; color: #00f3ff; background: transparent; transition: all 0.3s; }
         .btn-neon:hover { background: #00f3ff; color: #000; box-shadow: 0 0 10px #00f3ff; }
+        .text-purple { color: #bc13fe; }
+        .border-purple { border-color: #bc13fe !important; }
     </style>
 </head>
 <body>
@@ -86,6 +88,106 @@
                 </div>
             </div>
 
+            <!-- SNIPER PARSER CONFIG -->
+            <div class="card p-4 mb-4 border-purple">
+                <h4 class="text-purple mb-3">Sniper Parser (Extração de PDF)</h4>
+                <p class="text-muted small">Configure a ordem de tentativa da I.A. para extração de PDFs. Se a principal falhar, o sistema tentará as reservas.</p>
+
+                <%
+                   const parser_primary = settings.parser_primary || { provider: 'gemini', model: 'gemini-2.0-flash-lite-preview-02-05' };
+                   const parser_backup1 = settings.parser_backup1 || { provider: 'gemini', model: 'gemini-2.0-flash' };
+                   const parser_backup2 = settings.parser_backup2 || { provider: 'deepseek', model: 'deepseek-chat' };
+                   const parser_backup3 = settings.parser_backup3 || { provider: '', model: '' };
+                %>
+
+                <!-- PRIMARY -->
+                <h6 class="text-white mt-2 border-bottom border-secondary pb-1">Prioridade 1 (Principal)</h6>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Provedor</label>
+                        <select class="form-select" name="parser_provider_0" id="parser_provider_0">
+                            <option value="">Selecione...</option>
+                            <option value="gemini" <%= parser_primary.provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                            <option value="qwen" <%= parser_primary.provider === 'qwen' ? 'selected' : '' %>>Qwen</option>
+                            <option value="deepseek" <%= parser_primary.provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">API Key (Opcional - usa do sistema se vazio)</label>
+                        <input type="password" class="form-control" name="parser_key_0" id="parser_key_0" value="<%= parser_primary.key || '' %>" placeholder="Herdar do Sistema">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Modelo</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="parser_model_0" id="parser_model_0" value="<%= parser_primary.model || '' %>" placeholder="Ex: gemini-2.0-flash">
+                             <button type="button" class="btn btn-outline-secondary refresh-models" data-provider="parser_provider_0" data-key="parser_key_0" data-target="parser_model_0_select">
+                                <i class="fas fa-sync"></i>
+                            </button>
+                        </div>
+                        <!-- Hidden select just for populating from API if user clicks sync, then we copy to input -->
+                         <select class="form-select d-none" id="parser_model_0_select"></select>
+                    </div>
+                </div>
+
+                <!-- BACKUP 1 -->
+                <h6 class="text-muted mt-2 border-bottom border-secondary pb-1">Reserva 1</h6>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                         <select class="form-select" name="parser_provider_1" id="parser_provider_1">
+                            <option value="">(Desativado)</option>
+                            <option value="gemini" <%= parser_backup1.provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                            <option value="qwen" <%= parser_backup1.provider === 'qwen' ? 'selected' : '' %>>Qwen</option>
+                            <option value="deepseek" <%= parser_backup1.provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                        </select>
+                    </div>
+                     <div class="col-md-4 mb-3">
+                        <input type="password" class="form-control" name="parser_key_1" value="<%= parser_backup1.key || '' %>" placeholder="API Key (Opcional)">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <input type="text" class="form-control" name="parser_model_1" value="<%= parser_backup1.model || '' %>" placeholder="Modelo">
+                    </div>
+                </div>
+
+                <!-- BACKUP 2 -->
+                <h6 class="text-muted mt-2 border-bottom border-secondary pb-1">Reserva 2</h6>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                         <select class="form-select" name="parser_provider_2" id="parser_provider_2">
+                            <option value="">(Desativado)</option>
+                            <option value="gemini" <%= parser_backup2.provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                            <option value="qwen" <%= parser_backup2.provider === 'qwen' ? 'selected' : '' %>>Qwen</option>
+                            <option value="deepseek" <%= parser_backup2.provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                        </select>
+                    </div>
+                     <div class="col-md-4 mb-3">
+                        <input type="password" class="form-control" name="parser_key_2" value="<%= parser_backup2.key || '' %>" placeholder="API Key (Opcional)">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <input type="text" class="form-control" name="parser_model_2" value="<%= parser_backup2.model || '' %>" placeholder="Modelo">
+                    </div>
+                </div>
+
+                 <!-- BACKUP 3 -->
+                <h6 class="text-muted mt-2 border-bottom border-secondary pb-1">Reserva 3</h6>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                         <select class="form-select" name="parser_provider_3" id="parser_provider_3">
+                            <option value="">(Desativado)</option>
+                            <option value="gemini" <%= parser_backup3.provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                            <option value="qwen" <%= parser_backup3.provider === 'qwen' ? 'selected' : '' %>>Qwen</option>
+                            <option value="deepseek" <%= parser_backup3.provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                        </select>
+                    </div>
+                     <div class="col-md-4 mb-3">
+                        <input type="password" class="form-control" name="parser_key_3" value="<%= parser_backup3.key || '' %>" placeholder="API Key (Opcional)">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <input type="text" class="form-control" name="parser_model_3" value="<%= parser_backup3.model || '' %>" placeholder="Modelo">
+                    </div>
+                </div>
+
+            </div>
+
             <button type="submit" class="btn btn-neon w-100 btn-lg">SALVAR CONFIGURAÇÕES</button>
         </form>
     </div>
@@ -97,7 +199,12 @@
             btn.addEventListener('click', async () => {
                 const providerSelect = document.getElementById(btn.dataset.provider);
                 const keyInput = document.getElementById(btn.dataset.key);
-                const targetSelect = document.getElementById(btn.dataset.target);
+                const targetId = btn.dataset.target;
+
+                // Handle hidden select logic for text inputs
+                const isHiddenSelect = targetId.includes('_select');
+                const targetSelect = document.getElementById(targetId);
+                const targetInput = isHiddenSelect ? document.getElementById(targetId.replace('_select', '')) : document.getElementById(targetId);
 
                 const provider = providerSelect.value;
                 const apiKey = keyInput.value;
@@ -121,17 +228,29 @@
 
                     const models = await res.json();
 
-                    // Clear and populate
-                    targetSelect.innerHTML = '';
-                    models.forEach(m => {
-                        const opt = document.createElement('option');
-                        opt.value = m.id;
-                        opt.textContent = m.name;
-                        opt.title = m.description;
-                        targetSelect.appendChild(opt);
-                    });
+                    if(isHiddenSelect) {
+                         // Populate the hidden select, then show a modal or prompt?
+                         // Simplification: Just pick the first or show a simple list in alert?
+                         // Better: Fill the Input with the first one and show alert of options?
+                         // Best: Transform input to select temporarily?
+                         // Let's just put it in the input for now or show a prompt.
 
-                    alert('Modelos carregados com sucesso!');
+                         let options = models.map(m => m.id).join('\\n');
+                         let selected = prompt('Modelos Disponíveis (Copie o ID):\\n' + options, models[0].id);
+                         if(selected) targetInput.value = selected;
+
+                    } else {
+                        // Clear and populate standard select
+                        targetSelect.innerHTML = '';
+                        models.forEach(m => {
+                            const opt = document.createElement('option');
+                            opt.value = m.id;
+                            opt.textContent = m.name;
+                            opt.title = m.description;
+                            targetSelect.appendChild(opt);
+                        });
+                        alert('Modelos carregados com sucesso!');
+                    }
 
                 } catch(e) {
                     alert('Erro ao carregar modelos: ' + e.message);

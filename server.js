@@ -430,7 +430,14 @@ app.get('/admin/ai-config', isAdmin, async (req, res) => {
             oracle_api_key: await getSetting('oracle_api_key'),
             sniper_provider: await getSetting('sniper_provider'),
             sniper_model: await getSetting('sniper_model'),
-            sniper_api_key: await getSetting('sniper_api_key')
+            sniper_api_key: await getSetting('sniper_api_key'),
+            // Fetch Parser settings (JSON stored in value or multiple keys? "3 reserves" implies complex structure)
+            // Let's store them as individual keys or JSON. Given setSetting is key-value, let's use JSON for reserves if possible or keys.
+            // Using keys for simplicity of existing DB structure:
+            parser_primary: JSON.parse(await getSetting('parser_primary') || '{}'),
+            parser_backup1: JSON.parse(await getSetting('parser_backup1') || '{}'),
+            parser_backup2: JSON.parse(await getSetting('parser_backup2') || '{}'),
+            parser_backup3: JSON.parse(await getSetting('parser_backup3') || '{}')
         };
         res.render('admin_ai_config', { settings });
     } catch (e) {
@@ -441,7 +448,12 @@ app.get('/admin/ai-config', isAdmin, async (req, res) => {
 app.post('/admin/ai-config/save', isAdmin, async (req, res) => {
     const {
         oracle_provider, oracle_model, oracle_api_key,
-        sniper_provider, sniper_model, sniper_api_key
+        sniper_provider, sniper_model, sniper_api_key,
+        // Parser Fields
+        parser_provider_0, parser_key_0, parser_model_0,
+        parser_provider_1, parser_key_1, parser_model_1,
+        parser_provider_2, parser_key_2, parser_model_2,
+        parser_provider_3, parser_key_3, parser_model_3
     } = req.body;
 
     try {
@@ -452,6 +464,12 @@ app.post('/admin/ai-config/save', isAdmin, async (req, res) => {
         if(sniper_provider) await setSetting('sniper_provider', sniper_provider);
         if(sniper_model) await setSetting('sniper_model', sniper_model);
         if(sniper_api_key && sniper_api_key.trim() !== '') await setSetting('sniper_api_key', sniper_api_key);
+
+        // Save Parser Settings (as JSON strings to keep table clean)
+        await setSetting('parser_primary', JSON.stringify({ provider: parser_provider_0, key: parser_key_0, model: parser_model_0 }));
+        await setSetting('parser_backup1', JSON.stringify({ provider: parser_provider_1, key: parser_key_1, model: parser_model_1 }));
+        await setSetting('parser_backup2', JSON.stringify({ provider: parser_provider_2, key: parser_key_2, model: parser_model_2 }));
+        await setSetting('parser_backup3', JSON.stringify({ provider: parser_provider_3, key: parser_key_3, model: parser_model_3 }));
 
         req.flash('success', 'Configurações de IA atualizadas.');
         res.redirect('/admin/ai-config');
