@@ -116,13 +116,17 @@
         <i class="fas fa-file-pdf fa-4x text-neon mb-3"></i>
         <div class="drop-zone-text">ARRASTE O EDITAL AQUI</div>
         <div class="drop-zone-sub">A I.A. irá ler e preencher tudo automaticamente</div>
-        <input type="file" id="pdfFiles" accept=".pdf" multiple hidden onchange="handlePdfUpload()">
+        <input type="file" id="pdfFiles" accept=".pdf" multiple hidden onchange="showProcessButton()">
     </label>
 
     <div class="instruction-box">
         <label class="form-label text-neon small uppercase"><i class="fas fa-robot"></i> Instruções Especiais para a I.A. (Opcional)</label>
         <textarea id="aiInstructions" class="form-control" rows="2" placeholder="Ex: Cotar apenas itens de informática. Ignorar serviços."></textarea>
     </div>
+
+    <button id="btnProcessPdf" class="btn btn-success btn-lg shadow-green" style="display:none; width: 70%;" onclick="handlePdfUpload()">
+        <i class="fas fa-microchip"></i> PROCESSAR EDITAL AGORA
+    </button>
 </div>
 
 <!-- FORM CONTAINER (Results) -->
@@ -244,8 +248,17 @@
     dropZone.addEventListener('drop', (e) => {
         const files = e.dataTransfer.files;
         document.getElementById('pdfFiles').files = files;
-        handlePdfUpload();
+        // Don't process immediately, show button
+        showProcessButton();
     });
+
+    function showProcessButton() {
+        const input = document.getElementById('pdfFiles');
+        if (input.files.length > 0) {
+            document.getElementById('btnProcessPdf').style.display = 'block';
+            document.querySelector('.drop-zone-text').innerText = `${input.files.length} ARQUIVO(S) SELECIONADO(S)`;
+        }
+    }
 
     async function handlePdfUpload() {
         const input = document.getElementById('pdfFiles');
@@ -309,6 +322,8 @@
         document.getElementById('taskName').value = '';
         document.getElementById('taskCep').value = '';
         document.getElementById('aiInstructions').value = '';
+        document.getElementById('btnProcessPdf').style.display = 'none';
+        document.querySelector('.drop-zone-text').innerText = 'ARRASTE O EDITAL AQUI';
     }
 
     function addRow(item = {}) {
