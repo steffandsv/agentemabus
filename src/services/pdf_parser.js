@@ -53,31 +53,33 @@ function repairJson(text) {
 async function selectStrategy(tokenCount) {
     // Models (Prioritize defined keys or defaults)
     const geminiKey = process.env.GEMINI_API_KEY || await getSetting('oracle_api_key');
-    const qwenKey = process.env.DASHSCOPE_API_KEY || process.env.QWEN_KEY || await getSetting('oracle_api_key');
     const deepseekKey = process.env.DEEPSEEK_API_KEY;
 
     const strategies = [];
 
     // TIER 1: FAST / SMALL (< 30k tokens)
     if (tokenCount < 30000) {
-        if (geminiKey) strategies.push({ provider: PROVIDERS.GEMINI, model: 'gemini-1.5-flash', apiKey: geminiKey });
-        if (qwenKey) strategies.push({ provider: PROVIDERS.QWEN, model: 'qwen-turbo', apiKey: qwenKey });
+        // User requested strict Gemini usage (v2.0+)
+        if (geminiKey) strategies.push({ provider: PROVIDERS.GEMINI, model: 'gemini-2.0-flash', apiKey: geminiKey });
     }
     // TIER 2: MEDIUM (30k - 100k tokens)
     else if (tokenCount < 100000) {
-        if (qwenKey) strategies.push({ provider: PROVIDERS.QWEN, model: 'qwen-plus', apiKey: qwenKey }); // Balanced
-        if (geminiKey) strategies.push({ provider: PROVIDERS.GEMINI, model: 'gemini-1.5-flash', apiKey: geminiKey }); // Large context Flash
+         if (geminiKey) strategies.push({ provider: PROVIDERS.GEMINI, model: 'gemini-2.0-flash', apiKey: geminiKey });
     }
     // TIER 3: LARGE (> 100k tokens)
     else {
-        // Gemini 1.5 Pro is the king of context (up to 2M)
-        if (geminiKey) strategies.push({ provider: PROVIDERS.GEMINI, model: 'gemini-1.5-pro', apiKey: geminiKey });
-        if (qwenKey) strategies.push({ provider: PROVIDERS.QWEN, model: 'qwen-long', apiKey: qwenKey }); // Specialized for docs
+        // Gemini 2.0 Flash is also high context (1M), so it works here too.
+        if (geminiKey) strategies.push({ provider: PROVIDERS.GEMINI, model: 'gemini-2.0-flash', apiKey: geminiKey });
     }
 
     // Add Fallbacks (in case primary fails)
+    // DeepSeek as a non-Google backup
     if (deepseekKey) strategies.push({ provider: PROVIDERS.DEEPSEEK, model: 'deepseek-chat', apiKey: deepseekKey });
-    if (geminiKey && !strategies.find(s => s.model === 'gemini-1.5-flash')) strategies.push({ provider: PROVIDERS.GEMINI, model: 'gemini-1.5-flash', apiKey: geminiKey });
+
+    // Explicitly add 'gemini-2.0-flash-lite-preview-02-05' if 2.0-flash fails (maybe strict limits?)
+    if (geminiKey && !strategies.find(s => s.model === 'gemini-2.0-flash-lite-preview-02-05')) {
+         strategies.push({ provider: PROVIDERS.GEMINI, model: 'gemini-2.0-flash-lite-preview-02-05', apiKey: geminiKey });
+    }
 
     // De-duplicate
     const uniqueStrategies = [];
@@ -91,7 +93,7 @@ async function selectStrategy(tokenCount) {
     }
 
     if (uniqueStrategies.length === 0) {
-        throw new Error("Nenhuma API Key configurada (Gemini, Qwen ou DeepSeek).");
+        throw new Error("Nenhuma API Key configurada para Gemini (ou backup DeepSeek).");
     }
 
     return uniqueStrategies;
