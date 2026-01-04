@@ -3,10 +3,104 @@ const pdf = require('pdf-parse');
 const { generateText, PROVIDERS } = require('./ai_manager');
 const { getSetting } = require('../database');
 
-async function extractItemsFromPdf(files) {
+/**
+ * Estimates token count based on character length.
+ * Rough approximation: 1 token ~ 4 characters.
+ */
+function estimateTokens(text) {
+    return Math.ceil(text.length / 4);
+}
+
+/**
+ * Repairs broken JSON strings common in LLM outputs.
+ */
+function repairJson(text) {
+    // 1. Remove markdown code blocks
+    let cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    // 2. Find the outer-most braces/brackets
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+
+    if (firstBrace !== -1 && lastBrace !== -1) {
+        cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+    } else {
+        // Maybe it's a list?
+        const firstBracket = cleaned.indexOf('[');
+        const lastBracket = cleaned.lastIndexOf(']');
+        if (firstBracket !== -1 && lastBracket !== -1) {
+            cleaned = cleaned.substring(firstBracket, lastBracket + 1);
+        }
+    }
+
+    try {
+        return JSON.parse(cleaned);
+    } catch (e) {
+        // Attempt simple fixes
+        // Fix trailing commas
+        cleaned = cleaned.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
+        try {
+            return JSON.parse(cleaned);
+        } catch (e2) {
+            throw new Error(`Failed to parse JSON: ${e2.message} (Raw: ${cleaned.substring(0, 50)}...)`);
+        }
+    }
+}
+
+/**
+ * Selects the best AI Strategy based on input size and availability.
+ */
+async function selectStrategy(tokenCount) {
+    // Models (Prioritize defined keys or defaults)
+    const geminiKey = process.env.GEMINI_API_KEY || await getSetting('oracle_api_key');
+    const qwenKey = process.env.DASHSCOPE_API_KEY || process.env.QWEN_KEY || await getSetting('oracle_api_key');
+    const deepseekKey = process.env.DEEPSEEK_API_KEY;
+
+    const strategies = [];
+
+    // TIER 1: FAST / SMALL (< 30k tokens)
+    if (tokenCount < 30000) {
+        if (geminiKey) strategies.push({ provider: PROVIDERS.GEMINI, model: 'gemini-1.5-flash', apiKey: geminiKey });
+        if (qwenKey) strategies.push({ provider: PROVIDERS.QWEN, model: 'qwen-turbo', apiKey: qwenKey });
+    }
+    // TIER 2: MEDIUM (30k - 100k tokens)
+    else if (tokenCount < 100000) {
+        if (qwenKey) strategies.push({ provider: PROVIDERS.QWEN, model: 'qwen-plus', apiKey: qwenKey }); // Balanced
+        if (geminiKey) strategies.push({ provider: PROVIDERS.GEMINI, model: 'gemini-1.5-flash', apiKey: geminiKey }); // Large context Flash
+    }
+    // TIER 3: LARGE (> 100k tokens)
+    else {
+        // Gemini 1.5 Pro is the king of context (up to 2M)
+        if (geminiKey) strategies.push({ provider: PROVIDERS.GEMINI, model: 'gemini-1.5-pro', apiKey: geminiKey });
+        if (qwenKey) strategies.push({ provider: PROVIDERS.QWEN, model: 'qwen-long', apiKey: qwenKey }); // Specialized for docs
+    }
+
+    // Add Fallbacks (in case primary fails)
+    if (deepseekKey) strategies.push({ provider: PROVIDERS.DEEPSEEK, model: 'deepseek-chat', apiKey: deepseekKey });
+    if (geminiKey && !strategies.find(s => s.model === 'gemini-1.5-flash')) strategies.push({ provider: PROVIDERS.GEMINI, model: 'gemini-1.5-flash', apiKey: geminiKey });
+
+    // De-duplicate
+    const uniqueStrategies = [];
+    const seen = new Set();
+    for (const s of strategies) {
+        const key = `${s.provider}-${s.model}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            uniqueStrategies.push(s);
+        }
+    }
+
+    if (uniqueStrategies.length === 0) {
+        throw new Error("Nenhuma API Key configurada (Gemini, Qwen ou DeepSeek).");
+    }
+
+    return uniqueStrategies;
+}
+
+async function extractItemsFromPdf(files, userInstructions = "") {
     let fullText = "";
 
-    // 1. Extract Text from all files
+    // 1. Extract Text
     for (const file of files) {
         try {
             const dataBuffer = fs.readFileSync(file.path);
@@ -19,93 +113,77 @@ async function extractItemsFromPdf(files) {
 
     if (!fullText.trim()) throw new Error("Não foi possível extrair texto dos arquivos.");
 
-    const prompt = `Você é um especialista em extração de dados de editais e tabelas de licitação.
-    Sua tarefa é ler o texto fornecido (que veio de PDFs) e extrair DUAS coisas:
-    1. A lista de itens para compra/licitação.
-    2. Metadados do edital: Nome (Município - Número do Processo/Edital) e CEP de entrega.
+    const tokenCount = estimateTokens(fullText);
+    console.log(`[PDF Parser] Total Tokens (Approx): ${tokenCount}`);
 
-    Retorne APENAS um JSON válido (sem markdown, sem \`\`\`) com a seguinte estrutura:
-    {
-        "metadata": {
-            "name": "Nome do Município - Edital XX/20XX",
-            "cep": "00000-000" (Encontre o CEP de entrega ou da prefeitura no texto)
-        },
-        "items": [
-            {
-                "description": "Descrição detalhada do item...",
-                "valor_venda": 0.00 (float, use 0 se não achar),
-                "quantidade": 1 (int),
-                "id": "1"
-            }
-        ]
-    }
+    // Select Strategy
+    const strategyQueue = await selectStrategy(tokenCount);
 
-    Se não encontrar o CEP, deixe vazio ou tente estimar pelo município.
-    Se não encontrar o número do edital, use apenas o nome do órgão/município.
+    // Construct Prompt
+    const systemPrompt = `Você é um especialista em licitações e extração de dados.
+    Sua missão é converter editais brutos em JSON estruturado para importação.
 
-    Texto para analisar:
-    ${fullText.substring(0, 1000000)}`;
+    REGRAS CRÍTICAS:
+    1. Retorne APENAS o JSON. Sem markdown, sem explicações, sem \`\`\`.
+    2. A estrutura deve ser EXATAMENTE:
+       {
+         "metadata": { "name": "...", "cep": "..." },
+         "items": [ { "id": "1", "description": "...", "quantidade": 1, "valor_venda": 0.00 } ]
+       }
+    3. Se houver instruções extras do usuário, siga-as com prioridade.
+    `;
 
-    // Try to get Key from DB if Env is missing
-    let qwenKey = process.env.DASHSCOPE_API_KEY || process.env.QWEN_KEY;
-    if (!qwenKey) {
-        qwenKey = await getSetting('sniper_api_key');
-    }
-    // Also check oracle key as fallback if user put it there
-    if (!qwenKey) {
-        qwenKey = await getSetting('oracle_api_key');
-    }
+    const userPrompt = `
+    ${userInstructions ? `INSTRUÇÕES DO USUÁRIO: ${userInstructions}\n` : ''}
 
-    try {
-        // Attempt Primary (Qwen)
-        const config = {
-            provider: PROVIDERS.QWEN,
-            model: 'qwen-turbo',
-            apiKey: qwenKey,
-            messages: [{ role: 'user', content: prompt }]
-        };
+    Extraia os itens deste texto.
+    - "valor_venda" é o valor máximo/estimado unitário. Se não achar, use 0.
+    - "id" deve ser o número do item no edital.
+    - Procure o CEP de entrega no texto.
 
-        const responseText = await generateText(config);
-        return parseResponse(responseText);
+    TEXTO DO EDITAL:
+    ${fullText.substring(0, 4000000)}
+    `;
+    // Truncate at 4M chars (~1M tokens) to be safe for Gemini 1.5 Pro,
+    // though it handles more. For others, let's hope they handle context or fail to fallback.
+    // Ideally we should truncate per model, but keeping it simple for now.
 
-    } catch (e) {
-        console.error("Qwen Extraction Failed:", e.message);
-        console.log("Fallback to Gemini 2.5 Flash Lite triggered");
+    let lastError = null;
 
-        // Fallback (Gemini)
-        // Use gemini-1.5-flash as the "lite" standard since 2.5 lite is not standard in public API yet or might be 'gemini-2.0-flash-lite-preview'
-        // User requested "gemini-2.5-flash-lite", I will try to map to 'gemini-1.5-flash' which is the current "Flash" standard,
-        // OR 'gemini-2.0-flash-lite-preview-02-05' if available.
-        // Safest bet for "available" is 1.5-flash, but I will name it as requested if it works, or fallback to known good.
-        // I'll stick to 'gemini-1.5-flash' for reliability as "Flash Lite" equivalent.
-
-        let geminiKey = process.env.GEMINI_API_KEY;
-        if(!geminiKey) geminiKey = await getSetting('oracle_api_key'); // Reuse oracle key for Gemini
-
-        const fallbackConfig = {
-            provider: PROVIDERS.GEMINI,
-            model: 'gemini-1.5-flash', // Fallback to reliable Flash
-            apiKey: geminiKey,
-            messages: [{ role: 'user', content: prompt }]
-        };
+    // Try strategies in order
+    for (const strategy of strategyQueue) {
+        console.log(`[PDF Parser] Attempting with ${strategy.provider} (${strategy.model})...`);
 
         try {
-            const fallbackResponse = await generateText(fallbackConfig);
-            return parseResponse(fallbackResponse);
-        } catch (finalError) {
-             throw new Error("Falha total na extração (Qwen + Gemini): " + finalError.message);
+            const config = {
+                provider: strategy.provider,
+                model: strategy.model,
+                apiKey: strategy.apiKey,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ]
+            };
+
+            const responseText = await generateText(config);
+            const result = repairJson(responseText);
+
+            // Basic Validation
+            if (!result.items || !Array.isArray(result.items)) {
+                throw new Error("JSON retornado não contém array de 'items'.");
+            }
+
+            console.log(`[PDF Parser] Success with ${strategy.model}. Extracted ${result.items.length} items.`);
+            return result;
+
+        } catch (e) {
+            console.error(`[PDF Parser] Failed with ${strategy.model}: ${e.message}`);
+            lastError = e;
+            // Continue to next strategy
         }
     }
-}
 
-function parseResponse(text) {
-    let jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const firstBrace = jsonStr.indexOf('{');
-    const lastBrace = jsonStr.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1) {
-        jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
-    }
-    return JSON.parse(jsonStr);
+    throw new Error(`Falha em todas as tentativas de extração. Último erro: ${lastError ? lastError.message : 'Desconhecido'}`);
 }
 
 module.exports = { extractItemsFromPdf };
