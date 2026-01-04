@@ -281,7 +281,8 @@ app.post('/create', isAuthenticated, upload.single('csvFile'), async (req, res) 
 app.post('/api/sniper/parse-pdf', isAuthenticated, upload.array('pdfFiles'), async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) throw new Error("Nenhum arquivo enviado.");
-        const result = await extractItemsFromPdf(req.files);
+        const instructions = req.body.instructions || "";
+        const result = await extractItemsFromPdf(req.files, instructions);
 
         // Clean up uploads immediately after parsing
         req.files.forEach(f => {

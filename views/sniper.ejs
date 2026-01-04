@@ -4,9 +4,11 @@
     /* Specific overrides for Sniper V2 (Oracle Style) */
     .drop-zone-container {
         display: flex;
+        flex-direction: column;
         justify-content: center;
         align-items: center;
         min-height: 50vh;
+        gap: 20px;
     }
 
     .drop-zone {
@@ -47,6 +49,22 @@
         color: var(--text-muted);
         font-size: 0.9rem;
         margin-top: 10px;
+    }
+
+    .instruction-box {
+        width: 70%;
+        margin-top: 15px;
+    }
+
+    .instruction-box textarea {
+        background: rgba(0,0,0,0.5);
+        color: var(--text-main);
+        border: 1px solid var(--border-subtle);
+        resize: vertical;
+    }
+    .instruction-box textarea:focus {
+        border-color: var(--neon-cyan);
+        box-shadow: 0 0 5px var(--neon-cyan);
     }
 
     /* Form Container (Hidden Initially) */
@@ -100,6 +118,11 @@
         <div class="drop-zone-sub">A I.A. irá ler e preencher tudo automaticamente</div>
         <input type="file" id="pdfFiles" accept=".pdf" multiple hidden onchange="handlePdfUpload()">
     </label>
+
+    <div class="instruction-box">
+        <label class="form-label text-neon small uppercase"><i class="fas fa-robot"></i> Instruções Especiais para a I.A. (Opcional)</label>
+        <textarea id="aiInstructions" class="form-control" rows="2" placeholder="Ex: Cotar apenas itens de informática. Ignorar serviços."></textarea>
+    </div>
 </div>
 
 <!-- FORM CONTAINER (Results) -->
@@ -226,6 +249,8 @@
 
     async function handlePdfUpload() {
         const input = document.getElementById('pdfFiles');
+        const instructions = document.getElementById('aiInstructions').value;
+
         if (input.files.length === 0) return;
 
         // Show Loading
@@ -234,6 +259,11 @@
         const formData = new FormData();
         for (let i = 0; i < input.files.length; i++) {
             formData.append('pdfFiles', input.files[i]);
+        }
+
+        // Append Instructions
+        if (instructions) {
+            formData.append('instructions', instructions);
         }
 
         try {
@@ -278,6 +308,7 @@
         document.getElementById('items-body').innerHTML = '';
         document.getElementById('taskName').value = '';
         document.getElementById('taskCep').value = '';
+        document.getElementById('aiInstructions').value = '';
     }
 
     function addRow(item = {}) {
