@@ -17,10 +17,12 @@
 <body>
 
 <% if (user) { %>
+<div class="main-container">
     <%- include('sidebar', { path: path }) %>
+    <main class="content-area">
+<% } else { %>
+<div class="container-fluid p-0">
 <% } %>
-
-<div class="<%= user ? 'main-content' : '' %>">
 
     <% if (user) { %>
     <!-- Top Header HUD -->
@@ -79,4 +81,4 @@
 </script>
     <% } %>
 
-    <div class="container-fluid">
+    <div class="page-content">
