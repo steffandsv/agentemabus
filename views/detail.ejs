@@ -30,34 +30,34 @@
     <div class="col-lg-8">
 
         <!-- STATUS BAR -->
-        <div class="card bg-panel border-secondary mb-3">
-            <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center">
-                <span class="small text-muted uppercase">STATUS OPERACIONAL</span>
+        <div class="card mb-3">
+            <div class="card-body py-3 px-4 d-flex justify-content-between align-items-center">
+                <span class="small text-secondary fw-bold">STATUS DA MISSÃO</span>
                 <div>
                     <% if (task.status === 'running') { %>
-                        <span class="text-neon blink"><i class="fas fa-satellite-dish"></i> ESCANEANDO MERCADO...</span>
+                        <span class="text-primary fw-bold"><i class="fas fa-satellite-dish fa-spin me-2"></i> ESCANEANDO MERCADO...</span>
                     <% } else if (task.status === 'completed') { %>
-                        <span class="text-success"><i class="fas fa-check"></i> MISSÃO CUMPRIDA</span>
+                        <span class="text-success fw-bold"><i class="fas fa-check-circle me-2"></i> CONCLUÍDO</span>
                     <% } else { %>
-                        <span class="text-muted"><%= task.status.toUpperCase() %></span>
+                        <span class="text-secondary fw-bold"><%= task.status.toUpperCase() %></span>
                     <% } %>
                 </div>
             </div>
         </div>
 
         <!-- ITEMS GRID -->
-        <div class="card bg-black border-secondary">
-            <div class="card-header bg-transparent border-secondary text-white">
-                <i class="fas fa-list-ol"></i> RESULTADOS TÁTICOS
+        <div class="card">
+            <div class="card-header bg-transparent border-bottom d-flex align-items-center">
+                <i class="fas fa-list-ol text-primary me-2"></i> <span class="fw-bold">RESULTADOS DA COTAÇÃO</span>
             </div>
             <div class="table-responsive">
-                <table class="table table-dark table-hover mb-0 align-middle small">
+                <table class="table table-hover mb-0 align-middle small">
                     <thead>
-                        <tr class="text-muted">
-                            <th>ALVO</th>
-                            <th class="text-end">MAX (R$)</th>
-                            <th class="text-end">SNIPER (R$)</th>
-                            <th class="text-center">STATUS</th>
+                        <tr class="text-secondary text-uppercase">
+                            <th>ITEM</th>
+                            <th class="text-end">TETO (R$)</th>
+                            <th class="text-end">ENCONTRADO (R$)</th>
+                            <th class="text-center">MARGEM</th>
                             <th class="text-end">AÇÃO</th>
                         </tr>
                     </thead>
@@ -126,24 +126,24 @@
 
     </div>
 
-    <!-- RIGHT: TERMINAL & STATS -->
+    <!-- RIGHT: LOGS & STATS -->
     <div class="col-lg-4">
 
-        <!-- TERMINAL TOGGLE -->
-        <div class="card bg-black border-secondary mb-3">
-            <div class="card-header bg-transparent border-secondary d-flex justify-content-between cursor-pointer" onclick="toggleTerminal()">
-                <span class="text-muted small"><i class="fas fa-terminal"></i> LOGS DO SISTEMA</span>
-                <i class="fas fa-chevron-down text-muted" id="term-icon"></i>
+        <!-- LOGS TOGGLE -->
+        <div class="card mb-3">
+            <div class="card-header bg-transparent border-bottom d-flex justify-content-between cursor-pointer" onclick="toggleTerminal()">
+                <span class="text-secondary small fw-bold"><i class="fas fa-terminal me-2"></i> LOGS DO SISTEMA</span>
+                <i class="fas fa-chevron-down text-secondary" id="term-icon"></i>
             </div>
             <div class="card-body p-0" id="terminal-body" style="display:none;">
-                <pre id="logs" class="p-3 m-0 bg-black text-success small border-0" style="height: 300px; overflow-y: auto; font-family: monospace;"></pre>
+                <pre id="logs" class="p-3 m-0 text-secondary small border-0" style="height: 300px; overflow-y: auto; font-family: var(--font-tech); background: rgba(0,0,0,0.02);"></pre>
             </div>
         </div>
 
         <!-- STATS CARD -->
-        <div class="card card-gold glass-panel">
+        <div class="card glass-card border-warning">
             <div class="card-body text-center">
-                <h6 class="text-muted small uppercase mb-3">LUCRO PROJETADO (POTENCIAL)</h6>
+                <h6 class="text-secondary small uppercase mb-3 fw-bold">LUCRO PROJETADO (POTENCIAL)</h6>
                 <%
                     let totalProfit = 0;
                     let lockedCount = 0;

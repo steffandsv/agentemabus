@@ -1,38 +1,49 @@
 <%- include('partials/header') %>
 
-<div class="row mb-4">
+<div class="row mb-4 section">
     <div class="col-12 text-center">
-        <h2 class="brand-font text-neon">DASHBOARD TÁTICO</h2>
-        <p class="text-muted">Gestão de Missões Ativas</p>
+        <h2 class="brand-font" style="color: var(--text-primary);">DASHBOARD DE COTAÇÕES</h2>
+        <p class="text-secondary">Gestão de Cotações em Tempo Real</p>
     </div>
 </div>
 
 <div class="row mb-3">
-    <div class="col-12 d-flex justify-content-end gap-2">
-        <a href="/dashboard" class="btn btn-sm btn-outline-secondary <%= !showArchived ? 'active' : '' %>">ATIVOS</a>
-        <a href="/dashboard?show_archived=true" class="btn btn-sm btn-outline-secondary <%= showArchived ? 'active' : '' %>">ARQUIVO</a>
+    <div class="col-12 d-flex justify-content-end">
+        <form method="GET" action="/dashboard" class="d-flex align-items-center">
+             <div class="form-check form-switch me-3">
+                <input class="form-check-input" type="checkbox" id="showArchived" name="show_archived" value="true" <%= showArchived ? 'checked' : '' %> onchange="this.form.submit()">
+                <label class="form-check-label text-secondary small" for="showArchived">EXIBIR ARQUIVADAS</label>
+            </div>
+        </form>
     </div>
 </div>
 
-<% if (tasks.length === 0) { %>
-    <div class="text-center py-5 border border-secondary rounded border-dashed opacity-50">
-        <i class="fas fa-inbox fa-3x mb-3 text-muted"></i>
-        <p class="text-muted">Nenhuma missão encontrada.</p>
-        <a href="/oracle" class="btn btn-primary">NOVA MISSÃO</a>
-    </div>
-<% } else { %>
-    <div class="row g-3">
-        <%- include('partials/task_list', { tasks: tasks }) %>
-    </div>
+<div class="row g-4 mb-5">
+    <div class="col-12">
+        <div class="row g-3">
+             <% if (tasks && tasks.length > 0) { %>
+                <%- include('partials/task_list', { tasks: tasks }) %>
+             <% } else { %>
+                <div class="col-12 text-center py-5">
+                    <h4 class="text-secondary">Nenhuma missão ativa encontrada.</h4>
+                    <p class="text-muted">Inicie uma nova cotação pelo Cotador.</p>
+                    <a href="/sniper" class="btn btn-primary mt-3">NOVA COTAÇÃO</a>
+                </div>
+             <% } %>
+        </div>
 
-    <div class="d-flex justify-content-center mt-4">
-        <% if (page > 1) { %>
-            <a href="/dashboard?page=<%= page - 1 %>&show_archived=<%= showArchived %>" class="btn btn-outline-secondary me-2">Anterior</a>
-        <% } %>
-        <% if (hasNext) { %>
-            <a href="/dashboard?page=<%= page + 1 %>&show_archived=<%= showArchived %>" class="btn btn-outline-secondary">Próximo</a>
-        <% } %>
+        <!-- Pagination -->
+        <div class="row mt-4">
+            <div class="col-12 d-flex justify-content-center gap-2">
+                <% if (page > 1) { %>
+                    <a href="/dashboard?page=<%= page - 1 %><%= showArchived ? '&show_archived=true' : '' %>" class="btn btn-outline-secondary btn-sm">ANTERIOR</a>
+                <% } %>
+                <% if (hasNext) { %>
+                    <a href="/dashboard?page=<%= page + 1 %><%= showArchived ? '&show_archived=true' : '' %>" class="btn btn-outline-secondary btn-sm">PRÓXIMA</a>
+                <% } %>
+            </div>
+        </div>
     </div>
-<% } %>
+</div>
 
 <%- include('partials/footer') %>

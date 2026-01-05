@@ -6,189 +6,197 @@
     <title>Configurações de I.A - Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/liquid.css">
     <style>
-        body { background-color: #050505; color: #eee; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .card { background-color: #111; border: 1px solid #333; }
-        .form-control, .form-select { background-color: #222; border-color: #444; color: #fff; }
-        .form-control:focus, .form-select:focus { background-color: #222; color: #fff; border-color: #00f3ff; box-shadow: 0 0 5px #00f3ff; }
-        .btn-neon { border: 1px solid #00f3ff; color: #00f3ff; background: transparent; transition: all 0.3s; }
-        .btn-neon:hover { background: #00f3ff; color: #000; box-shadow: 0 0 10px #00f3ff; }
-        .text-purple { color: #bc13fe; }
-        .border-purple { border-color: #bc13fe !important; }
+        /* Inherits from liquid.css */
+        .config-card { background: var(--bg-card); border-radius: var(--radius-lg); margin-bottom: 20px; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-soft); }
+        .config-card .card-header { background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--border-subtle); color: var(--text-primary); font-weight: 600; padding: 15px 20px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+        .config-card .card-body { padding: 20px; }
+        .form-label { color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; font-weight: 600; }
+        .form-control, .form-select { background: var(--bg-main); border: 1px solid var(--border-subtle); color: var(--text-primary); border-radius: var(--radius-md); }
+        .form-control:focus, .form-select:focus { border-color: var(--primary-blue); box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1); color: var(--text-primary); }
     </style>
 </head>
 <body>
     <%- include('partials/header') %>
 
     <div class="container mt-5">
-        <h2 class="mb-4"><i class="fas fa-brain text-info"></i> Configurações de Inteligência Artificial</h2>
+        <h2 class="mb-4 brand-font" style="color: var(--text-primary);"><i class="fas fa-brain text-primary"></i> Configurações de Inteligência Artificial</h2>
 
         <form action="/admin/ai-config/save" method="POST">
 
             <!-- ORACLE CONFIG -->
-            <div class="card p-4 mb-4">
-                <h4 class="text-info mb-3">Oráculo (Análise de Editais)</h4>
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Provedor</label>
-                        <select class="form-select provider-select" name="oracle_provider" data-target="oracle_model" id="oracle_provider">
-                            <option value="">Selecione...</option>
-                            <option value="deepseek" <%= settings.oracle_provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
-                            <option value="qwen" <%= settings.oracle_provider === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
-                            <option value="gemini" <%= settings.oracle_provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
-                            <option value="perplexity" <%= settings.oracle_provider === 'perplexity' ? 'selected' : '' %>>Perplexity</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">API Key</label>
-                        <input type="password" class="form-control api-key-input" name="oracle_api_key" id="oracle_api_key" value="<%= settings.oracle_api_key || '' %>" placeholder="Deixe vazio para usar ENV">
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Modelo</label>
-                        <div class="input-group">
-                            <select class="form-select" name="oracle_model" id="oracle_model">
-                                <option value="<%= settings.oracle_model %>"><%= settings.oracle_model %></option>
+            <div class="config-card">
+                <div class="card-header text-primary">Analisador (Análise de Editais)</div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Provedor</label>
+                            <select class="form-select provider-select" name="oracle_provider" data-target="oracle_model" id="oracle_provider">
+                                <option value="">Selecione...</option>
+                                <option value="deepseek" <%= settings.oracle_provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                                <option value="qwen" <%= settings.oracle_provider === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
+                                <option value="gemini" <%= settings.oracle_provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                                <option value="perplexity" <%= settings.oracle_provider === 'perplexity' ? 'selected' : '' %>>Perplexity</option>
                             </select>
-                            <button type="button" class="btn btn-outline-secondary refresh-models" data-provider="oracle_provider" data-key="oracle_api_key" data-target="oracle_model">
-                                <i class="fas fa-sync"></i>
-                            </button>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">API Key</label>
+                            <input type="password" class="form-control api-key-input" name="oracle_api_key" id="oracle_api_key" value="<%= settings.oracle_api_key || '' %>" placeholder="Deixe vazio para usar ENV">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Modelo</label>
+                            <div class="input-group">
+                                <select class="form-select" name="oracle_model" id="oracle_model">
+                                    <option value="<%= settings.oracle_model %>"><%= settings.oracle_model %></option>
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary refresh-models" data-provider="oracle_provider" data-key="oracle_api_key" data-target="oracle_model">
+                                    <i class="fas fa-sync"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- SNIPER CONFIG -->
-            <div class="card p-4 mb-4">
-                <h4 class="text-warning mb-3">Sniper (Descoberta de Produtos)</h4>
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Provedor</label>
-                        <select class="form-select provider-select" name="sniper_provider" data-target="sniper_model" id="sniper_provider">
-                            <option value="">Selecione...</option>
-                            <option value="gemini" <%= settings.sniper_provider === 'gemini' ? 'selected' : '' %>>Google Gemini (Recomendado)</option>
-                            <option value="qwen" <%= settings.sniper_provider === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
-                            <option value="deepseek" <%= settings.sniper_provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">API Key</label>
-                        <input type="password" class="form-control api-key-input" name="sniper_api_key" id="sniper_api_key" value="<%= settings.sniper_api_key || '' %>" placeholder="Deixe vazio para usar ENV">
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Modelo</label>
-                        <div class="input-group">
-                            <select class="form-select" name="sniper_model" id="sniper_model">
-                                <option value="<%= settings.sniper_model %>"><%= settings.sniper_model %></option>
+            <div class="config-card">
+                <div class="card-header text-warning">Cotador (Descoberta de Produtos)</div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Provedor</label>
+                            <select class="form-select provider-select" name="sniper_provider" data-target="sniper_model" id="sniper_provider">
+                                <option value="">Selecione...</option>
+                                <option value="gemini" <%= settings.sniper_provider === 'gemini' ? 'selected' : '' %>>Google Gemini (Recomendado)</option>
+                                <option value="qwen" <%= settings.sniper_provider === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
+                                <option value="deepseek" <%= settings.sniper_provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
                             </select>
-                            <button type="button" class="btn btn-outline-secondary refresh-models" data-provider="sniper_provider" data-key="sniper_api_key" data-target="sniper_model">
-                                <i class="fas fa-sync"></i>
-                            </button>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">API Key</label>
+                            <input type="password" class="form-control api-key-input" name="sniper_api_key" id="sniper_api_key" value="<%= settings.sniper_api_key || '' %>" placeholder="Deixe vazio para usar ENV">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Modelo</label>
+                            <div class="input-group">
+                                <select class="form-select" name="sniper_model" id="sniper_model">
+                                    <option value="<%= settings.sniper_model %>"><%= settings.sniper_model %></option>
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary refresh-models" data-provider="sniper_provider" data-key="sniper_api_key" data-target="sniper_model">
+                                    <i class="fas fa-sync"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- SNIPER PARSER CONFIG -->
-            <div class="card p-4 mb-4 border-purple">
-                <h4 class="text-purple mb-3">Sniper Parser (Extração de PDF)</h4>
-                <p class="text-muted small">Configure a ordem de tentativa da I.A. para extração de PDFs. Se a principal falhar, o sistema tentará as reservas.</p>
+            <div class="config-card">
+                <div class="card-header text-success">Cotador Parser (Extração de PDF)</div>
+                <div class="card-body">
+                    <p class="text-secondary small">Configure a ordem de tentativa da I.A. para extração de PDFs. Se a principal falhar, o sistema tentará as reservas.</p>
 
-                <%
-                   const parser_primary = settings.parser_primary || { provider: 'gemini', model: 'gemini-2.0-flash-lite-preview-02-05' };
-                   const parser_backup1 = settings.parser_backup1 || { provider: 'gemini', model: 'gemini-2.0-flash' };
-                   const parser_backup2 = settings.parser_backup2 || { provider: 'deepseek', model: 'deepseek-chat' };
-                   const parser_backup3 = settings.parser_backup3 || { provider: '', model: '' };
-                %>
+                    <%
+                       const parser_primary = settings.parser_primary || { provider: 'gemini', model: 'gemini-2.0-flash-lite-preview-02-05' };
+                       const parser_backup1 = settings.parser_backup1 || { provider: 'gemini', model: 'gemini-2.0-flash' };
+                       const parser_backup2 = settings.parser_backup2 || { provider: 'deepseek', model: 'deepseek-chat' };
+                       const parser_backup3 = settings.parser_backup3 || { provider: '', model: '' };
+                    %>
 
-                <!-- PRIMARY -->
-                <h6 class="text-white mt-2 border-bottom border-secondary pb-1">Prioridade 1 (Principal)</h6>
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Provedor</label>
-                        <select class="form-select" name="parser_provider_0" id="parser_provider_0">
-                            <option value="">Selecione...</option>
-                            <option value="gemini" <%= parser_primary.provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
-                            <option value="qwen" <%= parser_primary.provider === 'qwen' ? 'selected' : '' %>>Qwen</option>
-                            <option value="deepseek" <%= parser_primary.provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">API Key (Opcional - usa do sistema se vazio)</label>
-                        <input type="password" class="form-control" name="parser_key_0" id="parser_key_0" value="<%= parser_primary.key || '' %>" placeholder="Herdar do Sistema">
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Modelo</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" name="parser_model_0" id="parser_model_0" value="<%= parser_primary.model || '' %>" placeholder="Ex: gemini-2.0-flash">
-                             <button type="button" class="btn btn-outline-secondary refresh-models" data-provider="parser_provider_0" data-key="parser_key_0" data-target="parser_model_0_select">
-                                <i class="fas fa-sync"></i>
-                            </button>
+                    <!-- PRIMARY -->
+                    <h6 class="text-primary mt-2 border-bottom border-light pb-1">Prioridade 1 (Principal)</h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Provedor</label>
+                            <select class="form-select" name="parser_provider_0" id="parser_provider_0">
+                                <option value="">Selecione...</option>
+                                <option value="gemini" <%= parser_primary.provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                                <option value="qwen" <%= parser_primary.provider === 'qwen' ? 'selected' : '' %>>Qwen</option>
+                                <option value="deepseek" <%= parser_primary.provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                            </select>
                         </div>
-                        <!-- Hidden select just for populating from API if user clicks sync, then we copy to input -->
-                         <select class="form-select d-none" id="parser_model_0_select"></select>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">API Key (Opcional - usa do sistema se vazio)</label>
+                            <input type="password" class="form-control" name="parser_key_0" id="parser_key_0" value="<%= parser_primary.key || '' %>" placeholder="Herdar do Sistema">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Modelo</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="parser_model_0" id="parser_model_0" value="<%= parser_primary.model || '' %>" placeholder="Ex: gemini-2.0-flash">
+                                 <button type="button" class="btn btn-outline-secondary refresh-models" data-provider="parser_provider_0" data-key="parser_key_0" data-target="parser_model_0_select">
+                                    <i class="fas fa-sync"></i>
+                                </button>
+                            </div>
+                             <select class="form-select d-none" id="parser_model_0_select"></select>
+                        </div>
+                    </div>
+
+                    <!-- BACKUP 1 -->
+                    <h6 class="text-secondary mt-2 border-bottom border-light pb-1">Reserva 1</h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                             <select class="form-select" name="parser_provider_1" id="parser_provider_1">
+                                <option value="">(Desativado)</option>
+                                <option value="gemini" <%= parser_backup1.provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                                <option value="qwen" <%= parser_backup1.provider === 'qwen' ? 'selected' : '' %>>Qwen</option>
+                                <option value="deepseek" <%= parser_backup1.provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                            </select>
+                        </div>
+                         <div class="col-md-4 mb-3">
+                            <input type="password" class="form-control" name="parser_key_1" value="<%= parser_backup1.key || '' %>" placeholder="API Key (Opcional)">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <input type="text" class="form-control" name="parser_model_1" value="<%= parser_backup1.model || '' %>" placeholder="Modelo">
+                        </div>
+                    </div>
+
+                    <!-- BACKUP 2 -->
+                    <h6 class="text-secondary mt-2 border-bottom border-light pb-1">Reserva 2</h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                             <select class="form-select" name="parser_provider_2" id="parser_provider_2">
+                                <option value="">(Desativado)</option>
+                                <option value="gemini" <%= parser_backup2.provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                                <option value="qwen" <%= parser_backup2.provider === 'qwen' ? 'selected' : '' %>>Qwen</option>
+                                <option value="deepseek" <%= parser_backup2.provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                            </select>
+                        </div>
+                         <div class="col-md-4 mb-3">
+                            <input type="password" class="form-control" name="parser_key_2" value="<%= parser_backup2.key || '' %>" placeholder="API Key (Opcional)">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <input type="text" class="form-control" name="parser_model_2" value="<%= parser_backup2.model || '' %>" placeholder="Modelo">
+                        </div>
+                    </div>
+
+                     <!-- BACKUP 3 -->
+                    <h6 class="text-secondary mt-2 border-bottom border-light pb-1">Reserva 3</h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                             <select class="form-select" name="parser_provider_3" id="parser_provider_3">
+                                <option value="">(Desativado)</option>
+                                <option value="gemini" <%= parser_backup3.provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                                <option value="qwen" <%= parser_backup3.provider === 'qwen' ? 'selected' : '' %>>Qwen</option>
+                                <option value="deepseek" <%= parser_backup3.provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                            </select>
+                        </div>
+                         <div class="col-md-4 mb-3">
+                            <input type="password" class="form-control" name="parser_key_3" value="<%= parser_backup3.key || '' %>" placeholder="API Key (Opcional)">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <input type="text" class="form-control" name="parser_model_3" value="<%= parser_backup3.model || '' %>" placeholder="Modelo">
+                        </div>
                     </div>
                 </div>
-
-                <!-- BACKUP 1 -->
-                <h6 class="text-muted mt-2 border-bottom border-secondary pb-1">Reserva 1</h6>
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                         <select class="form-select" name="parser_provider_1" id="parser_provider_1">
-                            <option value="">(Desativado)</option>
-                            <option value="gemini" <%= parser_backup1.provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
-                            <option value="qwen" <%= parser_backup1.provider === 'qwen' ? 'selected' : '' %>>Qwen</option>
-                            <option value="deepseek" <%= parser_backup1.provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
-                        </select>
-                    </div>
-                     <div class="col-md-4 mb-3">
-                        <input type="password" class="form-control" name="parser_key_1" value="<%= parser_backup1.key || '' %>" placeholder="API Key (Opcional)">
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <input type="text" class="form-control" name="parser_model_1" value="<%= parser_backup1.model || '' %>" placeholder="Modelo">
-                    </div>
-                </div>
-
-                <!-- BACKUP 2 -->
-                <h6 class="text-muted mt-2 border-bottom border-secondary pb-1">Reserva 2</h6>
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                         <select class="form-select" name="parser_provider_2" id="parser_provider_2">
-                            <option value="">(Desativado)</option>
-                            <option value="gemini" <%= parser_backup2.provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
-                            <option value="qwen" <%= parser_backup2.provider === 'qwen' ? 'selected' : '' %>>Qwen</option>
-                            <option value="deepseek" <%= parser_backup2.provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
-                        </select>
-                    </div>
-                     <div class="col-md-4 mb-3">
-                        <input type="password" class="form-control" name="parser_key_2" value="<%= parser_backup2.key || '' %>" placeholder="API Key (Opcional)">
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <input type="text" class="form-control" name="parser_model_2" value="<%= parser_backup2.model || '' %>" placeholder="Modelo">
-                    </div>
-                </div>
-
-                 <!-- BACKUP 3 -->
-                <h6 class="text-muted mt-2 border-bottom border-secondary pb-1">Reserva 3</h6>
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                         <select class="form-select" name="parser_provider_3" id="parser_provider_3">
-                            <option value="">(Desativado)</option>
-                            <option value="gemini" <%= parser_backup3.provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
-                            <option value="qwen" <%= parser_backup3.provider === 'qwen' ? 'selected' : '' %>>Qwen</option>
-                            <option value="deepseek" <%= parser_backup3.provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
-                        </select>
-                    </div>
-                     <div class="col-md-4 mb-3">
-                        <input type="password" class="form-control" name="parser_key_3" value="<%= parser_backup3.key || '' %>" placeholder="API Key (Opcional)">
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <input type="text" class="form-control" name="parser_model_3" value="<%= parser_backup3.model || '' %>" placeholder="Modelo">
-                    </div>
-                </div>
-
             </div>
 
-            <button type="submit" class="btn btn-neon w-100 btn-lg">SALVAR CONFIGURAÇÕES</button>
+            <div class="row mt-4 mb-5">
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary w-100 btn-lg">SALVAR CONFIGURAÇÕES</button>
+                </div>
+            </div>
         </form>
     </div>
 
@@ -229,12 +237,6 @@
                     const models = await res.json();
 
                     if(isHiddenSelect) {
-                         // Populate the hidden select, then show a modal or prompt?
-                         // Simplification: Just pick the first or show a simple list in alert?
-                         // Better: Fill the Input with the first one and show alert of options?
-                         // Best: Transform input to select temporarily?
-                         // Let's just put it in the input for now or show a prompt.
-
                          let options = models.map(m => m.id).join('\\n');
                          let selected = prompt('Modelos Disponíveis (Copie o ID):\\n' + options, models[0].id);
                          if(selected) targetInput.value = selected;

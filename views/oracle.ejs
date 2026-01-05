@@ -2,7 +2,7 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
 <style>
-    /* Specific overrides for Oracle V5 */
+    /* Specific overrides for Analisador (Liquid Style) */
     .drop-zone-container {
         display: flex;
         justify-content: center;
@@ -13,212 +13,251 @@
     .drop-zone {
         width: 60%;
         min-height: 400px;
-        border: 1px dashed var(--neon-cyan);
-        background: rgba(0,0,0,0.6);
-        border-radius: 15px;
+        border: 2px dashed var(--border-subtle);
+        background: var(--bg-card);
+        border-radius: var(--radius-lg);
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
         transition: all 0.4s ease;
         position: relative;
-        backdrop-filter: blur(5px);
+        backdrop-filter: blur(10px);
+        box-shadow: var(--shadow-soft);
+        cursor: pointer;
     }
 
     .drop-zone:hover {
-        box-shadow: var(--neon-glow);
-        border-color: #fff;
-        transform: scale(1.02);
+        box-shadow: var(--shadow-hover);
+        border-color: var(--primary-blue);
+        transform: scale(1.01);
+        background: rgba(0, 113, 227, 0.02);
     }
 
     .drop-zone-text {
         font-family: var(--font-title);
         font-size: 1.5rem;
-        color: var(--neon-cyan);
+        color: var(--primary-blue);
         margin-top: 20px;
-        text-transform: uppercase;
-        letter-spacing: 2px;
+        font-weight: 600;
     }
 
     .drop-zone-sub {
-        color: var(--text-muted);
+        color: var(--text-secondary);
         font-size: 0.9rem;
         margin-top: 10px;
     }
 
-    /* NEURAL STORM CANVAS */
-    #loadingCanvas {
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        z-index: 9999; /* On top of everything */
+    /* Loader Pulse */
+    #loader {
         display: none;
-    }
-
-    #loadingOverlay {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: transparent; /* Transparent so Canvas is visible if behind, or irrelevant if Canvas is on top */
-        z-index: 9998;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
         text-align: center;
+        padding: 60px 20px;
     }
 
-    .glitch-text {
-        font-family: var(--font-tech);
-        color: var(--neon-cyan);
-        font-size: 1.5rem;
-        position: absolute;
-        text-shadow: 0 0 5px var(--neon-cyan);
-        animation: glitch-anim 0.3s infinite;
-    }
-
-    @keyframes glitch-anim {
-        0% { opacity: 1; transform: translate(0); }
-        20% { opacity: 0.8; transform: translate(-2px, 2px); }
-        40% { opacity: 1; transform: translate(2px, -2px); }
-        60% { opacity: 0.8; transform: translate(-2px, -2px); }
-        80% { opacity: 1; transform: translate(2px, 2px); }
-        100% { opacity: 1; transform: translate(0); }
-    }
-
-    /* SHOP / RESULT */
+    /* Result Container */
     #resultContainer {
         display: none;
         padding-bottom: 100px;
     }
 
     .ipm-score-large {
-        font-family: var(--font-tech);
+        font-family: var(--font-primary);
         font-size: 5rem;
-        font-weight: bold;
+        font-weight: 700;
         line-height: 1;
+        background: -webkit-linear-gradient(45deg, var(--primary-blue), #8E2DE2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
 
     .elite-tag {
-        border: 1px solid var(--neon-cyan);
-        color: var(--neon-cyan);
+        background: rgba(0, 113, 227, 0.1);
+        color: var(--primary-blue);
+        border: 1px solid rgba(0, 113, 227, 0.2);
         padding: 5px 15px;
         border-radius: 20px;
         font-size: 0.8rem;
         text-transform: uppercase;
         margin: 0 5px;
-        box-shadow: var(--neon-glow);
+        font-weight: 600;
     }
 
     .module-card {
-        background: var(--card-surface);
+        background: var(--bg-card);
         border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
         margin-bottom: 20px;
-        position: relative;
         overflow: hidden;
-        transition: transform 0.3s;
+        transition: all 0.3s ease;
+        box-shadow: var(--shadow-soft);
     }
 
     .module-card:hover {
-        transform: translateY(-5px);
-        border-color: var(--border-highlight);
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-hover);
     }
 
     .module-header {
-        background: rgba(255,255,255,0.05);
-        padding: 15px;
+        background: rgba(0,0,0,0.02);
+        padding: 20px;
         font-family: var(--font-title);
         font-size: 1.1rem;
+        font-weight: 600;
         border-bottom: 1px solid var(--border-subtle);
-        color: var(--text-main);
+        color: var(--text-primary);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
 
     .module-body {
-        padding: 20px;
+        padding: 24px;
         min-height: 150px;
-        font-family: var(--font-body);
-        color: var(--text-gray-300);
+        font-family: var(--font-primary);
+        color: var(--text-secondary);
         position: relative;
     }
 
-    /* WIDGETS */
+    /* Widgets */
     .strategy-item {
-        background: #1a1a1a;
-        border-left: 3px solid var(--neon-cyan);
-        padding: 10px;
+        background: rgba(0,0,0,0.02);
+        border-left: 3px solid var(--primary-blue);
+        padding: 15px;
         margin-bottom: 10px;
-        border-radius: 0 5px 5px 0;
+        border-radius: 0 8px 8px 0;
     }
-    .strategy-icon { font-size: 1.5rem; margin-right: 10px; }
-    .strategy-title { color: #fff; font-weight: bold; }
+    .strategy-icon { font-size: 1.5rem; margin-right: 15px; color: var(--primary-blue); }
+    .strategy-title { color: var(--text-primary); font-weight: 600; margin-bottom: 4px; }
 
-    .finance-table { width: 100%; border-collapse: collapse; }
-    .finance-table td { padding: 8px; border-bottom: 1px solid #333; }
-    .finance-label { color: #aaa; }
-    .finance-value { text-align: right; color: #fff; font-family: var(--font-tech); }
-    .alert-high { color: var(--alert-red) !important; text-shadow: 0 0 5px var(--alert-red); font-weight: bold; }
+    .finance-table { width: 100%; border-collapse: separate; border-spacing: 0 8px; }
+    .finance-table td { padding: 8px 12px; }
+    .finance-label { color: var(--text-secondary); font-weight: 500; }
+    .finance-value { text-align: right; color: var(--text-primary); font-family: var(--font-tech); font-weight: 600; }
+    .alert-high { color: var(--danger-red) !important; font-weight: 700; }
 
-    .risk-list-item { color: #ff6b6b; margin-bottom: 5px; }
+    .risk-list-item {
+        color: var(--danger-red);
+        margin-bottom: 8px;
+        background: rgba(255, 59, 48, 0.05);
+        padding: 8px 12px;
+        border-radius: 8px;
+    }
 
     /* Import Button */
     .btn-sniper-import {
-        background: linear-gradient(90deg, #009245 0%, #FCEE21 100%);
-        color: #000;
-        font-weight: bold;
+        background: var(--success-green);
+        color: white;
+        font-weight: 600;
         border: none;
-        font-family: var(--font-tech);
-        text-transform: uppercase;
-        letter-spacing: 2px;
-        padding: 20px;
-        font-size: 1.2rem;
+        border-radius: 30px;
+        padding: 16px 32px;
+        font-size: 1.1rem;
         width: 100%;
         margin-top: 40px;
-        transition: all 0.3s;
-        box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 12px rgba(52, 199, 89, 0.3);
     }
 
     .btn-sniper-import:hover {
-        transform: scale(1.02);
-        box-shadow: 0 0 40px rgba(0, 255, 0, 0.6);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(52, 199, 89, 0.4);
+        background: #2db34a;
+    }
+
+    .blurred-text {
+        color: transparent !important;
+        text-shadow: 0 0 16px rgba(0,0,0,0.2);
+        filter: blur(8px);
+        user-select: none;
+        transition: all 0.5s ease;
+    }
+
+    .unlock-overlay {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(2px);
+    }
+
+    .btn-unlock {
+        background: var(--mabus-gold);
+        color: black;
+        border: none;
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(255, 214, 10, 0.3);
+        transition: transform 0.2s;
+    }
+
+    .btn-unlock:hover {
+        transform: scale(1.05);
+    }
+
+    .pulse-circle {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 24px;
+        background: var(--primary-blue);
+        border-radius: 50%;
+        animation: liquid-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes liquid-pulse {
+      0%, 100% { transform: scale(1); opacity: 0.6; box-shadow: 0 0 0 0 rgba(0, 113, 227, 0.7); }
+      50% { transform: scale(1.08); opacity: 1; box-shadow: 0 0 0 25px rgba(0, 113, 227, 0); }
     }
 </style>
 
 <div class="container-fluid">
     <!-- Header Title -->
-    <div class="row mb-5">
+    <div class="row mb-5 section">
         <div class="col-12 text-center">
-            <h1 class="brand-font text-neon" style="font-size: 3rem; text-shadow: var(--neon-glow);">ORÁCULO ESTRATÉGICO</h1>
-            <p class="text-muted">PROTOCOL V5.0 - NEURAL SYMPHONY</p>
+            <h1 class="brand-font" style="font-size: 3rem; color: var(--text-primary);">ANALISADOR ESTRATÉGICO</h1>
+            <p class="text-secondary">Análise Profunda de Editais</p>
         </div>
     </div>
 
-    <!-- UPLOAD ZONE (The Cave) -->
-    <div id="uploadContainer" class="drop-zone-container">
+    <!-- UPLOAD ZONE -->
+    <div id="uploadContainer" class="drop-zone-container section">
         <form id="uploadForm" class="w-100 d-flex justify-content-center">
             <label for="pdfFiles" class="drop-zone" id="dropZoneArea">
-                <i class="fas fa-eye fa-4x text-neon mb-3" style="filter: drop-shadow(0 0 10px var(--neon-cyan));"></i>
-                <div class="drop-zone-text">ARRASTE O EDITAL (PDF) PARA A VIDENTE</div>
-                <div class="drop-zone-sub">Suporta arquivos OCR e Texto Nativo até 100MB</div>
+                <i class="fas fa-cloud-upload-alt fa-4x mb-3" style="color: var(--primary-blue);"></i>
+                <div class="drop-zone-text">ARRASTE SEU EDITAL (PDF)</div>
+                <div class="drop-zone-sub">Análise automática de riscos e oportunidades</div>
                 <input type="file" id="pdfFiles" name="pdfFiles" accept=".pdf" multiple hidden required>
             </label>
         </form>
     </div>
 
-    <!-- RESULT CONTAINER (The Shop) -->
+    <!-- LOADER -->
+    <div id="loader">
+        <div class="pulse-circle"></div>
+        <div class="text-secondary mt-3">Analisando documentos com Inteligência Artificial...</div>
+        <div class="text-muted small mt-1">Isso pode levar alguns minutos.</div>
+    </div>
+
+    <!-- RESULT CONTAINER -->
     <div id="resultContainer" class="container">
         <!-- HEADER / TEASER -->
-        <div class="text-center mb-5">
+        <div class="text-center mb-5 section">
             <div id="ipmDisplay" class="ipm-score-large mb-2">0</div>
-            <div id="classificacaoDisplay" class="h4 mb-3" style="letter-spacing: 3px;">---</div>
+            <div id="classificacaoDisplay" class="h4 mb-3" style="letter-spacing: 1px; font-weight: 600;">---</div>
             <div id="tagsDisplay" class="mb-4"></div>
-            <p id="resumoDisplay" class="lead text-gray-200 w-75 mx-auto fst-italic">"..."</p>
+            <p id="resumoDisplay" class="lead text-secondary w-75 mx-auto fst-italic">"..."</p>
         </div>
 
-        <!-- LOCKED MODULES GRID -->
-        <div class="row" id="modulesGrid">
+        <!-- MODULES GRID -->
+        <div class="row section" id="modulesGrid">
             <!-- Dynamic Cards Will Be Injected Here -->
         </div>
 
         <!-- SNIPER ACTION -->
-        <div class="row">
+        <div class="row section">
             <div class="col-12">
                  <form action="/create" method="POST" id="sniperForm">
                     <input type="hidden" name="name" id="sniperName">
@@ -229,7 +268,7 @@
                     <input type="hidden" name="existingFilePath" id="sniperExistingFilePath">
 
                     <button type="submit" class="btn-sniper-import">
-                        [ 🚀 IMPORTAR ITENS PARA O SNIPER ]
+                        <i class="fas fa-bullseye me-2"></i> IMPORTAR ITENS PARA O COTADOR
                     </button>
                 </form>
             </div>
@@ -237,125 +276,29 @@
     </div>
 </div>
 
-<!-- LOADING OVERLAY (Neural Storm) -->
-<canvas id="loadingCanvas"></canvas>
-<div id="loadingOverlay"></div>
-
 <%- include('partials/footer') %>
 
 <script>
     const dropZone = document.getElementById('dropZoneArea');
     const fileInput = document.getElementById('pdfFiles');
     const uploadForm = document.getElementById('uploadForm');
-    const overlay = document.getElementById('loadingOverlay');
-    const canvas = document.getElementById('loadingCanvas');
-    const ctx = canvas.getContext('2d');
     const uploadContainer = document.getElementById('uploadContainer');
     const resultContainer = document.getElementById('resultContainer');
-
-    // NEURAL STORM LOGIC
-    const NEURAL_FRAGMENTS = [
-      "LENDO: Cláusula 4.1...", "SCAN: CNPJ Órgão...", "ALERTA: Histórico Calote...",
-      "BUSCA: Preço Teto...", "DECRYPT: Tabela Price...", "ANÁLISE: Fluxo Caixa...",
-      "VARREDURA: Concorrentes...", "DETECTADO: Lote Mosaico...", "CALCULANDO: ROI...",
-      "ESTRATÉGIA: Impugnação...", "CONECTANDO: Banco Central..."
-    ];
-
-    let animationId;
-    let nodes = [];
-    let fragments = [];
-
-    function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    function initNeuralStorm() {
-        nodes = [];
-        fragments = [];
-        // Create Nodes
-        for(let i=0; i<50; i++) {
-            nodes.push({
-                x: Math.random() * canvas.width,
-                y: Math.random() * canvas.height,
-                vx: (Math.random() - 0.5) * 2,
-                vy: (Math.random() - 0.5) * 2
-            });
-        }
-    }
-
-    function drawNeuralStorm() {
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Update & Draw Nodes
-        ctx.strokeStyle = 'rgba(0, 229, 255, 0.2)';
-        ctx.fillStyle = '#00E5FF';
-
-        nodes.forEach((node, i) => {
-            node.x += node.vx;
-            node.y += node.vy;
-
-            if(node.x < 0 || node.x > canvas.width) node.vx *= -1;
-            if(node.y < 0 || node.y > canvas.height) node.vy *= -1;
-
-            ctx.beginPath();
-            ctx.arc(node.x, node.y, 2, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Connect nearby
-            nodes.forEach((other, j) => {
-                if(i !== j) {
-                    const dx = node.x - other.x;
-                    const dy = node.y - other.y;
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-                    if(dist < 150) {
-                        ctx.beginPath();
-                        ctx.moveTo(node.x, node.y);
-                        ctx.lineTo(other.x, other.y);
-                        ctx.stroke();
-                    }
-                }
-            });
-        });
-
-        // Glitch Text Fragments
-        if(Math.random() < 0.1) { // 10% chance to add text per frame
-             const text = NEURAL_FRAGMENTS[Math.floor(Math.random() * NEURAL_FRAGMENTS.length)];
-             fragments.push({
-                 text: text,
-                 x: Math.random() * canvas.width * 0.8 + 50,
-                 y: Math.random() * canvas.height * 0.8 + 50,
-                 life: 60 // frames
-             });
-        }
-
-        fragments.forEach((frag, i) => {
-            frag.life--;
-            ctx.font = '20px "Courier New", monospace';
-            ctx.fillStyle = `rgba(0, 229, 255, ${frag.life / 60})`;
-            ctx.fillText(frag.text, frag.x, frag.y);
-            if(frag.life <= 0) fragments.splice(i, 1);
-        });
-
-        animationId = requestAnimationFrame(drawNeuralStorm);
-    }
+    const loader = document.getElementById('loader');
 
     // Drag & Drop UI
     ['dragenter', 'dragover'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
             e.preventDefault();
             e.stopPropagation();
-            dropZone.classList.add('dragover');
+            gsap.to(dropZone, { scale: 1.02, borderColor: '#0071e3', backgroundColor: 'rgba(0, 113, 227, 0.05)', duration: 0.2 });
         }, false);
     });
     ['dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
             e.preventDefault();
             e.stopPropagation();
-            dropZone.classList.remove('dragover');
+            gsap.to(dropZone, { scale: 1, borderColor: 'rgba(0,0,0,0.1)', backgroundColor: '#fff', duration: 0.2 });
         }, false);
     });
     dropZone.addEventListener('drop', (e) => {
@@ -368,11 +311,17 @@
     async function handleUpload() {
         if (fileInput.files.length === 0) return;
 
-        // Start Animation
-        overlay.style.display = 'flex';
-        canvas.style.display = 'block';
-        initNeuralStorm();
-        drawNeuralStorm();
+        // Start Animation: Fade out upload, fade in loader
+        gsap.to(uploadContainer, {
+            opacity: 0,
+            y: -20,
+            duration: 0.4,
+            onComplete: () => {
+                uploadContainer.style.display = 'none';
+                loader.style.display = 'block';
+                gsap.from(loader, { opacity: 0, scale: 0.9, duration: 0.5 });
+            }
+        });
 
         const formData = new FormData(uploadForm);
 
@@ -408,32 +357,45 @@
                 }
             }
 
-            // Stop Animation
-            cancelAnimationFrame(animationId);
-            overlay.style.display = 'none';
-            canvas.style.display = 'none';
-            uploadContainer.style.display = 'none';
-            resultContainer.style.display = 'block';
+            // Finish Animation: Fade out loader, fade in results
+            gsap.to(loader, {
+                opacity: 0,
+                duration: 0.4,
+                onComplete: () => {
+                    loader.style.display = 'none';
+                    resultContainer.style.display = 'block';
+
+                    // Staggered reveal of results
+                    gsap.from('#resultContainer .section', {
+                        opacity: 0,
+                        y: 30,
+                        duration: 0.8,
+                        stagger: 0.2,
+                        ease: 'power2.out'
+                    });
+                }
+            });
 
         } catch (error) {
             console.error(error);
             alert("Erro ao processar: " + error.message);
-            cancelAnimationFrame(animationId);
-            overlay.style.display = 'none';
-            canvas.style.display = 'none';
+            loader.style.display = 'none';
+            uploadContainer.style.display = 'flex';
+            gsap.to(uploadContainer, { opacity: 1, y: 0, duration: 0.4 });
         }
     }
 
     function renderResult(data) {
-        const meta = data.metadata || {}; // public_teaser
-        const locked = data.locked_content || {}; // locked_modules
+        const meta = data.metadata || {};
+        const locked = data.locked_content || {};
 
         // 1. Header (Teaser)
         const score = meta.ipm_score || 0;
-        const scoreColor = score >= 80 ? 'var(--mabus-gold)' : (score >= 50 ? 'var(--neon-cyan)' : 'var(--alert-red)');
+        let scoreColor = '#0071e3'; // Default blue
+        if (score >= 80) scoreColor = '#FFD60A'; // Gold
+        else if (score < 50) scoreColor = '#FF3B30'; // Red
 
         document.getElementById('ipmDisplay').innerText = score;
-        document.getElementById('ipmDisplay').style.color = scoreColor;
 
         document.getElementById('classificacaoDisplay').innerText = meta.classificacao || 'ANÁLISE CONCLUÍDA';
         document.getElementById('classificacaoDisplay').style.color = scoreColor;
@@ -459,8 +421,7 @@
 
             let contentHtml = '';
 
-            // WIDGET LOGIC:
-            // Strategy (taticas)
+            // WIDGET LOGIC
             if (moduleData.taticas && Array.isArray(moduleData.taticas)) {
                 contentHtml = moduleData.taticas.map(t => `
                     <div class="strategy-item">
@@ -468,13 +429,12 @@
                             <span class="strategy-icon">${t.icone || '🔹'}</span>
                             <div>
                                 <div class="strategy-title">${t.titulo}</div>
-                                <small class="text-muted">${marked.parseInline(t.texto || '')}</small>
+                                <small class="text-secondary">${marked.parseInline(t.texto || '')}</small>
                             </div>
                         </div>
                     </div>
                 `).join('');
             }
-            // Financial (dados)
             else if (moduleData.dados && Array.isArray(moduleData.dados)) {
                 contentHtml = '<table class="finance-table"><tbody>';
                 contentHtml += moduleData.dados.map(d => `
@@ -485,13 +445,11 @@
                 `).join('');
                 contentHtml += '</tbody></table>';
             }
-            // Risks (lista_riscos) or Fallback
             else if (moduleData.lista_riscos && Array.isArray(moduleData.lista_riscos)) {
                 contentHtml = moduleData.lista_riscos.map(r => `
-                    <div class="risk-list-item"><i class="fas fa-exclamation-triangle"></i> ${marked.parseInline(r)}</div>
+                    <div class="risk-list-item"><i class="fas fa-exclamation-triangle me-2"></i> ${marked.parseInline(r)}</div>
                 `).join('');
             }
-            // Fallback for V4 data or other structures
             else if (moduleData.conteudo_oculto) {
                  const text = Array.isArray(moduleData.conteudo_oculto)
                     ? moduleData.conteudo_oculto.map(i => `• ${i.item || i}: ${i.motivo || ''}`).join('<br>')
@@ -500,11 +458,11 @@
             }
 
             const html = `
-                <div class="col-md-6">
+                <div class="col-md-6 mb-4">
                     <div class="module-card" id="${cardId}">
-                        <div class="module-header d-flex justify-content-between">
+                        <div class="module-header">
                             <span>${title}</span>
-                            <span class="text-muted small"><i class="fas fa-bolt text-gold"></i> ${cost}</span>
+                            <span class="badge bg-light text-dark border"><i class="fas fa-bolt text-warning me-1"></i> ${cost}</span>
                         </div>
                         <div class="module-body">
                             <div class="blurred-text" id="blur-${key}">
@@ -512,7 +470,7 @@
                             </div>
                             <div class="unlock-overlay" id="overlay-${key}">
                                 <button class="btn btn-unlock" onclick="unlockModule('${key}', ${cost})">
-                                    [ 🔓 REVELAR ]
+                                    <i class="fas fa-lock-open me-1"></i> DESBLOQUEAR
                                 </button>
                             </div>
                         </div>
@@ -522,12 +480,9 @@
             grid.innerHTML += html;
         };
 
-        // Render known modules from V5 prompt
         if (locked.estrategia_vitoria) createWidget('estrategia_vitoria', locked.estrategia_vitoria);
         if (locked.analise_financeira) createWidget('analise_financeira', locked.analise_financeira);
         if (locked.armadilhas_juridicas) createWidget('armadilhas_juridicas', locked.armadilhas_juridicas);
-
-        // Fallback for V4 keys if V5 not present
         if (!locked.estrategia_vitoria && locked.analise_risco_financeiro) createWidget('analise_risco_financeiro', locked.analise_risco_financeiro);
 
         // 3. Sniper Form Setup
@@ -545,6 +500,9 @@
         const blur = document.getElementById(`blur-${key}`);
         const overlay = document.getElementById(`overlay-${key}`);
         if (blur) blur.classList.remove('blurred-text');
-        if (overlay) overlay.style.display = 'none';
+        if (overlay) {
+            gsap.to(overlay, { opacity: 0, duration: 0.3, onComplete: () => overlay.style.display = 'none' });
+        }
+        // Ideally call backend to deduct credits here
     };
 </script>

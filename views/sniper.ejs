@@ -1,7 +1,7 @@
 <%- include('partials/header') %>
 
 <style>
-    /* Specific overrides for Sniper V2 (Oracle Style) */
+    /* Specific overrides for Cotador (Sniper) */
     .drop-zone-container {
         display: flex;
         flex-direction: column;
@@ -14,9 +14,9 @@
     .drop-zone {
         width: 70%;
         min-height: 350px;
-        border: 1px dashed var(--neon-cyan);
-        background: rgba(0,0,0,0.6); /* Transparente para Dark Mode */
-        border-radius: 15px;
+        border: 2px dashed var(--border-subtle);
+        background: var(--bg-card);
+        border-radius: var(--radius-lg);
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -24,29 +24,27 @@
         transition: all 0.4s ease;
         position: relative;
         cursor: pointer;
-    }
-
-    [data-theme="light"] .drop-zone {
-        background: rgba(255,255,255,0.8);
-        border-color: var(--neon-cyan);
+        box-shadow: var(--shadow-soft);
     }
 
     .drop-zone:hover {
-        box-shadow: var(--neon-glow);
-        transform: scale(1.02);
+        box-shadow: var(--shadow-hover);
+        border-color: var(--primary-blue);
+        transform: scale(1.01);
+        background: rgba(0, 113, 227, 0.02);
     }
 
     .drop-zone-text {
         font-family: var(--font-title);
         font-size: 1.5rem;
-        color: var(--neon-cyan);
+        color: var(--primary-blue);
         margin-top: 20px;
-        text-transform: uppercase;
-        letter-spacing: 2px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
     }
 
     .drop-zone-sub {
-        color: var(--text-muted);
+        color: var(--text-secondary);
         font-size: 0.9rem;
         margin-top: 10px;
     }
@@ -57,25 +55,21 @@
     }
 
     .instruction-box textarea {
-        background: rgba(0,0,0,0.5);
-        color: var(--text-main);
+        background: var(--bg-card);
+        color: var(--text-primary);
         border: 1px solid var(--border-subtle);
         resize: vertical;
+        border-radius: var(--radius-md);
     }
     .instruction-box textarea:focus {
-        border-color: var(--neon-cyan);
-        box-shadow: 0 0 5px var(--neon-cyan);
+        border-color: var(--primary-blue);
+        box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15);
     }
 
-    /* Form Container (Hidden Initially) */
+    /* Form Container */
     #sniperFormContainer {
         display: none;
-        animation: fadeIn 0.5s ease;
-    }
-
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
+        /* Animation handled by GSAP */
     }
 
     /* Loading Overlay */
@@ -83,56 +77,60 @@
         display: none;
         position: fixed;
         top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.8);
+        background: rgba(255,255,255,0.8);
         z-index: 9999;
         flex-direction: column;
         justify-content: center;
         align-items: center;
+        backdrop-filter: blur(5px);
     }
 
-    .spinner-neon {
+    [data-theme="dark"] #loadingOverlay {
+        background: rgba(0,0,0,0.8);
+    }
+
+    .spinner-liquid {
         width: 50px;
         height: 50px;
-        border: 4px solid transparent;
-        border-top: 4px solid var(--neon-cyan);
+        border: 4px solid rgba(0, 113, 227, 0.1);
+        border-top: 4px solid var(--primary-blue);
         border-radius: 50%;
         animation: spin 1s linear infinite;
-        box-shadow: 0 0 15px var(--neon-cyan);
     }
 
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 </style>
 
-<div class="row mb-4">
+<div class="row mb-4 section">
     <div class="col-12 text-center">
-        <h2 class="brand-font text-neon">🔫 SNIPER AUTOMÁTICO</h2>
-        <p class="text-muted">Importação Inteligente de Editais</p>
+        <h2 class="brand-font" style="color: var(--text-primary);">COTADOR AUTOMÁTICO</h2>
+        <p class="text-secondary">Importação Inteligente de Editais</p>
     </div>
 </div>
 
 <!-- UPLOAD ZONE -->
-<div id="uploadContainer" class="drop-zone-container">
+<div id="uploadContainer" class="drop-zone-container section">
     <label for="pdfFiles" class="drop-zone" id="dropZoneArea">
-        <i class="fas fa-file-pdf fa-4x text-neon mb-3"></i>
+        <i class="fas fa-file-pdf fa-4x mb-3" style="color: var(--primary-blue);"></i>
         <div class="drop-zone-text">ARRASTE O EDITAL AQUI</div>
         <div class="drop-zone-sub">A I.A. irá ler e preencher tudo automaticamente</div>
         <input type="file" id="pdfFiles" accept=".pdf" multiple hidden onchange="showProcessButton()">
     </label>
 
     <div class="instruction-box">
-        <label class="form-label text-neon small uppercase"><i class="fas fa-robot"></i> Instruções Especiais para a I.A. (Opcional)</label>
+        <label class="form-label text-secondary small uppercase"><i class="fas fa-robot"></i> Instruções Especiais para a I.A. (Opcional)</label>
         <textarea id="aiInstructions" class="form-control" rows="2" placeholder="Ex: Cotar apenas itens de informática. Ignorar serviços."></textarea>
     </div>
 
-    <button id="btnProcessPdf" class="btn btn-success btn-lg shadow-green" style="display:none; width: 70%;" onclick="handlePdfUpload()">
+    <button id="btnProcessPdf" class="btn btn-success btn-lg" style="display:none; width: 70%;" onclick="handlePdfUpload()">
         <i class="fas fa-microchip"></i> PROCESSAR EDITAL AGORA
     </button>
 </div>
 
-<!-- RECENT TASKS (SNIPER DASHBOARD) -->
-<div class="row mt-5 mb-3">
+<!-- RECENT TASKS -->
+<div class="row mt-5 mb-3 section">
     <div class="col-12">
-        <h4 class="brand-font text-muted small uppercase mb-3"><i class="fas fa-history"></i> MISSÕES RECENTES</h4>
+        <h4 class="brand-font text-secondary small uppercase mb-3"><i class="fas fa-history"></i> MISSÕES RECENTES</h4>
         <div class="row g-3">
              <%- include('partials/task_list', { tasks: recentTasks }) %>
         </div>
@@ -142,7 +140,7 @@
 <!-- FORM CONTAINER (Results) -->
 <div class="row justify-content-center" id="sniperFormContainer">
     <div class="col-md-10">
-        <div class="card bg-panel border-secondary shadow-lg">
+        <div class="card shadow-lg">
             <div class="card-body p-4">
 
                 <form action="/create" method="POST" enctype="multipart/form-data" id="sniperForm">
@@ -153,19 +151,19 @@
                     <!-- TOP CONFIG -->
                     <div class="row mb-4">
                         <div class="col-md-8">
-                            <label class="form-label text-muted small uppercase">NOME DA MISSÃO</label>
-                            <input type="text" name="name" id="taskName" class="form-control bg-black text-white border-secondary" required placeholder="Ex: Município - Pregão 42/2025">
+                            <label class="form-label text-secondary small uppercase">NOME DA MISSÃO</label>
+                            <input type="text" name="name" id="taskName" class="form-control" required placeholder="Ex: Município - Pregão 42/2025">
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label text-muted small uppercase">CEP DESTINO</label>
-                            <input type="text" name="cep" id="taskCep" class="form-control bg-black text-white border-secondary" required placeholder="00000-000">
+                            <label class="form-label text-secondary small uppercase">CEP DESTINO</label>
+                            <input type="text" name="cep" id="taskCep" class="form-control" required placeholder="00000-000">
                         </div>
                     </div>
 
                     <% if (userGroups && userGroups.length > 0) { %>
                     <div class="mb-4">
-                        <label class="form-label text-muted small uppercase">VISIBILIDADE (GRUPO)</label>
-                        <select name="group_id" class="form-select bg-black text-white border-secondary">
+                        <label class="form-label text-secondary small uppercase">VISIBILIDADE (GRUPO)</label>
+                        <select name="group_id" class="form-select">
                             <option value="">PRIVADO (APENAS EU)</option>
                             <% userGroups.forEach(function(group) { %>
                                 <option value="<%= group.id %>"><%= group.name %></option>
@@ -175,16 +173,16 @@
                     <% } %>
 
                     <!-- ITEM LIST AREA -->
-                    <div class="card bg-black border-secondary mb-4">
-                        <div class="card-header bg-transparent border-secondary d-flex justify-content-between align-items-center">
-                            <span class="text-white"><i class="fas fa-list"></i> ITENS IDENTIFICADOS</span>
-                            <span class="badge bg-dark border border-secondary text-muted" id="item-count">0 ITENS</span>
+                    <div class="card bg-light border-0 mb-4">
+                        <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
+                            <span class="text-primary fw-bold"><i class="fas fa-list"></i> ITENS IDENTIFICADOS</span>
+                            <span class="badge bg-white text-dark border shadow-sm" id="item-count">0 ITENS</span>
                         </div>
                         <div class="card-body p-0">
                             <div class="table-responsive" style="max-height: 400px;">
-                                <table class="table table-dark table-hover mb-0 align-middle">
-                                    <thead class="sticky-top bg-black">
-                                        <tr class="text-muted small uppercase">
+                                <table class="table table-hover mb-0 align-middle">
+                                    <thead class="sticky-top bg-light">
+                                        <tr class="text-secondary small uppercase">
                                             <th style="width:5%">#</th>
                                             <th>DESCRIÇÃO</th>
                                             <th style="width:15%">MAX (R$)</th>
@@ -198,7 +196,7 @@
                                 </table>
                             </div>
                         </div>
-                        <div class="card-footer bg-transparent border-secondary d-flex justify-content-between flex-wrap gap-2">
+                        <div class="card-footer bg-transparent border-0 d-flex justify-content-between flex-wrap gap-2">
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addRow()">
                                 <i class="fas fa-plus"></i> ADICIONAR MANUALMENTE
                             </button>
@@ -216,7 +214,7 @@
                          <button type="button" class="btn btn-outline-danger" onclick="resetUpload()">
                             <i class="fas fa-undo"></i> CANCELAR / NOVO UPLOAD
                         </button>
-                        <button type="submit" class="btn btn-success btn-lg shadow-green" id="btnStart">
+                        <button type="submit" class="btn btn-success btn-lg shadow-sm" id="btnStart">
                             <i class="fas fa-rocket"></i> INICIAR COTAÇÃO AUTOMÁTICA
                         </button>
                     </div>
@@ -230,9 +228,9 @@
 
 <!-- Loading Overlay -->
 <div id="loadingOverlay">
-    <div class="spinner-neon mb-3"></div>
-    <div class="text-neon h4">PROCESSANDO EDITAL...</div>
-    <div class="text-muted small">Extraindo itens e metadados com I.A.</div>
+    <div class="spinner-liquid mb-3"></div>
+    <div class="text-primary h4">PROCESSANDO EDITAL...</div>
+    <div class="text-secondary small">Extraindo itens e metadados com I.A.</div>
 </div>
 
 <script>
@@ -246,19 +244,18 @@
     ['dragenter', 'dragover'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
             e.preventDefault(); e.stopPropagation();
-            dropZone.classList.add('dragover');
+            gsap.to(dropZone, { scale: 1.02, borderColor: '#0071e3', backgroundColor: 'rgba(0, 113, 227, 0.05)', duration: 0.2 });
         }, false);
     });
     ['dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
             e.preventDefault(); e.stopPropagation();
-            dropZone.classList.remove('dragover');
+            gsap.to(dropZone, { scale: 1, borderColor: 'rgba(0,0,0,0.1)', backgroundColor: '#fff', duration: 0.2 });
         }, false);
     });
     dropZone.addEventListener('drop', (e) => {
         const files = e.dataTransfer.files;
         document.getElementById('pdfFiles').files = files;
-        // Don't process immediately, show button
         showProcessButton();
     });
 
@@ -267,6 +264,7 @@
         if (input.files.length > 0) {
             document.getElementById('btnProcessPdf').style.display = 'block';
             document.querySelector('.drop-zone-text').innerText = `${input.files.length} ARQUIVO(S) SELECIONADO(S)`;
+            gsap.from('#btnProcessPdf', { opacity: 0, y: 10, duration: 0.3 });
         }
     }
 
@@ -278,6 +276,7 @@
 
         // Show Loading
         loadingOverlay.style.display = 'flex';
+        gsap.from(loadingOverlay, { opacity: 0, duration: 0.3 });
 
         const formData = new FormData();
         for (let i = 0; i < input.files.length; i++) {
@@ -301,6 +300,7 @@
             // Hide Upload, Show Form
             uploadContainer.style.display = 'none';
             formContainer.style.display = 'flex';
+            gsap.from(formContainer, { opacity: 0, y: 30, duration: 0.6, ease: 'power2.out' });
 
             // Fill Data
             if (data.metadata) {
@@ -328,6 +328,8 @@
     function resetUpload() {
         formContainer.style.display = 'none';
         uploadContainer.style.display = 'flex';
+        gsap.from(uploadContainer, { opacity: 0, y: -20, duration: 0.4 });
+
         document.getElementById('items-body').innerHTML = '';
         document.getElementById('taskName').value = '';
         document.getElementById('taskCep').value = '';
@@ -342,9 +344,9 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="text-muted">${rowCount}</td>
-            <td><input type="text" class="form-control form-control-sm bg-dark text-white border-0" value="${item.description || ''}" placeholder="Item..." required></td>
-            <td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-white border-0" value="${item.valor_venda || ''}" placeholder="0.00" required></td>
-            <td><input type="number" class="form-control form-control-sm bg-dark text-white border-0" value="${item.quantidade || 1}" required></td>
+            <td><input type="text" class="form-control form-control-sm border-0" value="${item.description || ''}" placeholder="Item..." required></td>
+            <td><input type="number" step="0.01" class="form-control form-control-sm border-0" value="${item.valor_venda || ''}" placeholder="0.00" required></td>
+            <td><input type="number" class="form-control form-control-sm border-0" value="${item.quantidade || 1}" required></td>
             <td><button type="button" class="btn btn-link text-danger btn-sm" onclick="this.closest('tr').remove(); updateCount();"><i class="fas fa-times"></i></button></td>
         `;
         tbody.appendChild(tr);
