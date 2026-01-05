@@ -1,48 +1,44 @@
 <%- include('partials/header') %>
 
-<div class="row mb-4 section">
-    <div class="col-12 text-center">
-        <h2 class="brand-font" style="color: var(--text-primary);">DASHBOARD DE COTAÇÕES</h2>
-        <p class="text-secondary">Gestão de Cotações em Tempo Real</p>
-    </div>
+<div class="mb-8 text-center mt-6">
+    <h2 class="text-3xl font-bold text-base-content">DASHBOARD DE COTAÇÕES</h2>
+    <p class="text-base-content/60">Gestão de Cotações em Tempo Real</p>
 </div>
 
-<div class="row mb-3">
-    <div class="col-12 d-flex justify-content-end">
-        <form method="GET" action="/dashboard" class="d-flex align-items-center">
-             <div class="form-check form-switch me-3">
-                <input class="form-check-input" type="checkbox" id="showArchived" name="show_archived" value="true" <%= showArchived ? 'checked' : '' %> onchange="this.form.submit()">
-                <label class="form-check-label text-secondary small" for="showArchived">EXIBIR ARQUIVADAS</label>
-            </div>
-        </form>
-    </div>
+<div class="mb-6 flex justify-end">
+    <form method="GET" action="/dashboard" class="flex items-center">
+         <div class="form-control">
+            <label class="label cursor-pointer gap-2">
+                <span class="label-text text-base-content/60 font-bold text-xs uppercase">Exibir Arquivadas</span>
+                <input type="checkbox" class="toggle toggle-primary toggle-sm" id="showArchived" name="show_archived" value="true" <%= showArchived ? 'checked' : '' %> onchange="this.form.submit()" />
+            </label>
+        </div>
+    </form>
 </div>
 
-<div class="row g-4 mb-5">
-    <div class="col-12">
-        <div class="row g-3">
-             <% if (tasks && tasks.length > 0) { %>
+<div class="mb-12">
+    <div class="flex flex-col gap-4">
+         <% if (tasks && tasks.length > 0) { %>
+            <div class="grid grid-cols-1 gap-4">
                 <%- include('partials/task_list', { tasks: tasks }) %>
-             <% } else { %>
-                <div class="col-12 text-center py-5">
-                    <h4 class="text-secondary">Nenhuma missão ativa encontrada.</h4>
-                    <p class="text-muted">Inicie uma nova cotação pelo Cotador.</p>
-                    <a href="/sniper" class="btn btn-primary mt-3">NOVA COTAÇÃO</a>
-                </div>
-             <% } %>
-        </div>
-
-        <!-- Pagination -->
-        <div class="row mt-4">
-            <div class="col-12 d-flex justify-content-center gap-2">
-                <% if (page > 1) { %>
-                    <a href="/dashboard?page=<%= page - 1 %><%= showArchived ? '&show_archived=true' : '' %>" class="btn btn-outline-secondary btn-sm">ANTERIOR</a>
-                <% } %>
-                <% if (hasNext) { %>
-                    <a href="/dashboard?page=<%= page + 1 %><%= showArchived ? '&show_archived=true' : '' %>" class="btn btn-outline-secondary btn-sm">PRÓXIMA</a>
-                <% } %>
             </div>
-        </div>
+         <% } else { %>
+            <div class="text-center py-12 border-2 border-dashed border-base-200 rounded-box">
+                <h4 class="text-lg font-bold text-base-content/60">Nenhuma missão ativa encontrada.</h4>
+                <p class="text-sm opacity-50 mb-4">Inicie uma nova cotação pelo Cotador.</p>
+                <a href="/sniper" class="btn btn-primary text-white">NOVA COTAÇÃO</a>
+            </div>
+         <% } %>
+    </div>
+
+    <!-- Pagination -->
+    <div class="mt-8 flex justify-center gap-2">
+        <% if (page > 1) { %>
+            <a href="/dashboard?page=<%= page - 1 %><%= showArchived ? '&show_archived=true' : '' %>" class="btn btn-outline btn-sm">ANTERIOR</a>
+        <% } %>
+        <% if (hasNext) { %>
+            <a href="/dashboard?page=<%= page + 1 %><%= showArchived ? '&show_archived=true' : '' %>" class="btn btn-outline btn-sm">PRÓXIMA</a>
+        <% } %>
     </div>
 </div>
 
