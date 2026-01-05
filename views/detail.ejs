@@ -1,69 +1,67 @@
 <%- include('partials/header') %>
 
-<div class="row mb-3 align-items-center">
-    <div class="col-md-8">
-        <h2 class="brand-font text-white mb-0"><%= task.name %></h2>
-        <div class="d-flex align-items-center gap-2 text-muted small mt-1">
-            <span><i class="fas fa-cube"></i> <%= task.id %></span>
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+    <div>
+        <h2 class="text-2xl font-bold text-base-content"><%= task.name %></h2>
+        <div class="flex items-center gap-3 text-sm text-base-content/60 mt-1">
+            <span class="flex items-center gap-1"><i class="fas fa-cube"></i> <%= task.id %></span>
             <span>|</span>
-            <span><i class="fas fa-map-marker-alt"></i> <%= task.cep %></span>
+            <span class="flex items-center gap-1"><i class="fas fa-map-marker-alt"></i> <%= task.cep %></span>
         </div>
     </div>
-    <div class="col-md-4 text-end">
-        <a href="/dashboard" class="btn btn-outline-secondary btn-sm glass-button"><i class="fas fa-arrow-left"></i> VOLTAR</a>
+    <div class="flex items-center gap-2">
+        <a href="/dashboard" class="btn btn-ghost btn-sm"><i class="fas fa-arrow-left"></i> VOLTAR</a>
         <% if (task.status === 'running' || task.status === 'pending') { %>
-            <button onclick="abortMission()" class="btn btn-danger btn-sm shadow-red glass-button"><i class="fas fa-ban"></i> ABORTAR MISSÃO</button>
+            <button onclick="abortMission()" class="btn btn-error btn-sm text-white"><i class="fas fa-ban"></i> ABORTAR MISSÃO</button>
         <% } %>
         <%
-           // Check if there are any unlocked items
            const anyUnlocked = taskItems.some(item => item.is_unlocked);
-           // Allow download if there are unlocked items AND task is not just pending (has some data potentially)
            if (task.status !== 'pending' && anyUnlocked) {
         %>
-             <a href="/download/<%= task.id %>" class="btn btn-success btn-sm shadow-green glass-button"><i class="fas fa-file-excel"></i> RELATÓRIO (DESBLOQUEADOS)</a>
+             <a href="/download/<%= task.id %>" class="btn btn-success btn-sm text-white"><i class="fas fa-file-excel"></i> RELATÓRIO (DESBLOQUEADOS)</a>
         <% } %>
     </div>
 </div>
 
-<div class="row g-4">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- LEFT: SNIPER LIST -->
-    <div class="col-lg-8">
+    <div class="lg:col-span-2 space-y-6">
 
         <!-- STATUS BAR -->
-        <div class="card mb-3">
-            <div class="card-body py-3 px-4 d-flex justify-content-between align-items-center">
-                <span class="small text-secondary fw-bold">STATUS DA MISSÃO</span>
+        <div class="card bg-base-100 shadow-sm border border-base-200">
+            <div class="card-body p-4 flex-row justify-between items-center">
+                <span class="text-xs font-bold uppercase opacity-60">STATUS DA MISSÃO</span>
                 <div>
                     <% if (task.status === 'running') { %>
-                        <span class="text-primary fw-bold"><i class="fas fa-satellite-dish fa-spin me-2"></i> ESCANEANDO MERCADO...</span>
+                        <div class="badge badge-info gap-2 text-white p-3"><span class="loading loading-spinner loading-xs"></span> ESCANEANDO MERCADO...</div>
                     <% } else if (task.status === 'completed') { %>
-                        <span class="text-success fw-bold"><i class="fas fa-check-circle me-2"></i> CONCLUÍDO</span>
+                        <div class="badge badge-success gap-2 text-white p-3"><i class="fas fa-check-circle"></i> CONCLUÍDO</div>
                     <% } else { %>
-                        <span class="text-secondary fw-bold"><%= task.status.toUpperCase() %></span>
+                        <div class="badge badge-ghost p-3"><%= task.status.toUpperCase() %></div>
                     <% } %>
                 </div>
             </div>
         </div>
 
         <!-- ITEMS GRID -->
-        <div class="card">
-            <div class="card-header bg-transparent border-bottom d-flex align-items-center">
-                <i class="fas fa-list-ol text-primary me-2"></i> <span class="fw-bold">RESULTADOS DA COTAÇÃO</span>
+        <div class="card bg-base-100 shadow-sm border border-base-200 overflow-hidden">
+            <div class="p-4 border-b border-base-200 bg-base-100/50 flex items-center gap-2">
+                <i class="fas fa-list-ol text-primary"></i> <span class="font-bold">RESULTADOS DA COTAÇÃO</span>
             </div>
-            <div class="table-responsive">
-                <table class="table table-hover mb-0 align-middle small">
+            <div class="overflow-x-auto">
+                <table class="table w-full text-sm">
                     <thead>
-                        <tr class="text-secondary text-uppercase">
+                        <tr class="bg-base-200 text-base-content/60 uppercase text-xs">
                             <th>ITEM</th>
-                            <th class="text-end">TETO (R$)</th>
-                            <th class="text-end">ENCONTRADO (R$)</th>
+                            <th class="text-right">TETO (R$)</th>
+                            <th class="text-right">ENCONTRADO (R$)</th>
                             <th class="text-center">MARGEM</th>
-                            <th class="text-end">AÇÃO</th>
+                            <th class="text-right">AÇÃO</th>
                         </tr>
                     </thead>
                     <tbody>
                         <% if (taskItems.length === 0) { %>
-                            <tr><td colspan="5" class="text-center text-muted py-4">Aguardando dados...</td></tr>
+                            <tr><td colspan="5" class="text-center py-8 opacity-50">Aguardando dados...</td></tr>
                         <% } %>
                         <% taskItems.forEach(item => {
                             const hasPrice = item.best_price > 0;
@@ -72,47 +70,47 @@
                             const isWin = hasPrice && profit >= 0;
                             const isUnlocked = item.is_unlocked;
                         %>
-                        <tr>
-                            <td>
-                                <div class="text-white fw-bold"><%= item.description.substring(0, 40) %>...</div>
-                                <div class="text-muted" style="font-size: 0.75rem;">Qtd: <%= item.quantidade %></div>
+                        <tr class="hover:bg-base-200/30 transition-colors">
+                            <td class="max-w-xs">
+                                <div class="font-bold truncate" title="<%= item.description %>"><%= item.description %></div>
+                                <div class="text-xs opacity-60">Qtd: <%= item.quantidade %></div>
                             </td>
-                            <td class="text-end text-muted"><%= item.valor_venda.toFixed(2) %></td>
-                            <td class="text-end">
+                            <td class="text-right font-mono opacity-70"><%= item.valor_venda.toFixed(2) %></td>
+                            <td class="text-right font-mono">
                                 <% if (hasPrice) { %>
                                     <% if (isUnlocked) { %>
-                                        <span class="<%= isWin ? 'text-success' : 'text-danger' %> fw-bold">
+                                        <span class="<%= isWin ? 'text-success' : 'text-error' %> font-bold">
                                             R$ <%= item.best_price.toFixed(2) %>
                                         </span>
                                     <% } else { %>
-                                        <span class="blurred-text">R$ 0000.00</span>
+                                        <span class="blur-sm select-none opacity-50">R$ 0000.00</span>
                                     <% } %>
                                 <% } else { %>
-                                    <span class="text-muted">---</span>
+                                    <span class="opacity-30">---</span>
                                 <% } %>
                             </td>
                             <td class="text-center">
                                 <% if (isWin) { %>
-                                    <span class="badge bg-success text-dark"><i class="fas fa-arrow-up"></i> <%= margin.toFixed(0) %>%</span>
+                                    <div class="badge badge-success badge-sm text-white gap-1"><i class="fas fa-arrow-up"></i> <%= margin.toFixed(0) %>%</div>
                                 <% } else if (hasPrice) { %>
-                                    <span class="badge bg-danger text-dark"><i class="fas fa-arrow-down"></i></span>
+                                    <div class="badge badge-error badge-sm text-white gap-1"><i class="fas fa-arrow-down"></i></div>
                                 <% } else { %>
                                     <% if (task.status === 'running') { %>
-                                        <span class="spinner-grow spinner-grow-sm text-secondary" style="width: 0.5rem; height: 0.5rem;"></span>
+                                        <span class="loading loading-spinner loading-xs opacity-50"></span>
                                     <% } else { %>
-                                        <span class="text-muted">-</span>
+                                        <span class="opacity-30">-</span>
                                     <% } %>
                                 <% } %>
                             </td>
-                            <td class="text-end">
+                            <td class="text-right">
                                 <% if (hasPrice) { %>
                                     <% if (isUnlocked) { %>
-                                        <a href="/download/<%= task.id %>/item/<%= item.db_id %>" class="btn btn-success btn-sm py-0 glass-button" title="Baixar Item">
+                                        <a href="/download/<%= task.id %>/item/<%= item.db_id || item.id %>" class="btn btn-square btn-sm btn-ghost text-success" title="Baixar Item">
                                             <i class="fas fa-download"></i>
                                         </a>
                                     <% } else { %>
-                                        <button onclick="unlockItem('<%= item.db_id %>')" class="btn btn-outline-warning btn-sm py-0 glass-button" style="font-size: 0.7rem;">
-                                            <i class="fas fa-lock"></i> 150 W
+                                        <button onclick="unlockItem('<%= item.db_id || item.id %>')" class="btn btn-sm btn-outline btn-warning gap-1 text-xs">
+                                            <i class="fas fa-lock"></i> 150
                                         </button>
                                     <% } %>
                                 <% } %>
@@ -127,23 +125,23 @@
     </div>
 
     <!-- RIGHT: LOGS & STATS -->
-    <div class="col-lg-4">
+    <div class="space-y-6">
 
         <!-- LOGS TOGGLE -->
-        <div class="card mb-3">
-            <div class="card-header bg-transparent border-bottom d-flex justify-content-between cursor-pointer" onclick="toggleTerminal()">
-                <span class="text-secondary small fw-bold"><i class="fas fa-terminal me-2"></i> LOGS DO SISTEMA</span>
-                <i class="fas fa-chevron-down text-secondary" id="term-icon"></i>
+        <div class="collapse collapse-arrow border border-base-200 bg-base-100 shadow-sm">
+            <input type="checkbox" />
+            <div class="collapse-title text-sm font-bold flex items-center gap-2">
+                <i class="fas fa-terminal"></i> LOGS DO SISTEMA
             </div>
-            <div class="card-body p-0" id="terminal-body" style="display:none;">
-                <pre id="logs" class="p-3 m-0 text-secondary small border-0" style="height: 300px; overflow-y: auto; font-family: var(--font-tech); background: rgba(0,0,0,0.02);"></pre>
+            <div class="collapse-content bg-base-200/50 p-0">
+                <pre id="logs" class="p-4 text-xs font-mono h-[300px] overflow-y-auto bg-black/5 text-base-content/70"></pre>
             </div>
         </div>
 
         <!-- STATS CARD -->
-        <div class="card glass-card border-warning">
-            <div class="card-body text-center">
-                <h6 class="text-secondary small uppercase mb-3 fw-bold">LUCRO PROJETADO (POTENCIAL)</h6>
+        <div class="card bg-base-100 border-2 border-warning/20 shadow-lg">
+            <div class="card-body items-center text-center">
+                <h6 class="text-xs font-bold uppercase opacity-60 mb-2">LUCRO PROJETADO (POTENCIAL)</h6>
                 <%
                     let totalProfit = 0;
                     let lockedCount = 0;
@@ -156,19 +154,21 @@
 
                     const unlockAllCost = lockedCount * 75;
                 %>
-                <h2 class="display-4 text-warning fw-bold mb-0">R$ <%= totalProfit.toFixed(2) %></h2>
+                <h2 class="text-4xl font-black text-warning tracking-tight">R$ <%= totalProfit.toFixed(2) %></h2>
 
                 <% if (lockedCount > 0) { %>
-                    <div class="mt-3">
-                        <p class="small text-muted mb-2"><%= lockedCount %> Itens Bloqueados</p>
-                        <button onclick="unlockAll()" class="btn btn-warning w-100 shadow-gold fw-bold glass-button">
-                            <i class="fas fa-bolt"></i> DESBLOQUEAR TUDO (<%= unlockAllCost %> W)
-                            <br><span style="font-size: 0.7rem; font-weight: normal;">50% DE DESCONTO APLICADO</span>
+                    <div class="mt-6 w-full">
+                        <p class="text-xs text-center opacity-60 mb-3"><%= lockedCount %> Itens Bloqueados</p>
+                        <button onclick="unlockAll()" class="btn btn-warning w-full shadow-lg text-black font-bold">
+                            <div class="flex flex-col items-center leading-none">
+                                <span class="flex items-center gap-2"><i class="fas fa-bolt"></i> DESBLOQUEAR TUDO (<%= unlockAllCost %> W)</span>
+                                <span class="text-[10px] font-normal opacity-80 mt-1">50% DE DESCONTO APLICADO</span>
+                            </div>
                         </button>
                     </div>
                 <% } else { %>
-                    <div class="mt-3">
-                        <div class="alert alert-success bg-transparent border-success text-success">
+                    <div class="mt-6 w-full">
+                        <div class="alert alert-success bg-success/10 text-success border-success/20 flex justify-center text-sm font-bold">
                             <i class="fas fa-check-circle"></i> ACESSO TOTAL LIBERADO
                         </div>
                     </div>
@@ -182,17 +182,7 @@
 <script>
     const taskId = '<%= task.id %>';
 
-    function toggleTerminal() {
-        const body = document.getElementById('terminal-body');
-        const icon = document.getElementById('term-icon');
-        if (body.style.display === 'none') {
-            body.style.display = 'block';
-            icon.className = 'fas fa-chevron-up text-white';
-        } else {
-            body.style.display = 'none';
-            icon.className = 'fas fa-chevron-down text-muted';
-        }
-    }
+    // Logs handled by DaisyUI collapse component (checkbox)
 
     // Simple Log Fetcher
     setInterval(() => {

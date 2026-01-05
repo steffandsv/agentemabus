@@ -1,147 +1,48 @@
 <%- include('partials/header') %>
 
-<style>
-    /* Specific overrides for Cotador (Sniper) */
-    .drop-zone-container {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        min-height: 50vh;
-        gap: 20px;
-    }
+<!-- No custom style block needed, using Tailwind -->
 
-    .drop-zone {
-        width: 70%;
-        min-height: 350px;
-        border: 2px dashed var(--border-subtle);
-        background: var(--bg-card);
-        border-radius: var(--radius-lg);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        transition: all 0.4s ease;
-        position: relative;
-        cursor: pointer;
-        box-shadow: var(--shadow-soft);
-    }
-
-    .drop-zone:hover {
-        box-shadow: var(--shadow-hover);
-        border-color: var(--primary-blue);
-        transform: scale(1.01);
-        background: rgba(0, 113, 227, 0.02);
-    }
-
-    .drop-zone-text {
-        font-family: var(--font-title);
-        font-size: 1.5rem;
-        color: var(--primary-blue);
-        margin-top: 20px;
-        font-weight: 600;
-        letter-spacing: 0.5px;
-    }
-
-    .drop-zone-sub {
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-        margin-top: 10px;
-    }
-
-    .instruction-box {
-        width: 70%;
-        margin-top: 15px;
-    }
-
-    .instruction-box textarea {
-        background: var(--bg-card);
-        color: var(--text-primary);
-        border: 1px solid var(--border-subtle);
-        resize: vertical;
-        border-radius: var(--radius-md);
-    }
-    .instruction-box textarea:focus {
-        border-color: var(--primary-blue);
-        box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15);
-    }
-
-    /* Form Container */
-    #sniperFormContainer {
-        display: none;
-        /* Animation handled by GSAP */
-    }
-
-    /* Loading Overlay */
-    #loadingOverlay {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(255,255,255,0.8);
-        z-index: 9999;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        backdrop-filter: blur(5px);
-    }
-
-    [data-theme="dark"] #loadingOverlay {
-        background: rgba(0,0,0,0.8);
-    }
-
-    .spinner-liquid {
-        width: 50px;
-        height: 50px;
-        border: 4px solid rgba(0, 113, 227, 0.1);
-        border-top: 4px solid var(--primary-blue);
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-</style>
-
-<div class="row mb-4 section">
-    <div class="col-12 text-center">
-        <h2 class="brand-font" style="color: var(--text-primary);">COTADOR AUTOMÁTICO</h2>
-        <p class="text-secondary">Importação Inteligente de Editais</p>
-    </div>
+<div class="mb-8 text-center mt-6">
+    <h2 class="text-3xl font-bold text-base-content">COTADOR AUTOMÁTICO</h2>
+    <p class="text-base-content/60">Importação Inteligente de Editais</p>
 </div>
 
 <!-- UPLOAD ZONE -->
-<div id="uploadContainer" class="drop-zone-container section">
-    <label for="pdfFiles" class="drop-zone" id="dropZoneArea">
-        <i class="fas fa-file-pdf fa-4x mb-3" style="color: var(--primary-blue);"></i>
-        <div class="drop-zone-text">ARRASTE O EDITAL AQUI</div>
-        <div class="drop-zone-sub">A I.A. irá ler e preencher tudo automaticamente</div>
+<div id="uploadContainer" class="flex flex-col items-center justify-center min-h-[50vh] gap-6">
+    <label for="pdfFiles" class="w-full max-w-4xl h-80 border-2 border-dashed border-base-300 rounded-2xl flex flex-col justify-center items-center cursor-pointer hover:border-primary hover:bg-base-200 transition-all bg-base-100 shadow-sm relative group" id="dropZoneArea">
+        <i class="fas fa-file-pdf fa-4x text-primary mb-4 group-hover:scale-110 transition-transform"></i>
+        <div class="text-xl font-bold text-primary drop-zone-text">ARRASTE O EDITAL AQUI</div>
+        <div class="text-sm text-base-content/60 mt-2">A I.A. irá ler e preencher tudo automaticamente</div>
         <input type="file" id="pdfFiles" accept=".pdf" multiple hidden onchange="showProcessButton()">
     </label>
 
-    <div class="instruction-box">
-        <label class="form-label text-secondary small uppercase"><i class="fas fa-robot"></i> Instruções Especiais para a I.A. (Opcional)</label>
-        <textarea id="aiInstructions" class="form-control" rows="2" placeholder="Ex: Cotar apenas itens de informática. Ignorar serviços."></textarea>
+    <div class="w-full max-w-4xl">
+        <label class="label">
+            <span class="label-text text-xs font-bold uppercase opacity-60"><i class="fas fa-robot"></i> Instruções Especiais para a I.A. (Opcional)</span>
+        </label>
+        <textarea id="aiInstructions" class="textarea textarea-bordered w-full h-24" placeholder="Ex: Cotar apenas itens de informática. Ignorar serviços."></textarea>
     </div>
 
-    <button id="btnProcessPdf" class="btn btn-success btn-lg" style="display:none; width: 70%;" onclick="handlePdfUpload()">
+    <button id="btnProcessPdf" class="btn btn-success btn-lg w-full max-w-2xl hidden shadow-lg text-white" onclick="handlePdfUpload()">
         <i class="fas fa-microchip"></i> PROCESSAR EDITAL AGORA
     </button>
 </div>
 
 <!-- RECENT TASKS -->
-<div class="row mt-5 mb-3 section">
-    <div class="col-12">
-        <h4 class="brand-font text-secondary small uppercase mb-3"><i class="fas fa-history"></i> MISSÕES RECENTES</h4>
-        <div class="row g-3">
+<div class="mt-12 mb-8">
+    <div class="container mx-auto max-w-5xl">
+        <h4 class="text-xs font-bold uppercase opacity-60 mb-4 ml-1"><i class="fas fa-history"></i> MISSÕES RECENTES</h4>
+        <div class="grid grid-cols-1 gap-4">
              <%- include('partials/task_list', { tasks: recentTasks }) %>
         </div>
     </div>
 </div>
 
 <!-- FORM CONTAINER (Results) -->
-<div class="row justify-content-center" id="sniperFormContainer">
-    <div class="col-md-10">
-        <div class="card shadow-lg">
-            <div class="card-body p-4">
+<div class="flex justify-center hidden pb-12" id="sniperFormContainer">
+    <div class="w-full max-w-6xl">
+        <div class="card bg-base-100 shadow-xl border border-base-200">
+            <div class="card-body p-6">
 
                 <form action="/create" method="POST" enctype="multipart/form-data" id="sniperForm">
                     <!-- HIDDEN DATA FIELDS -->
@@ -149,21 +50,27 @@
                     <input type="hidden" name="gridData" id="gridData">
 
                     <!-- TOP CONFIG -->
-                    <div class="row mb-4">
-                        <div class="col-md-8">
-                            <label class="form-label text-secondary small uppercase">NOME DA MISSÃO</label>
-                            <input type="text" name="name" id="taskName" class="form-control" required placeholder="Ex: Município - Pregão 42/2025">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="md:col-span-2">
+                            <label class="label">
+                                <span class="label-text text-xs font-bold uppercase opacity-60">NOME DA MISSÃO</span>
+                            </label>
+                            <input type="text" name="name" id="taskName" class="input input-bordered w-full" required placeholder="Ex: Município - Pregão 42/2025">
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label text-secondary small uppercase">CEP DESTINO</label>
-                            <input type="text" name="cep" id="taskCep" class="form-control" required placeholder="00000-000">
+                        <div>
+                            <label class="label">
+                                <span class="label-text text-xs font-bold uppercase opacity-60">CEP DESTINO</span>
+                            </label>
+                            <input type="text" name="cep" id="taskCep" class="input input-bordered w-full" required placeholder="00000-000">
                         </div>
                     </div>
 
                     <% if (userGroups && userGroups.length > 0) { %>
-                    <div class="mb-4">
-                        <label class="form-label text-secondary small uppercase">VISIBILIDADE (GRUPO)</label>
-                        <select name="group_id" class="form-select">
+                    <div class="mb-6">
+                         <label class="label">
+                            <span class="label-text text-xs font-bold uppercase opacity-60">VISIBILIDADE (GRUPO)</span>
+                        </label>
+                        <select name="group_id" class="select select-bordered w-full">
                             <option value="">PRIVADO (APENAS EU)</option>
                             <% userGroups.forEach(function(group) { %>
                                 <option value="<%= group.id %>"><%= group.name %></option>
@@ -173,35 +80,33 @@
                     <% } %>
 
                     <!-- ITEM LIST AREA -->
-                    <div class="card bg-light border-0 mb-4">
-                        <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
-                            <span class="text-primary fw-bold"><i class="fas fa-list"></i> ITENS IDENTIFICADOS</span>
-                            <span class="badge bg-white text-dark border shadow-sm" id="item-count">0 ITENS</span>
+                    <div class="card bg-base-200 border border-base-300 mb-6 rounded-box overflow-hidden">
+                        <div class="p-4 bg-base-200 flex justify-between items-center border-b border-base-300">
+                            <span class="text-primary font-bold flex items-center gap-2"><i class="fas fa-list"></i> ITENS IDENTIFICADOS</span>
+                            <div class="badge badge-lg bg-base-100 border border-base-300 shadow-sm" id="item-count">0 ITENS</div>
                         </div>
-                        <div class="card-body p-0">
-                            <div class="table-responsive" style="max-height: 400px;">
-                                <table class="table table-hover mb-0 align-middle">
-                                    <thead class="sticky-top bg-light">
-                                        <tr class="text-secondary small uppercase">
-                                            <th style="width:5%">#</th>
-                                            <th>DESCRIÇÃO</th>
-                                            <th style="width:15%">MAX (R$)</th>
-                                            <th style="width:10%">QTD</th>
-                                            <th style="width:5%"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="items-body">
-                                        <!-- Items go here -->
-                                    </tbody>
-                                </table>
-                            </div>
+                        <div class="overflow-x-auto max-h-[500px]">
+                            <table class="table table-pin-rows w-full bg-base-100">
+                                <thead>
+                                    <tr class="text-xs uppercase opacity-60 bg-base-200 text-base-content">
+                                        <th class="w-12">#</th>
+                                        <th>DESCRIÇÃO</th>
+                                        <th class="w-40">MAX (R$)</th>
+                                        <th class="w-24">QTD</th>
+                                        <th class="w-12"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="items-body">
+                                    <!-- Items go here -->
+                                </tbody>
+                            </table>
                         </div>
-                        <div class="card-footer bg-transparent border-0 d-flex justify-content-between flex-wrap gap-2">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addRow()">
+                        <div class="p-4 bg-base-200 border-t border-base-300 flex justify-between flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-ghost border-base-300 bg-base-100" onclick="addRow()">
                                 <i class="fas fa-plus"></i> ADICIONAR MANUALMENTE
                             </button>
-                            <div class="d-flex align-items-center gap-2">
-                                <label class="btn btn-outline-secondary btn-sm cursor-pointer" title="Importar CSV Simples">
+                            <div class="flex items-center gap-2">
+                                <label class="btn btn-sm btn-ghost border-base-300 bg-base-100" title="Importar CSV Simples">
                                     <i class="fas fa-file-csv"></i> IMPORTAR CSV
                                     <input type="file" name="csvFile" hidden onchange="alert('CSV selecionado!')">
                                 </label>
@@ -210,11 +115,11 @@
                     </div>
 
                     <!-- ACTION -->
-                    <div class="d-grid gap-2">
-                         <button type="button" class="btn btn-outline-danger" onclick="resetUpload()">
-                            <i class="fas fa-undo"></i> CANCELAR / NOVO UPLOAD
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <button type="button" class="btn btn-outline btn-error" onclick="resetUpload()">
+                            <i class="fas fa-undo"></i> CANCELAR
                         </button>
-                        <button type="submit" class="btn btn-success btn-lg shadow-sm" id="btnStart">
+                        <button type="submit" class="btn btn-success text-white shadow-md" id="btnStart">
                             <i class="fas fa-rocket"></i> INICIAR COTAÇÃO AUTOMÁTICA
                         </button>
                     </div>
@@ -227,10 +132,10 @@
 </div>
 
 <!-- Loading Overlay -->
-<div id="loadingOverlay">
-    <div class="spinner-liquid mb-3"></div>
-    <div class="text-primary h4">PROCESSANDO EDITAL...</div>
-    <div class="text-secondary small">Extraindo itens e metadados com I.A.</div>
+<div id="loadingOverlay" class="fixed inset-0 bg-base-100/80 backdrop-blur-sm z-[9999] hidden flex-col justify-center items-center">
+    <span class="loading loading-spinner loading-lg text-primary mb-4"></span>
+    <div class="text-xl font-bold text-primary">PROCESSANDO EDITAL...</div>
+    <div class="text-sm opacity-60">Extraindo itens e metadados com I.A.</div>
 </div>
 
 <script>
@@ -250,9 +155,10 @@
     ['dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
             e.preventDefault(); e.stopPropagation();
-            gsap.to(dropZone, { scale: 1, borderColor: 'rgba(0,0,0,0.1)', backgroundColor: '#fff', duration: 0.2 });
+            gsap.to(dropZone, { scale: 1, borderColor: '', backgroundColor: '', clearProps: "all", duration: 0.2 });
         }, false);
     });
+
     dropZone.addEventListener('drop', (e) => {
         const files = e.dataTransfer.files;
         document.getElementById('pdfFiles').files = files;
@@ -262,7 +168,8 @@
     function showProcessButton() {
         const input = document.getElementById('pdfFiles');
         if (input.files.length > 0) {
-            document.getElementById('btnProcessPdf').style.display = 'block';
+            document.getElementById('btnProcessPdf').classList.remove('hidden');
+
             document.querySelector('.drop-zone-text').innerText = `${input.files.length} ARQUIVO(S) SELECIONADO(S)`;
             gsap.from('#btnProcessPdf', { opacity: 0, y: 10, duration: 0.3 });
         }
@@ -275,6 +182,7 @@
         if (input.files.length === 0) return;
 
         // Show Loading
+        loadingOverlay.classList.remove('hidden');
         loadingOverlay.style.display = 'flex';
         gsap.from(loadingOverlay, { opacity: 0, duration: 0.3 });
 
@@ -299,7 +207,9 @@
 
             // Hide Upload, Show Form
             uploadContainer.style.display = 'none';
+            formContainer.classList.remove('hidden');
             formContainer.style.display = 'flex';
+
             gsap.from(formContainer, { opacity: 0, y: 30, duration: 0.6, ease: 'power2.out' });
 
             // Fill Data
@@ -318,23 +228,29 @@
         } catch (e) {
             console.error(e);
             alert("Erro na leitura do PDF: " + e.message);
-            loadingOverlay.style.display = 'none';
+            loadingOverlay.classList.add('hidden');
+             loadingOverlay.style.display = 'none';
         } finally {
-            loadingOverlay.style.display = 'none';
+            loadingOverlay.classList.add('hidden');
+             loadingOverlay.style.display = 'none';
             input.value = '';
         }
     }
 
     function resetUpload() {
-        formContainer.style.display = 'none';
+        formContainer.classList.add('hidden');
+         formContainer.style.display = 'none';
+
         uploadContainer.style.display = 'flex';
+
         gsap.from(uploadContainer, { opacity: 0, y: -20, duration: 0.4 });
 
         document.getElementById('items-body').innerHTML = '';
         document.getElementById('taskName').value = '';
         document.getElementById('taskCep').value = '';
         document.getElementById('aiInstructions').value = '';
-        document.getElementById('btnProcessPdf').style.display = 'none';
+        document.getElementById('btnProcessPdf').classList.add('hidden');
+
         document.querySelector('.drop-zone-text').innerText = 'ARRASTE O EDITAL AQUI';
     }
 
@@ -343,11 +259,11 @@
         const tbody = document.getElementById('items-body');
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td class="text-muted">${rowCount}</td>
-            <td><input type="text" class="form-control form-control-sm border-0" value="${item.description || ''}" placeholder="Item..." required></td>
-            <td><input type="number" step="0.01" class="form-control form-control-sm border-0" value="${item.valor_venda || ''}" placeholder="0.00" required></td>
-            <td><input type="number" class="form-control form-control-sm border-0" value="${item.quantidade || 1}" required></td>
-            <td><button type="button" class="btn btn-link text-danger btn-sm" onclick="this.closest('tr').remove(); updateCount();"><i class="fas fa-times"></i></button></td>
+            <td class="text-base-content/60 font-mono text-xs">${rowCount}</td>
+            <td><input type="text" class="input input-ghost input-sm w-full focus:bg-base-100" value="${item.description || ''}" placeholder="Item..." required></td>
+            <td><input type="number" step="0.01" class="input input-ghost input-sm w-full focus:bg-base-100" value="${item.valor_venda || ''}" placeholder="0.00" required></td>
+            <td><input type="number" class="input input-ghost input-sm w-full focus:bg-base-100" value="${item.quantidade || 1}" required></td>
+            <td><button type="button" class="btn btn-ghost btn-xs text-error" onclick="this.closest('tr').remove(); updateCount();"><i class="fas fa-times"></i></button></td>
         `;
         tbody.appendChild(tr);
         updateCount();

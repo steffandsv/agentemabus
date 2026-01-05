@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
+    "build:css": "tailwindcss -i ./src/input.css -o ./public/css/output.css",
     "redis:up": "docker run -d -p 6379:6379 --name local-redis redis:alpine",
     "redis:down": "docker stop local-redis && docker rm local-redis",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -57,5 +58,9 @@
     "unzipper": "^0.12.3",
     "uuid": "^9.0.1",
     "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "daisyui": "^4.12.24",
+    "tailwindcss": "^3.4.19"
   }
 }
