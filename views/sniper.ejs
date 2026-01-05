@@ -129,6 +129,16 @@
     </button>
 </div>
 
+<!-- RECENT TASKS (SNIPER DASHBOARD) -->
+<div class="row mt-5 mb-3">
+    <div class="col-12">
+        <h4 class="brand-font text-muted small uppercase mb-3"><i class="fas fa-history"></i> MISSÕES RECENTES</h4>
+        <div class="row g-3">
+             <%- include('partials/task_list', { tasks: recentTasks }) %>
+        </div>
+    </div>
+</div>
+
 <!-- FORM CONTAINER (Results) -->
 <div class="row justify-content-center" id="sniperFormContainer">
     <div class="col-md-10">

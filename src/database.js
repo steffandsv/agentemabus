@@ -107,6 +107,7 @@ async function initDB() {
                 max_price DECIMAL(10, 2),
                 quantity INT,
                 status VARCHAR(50) DEFAULT 'pending',
+                is_unlocked BOOLEAN DEFAULT FALSE,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
             )
@@ -201,7 +202,8 @@ async function initDB() {
             "ALTER TABLE users ADD COLUMN full_name VARCHAR(255)",
             "ALTER TABLE users ADD COLUMN cpf VARCHAR(20)",
             "ALTER TABLE users ADD COLUMN cnpj VARCHAR(20)",
-            "ALTER TABLE users ADD COLUMN current_credits INT DEFAULT 0"
+            "ALTER TABLE users ADD COLUMN current_credits INT DEFAULT 0",
+            "ALTER TABLE task_items ADD COLUMN is_unlocked BOOLEAN DEFAULT FALSE"
         ];
 
         for (const sql of migrations) {
@@ -392,17 +394,21 @@ async function updateTaskStatus(id, status, outputFile = null) {
 }
 
 // Updated getTasks to support scoping
-async function getTasksForUser(user, showArchived = false) {
+async function getTasksForUser(user, showArchived = false, limit = 100, offset = 0) {
     const p = await getPool();
     if (!p) return [];
 
     let statusSql = "status != 'archived'";
     if (showArchived) statusSql = "status = 'archived'";
 
+    // Safe params
+    limit = parseInt(limit) || 100;
+    offset = parseInt(offset) || 0;
+
     if (user.role === 'admin') {
         // Admin sees all
-        const sql = `SELECT * FROM tasks WHERE ${statusSql} ORDER BY position ASC, created_at DESC`;
-        const [rows] = await p.query(sql);
+        const sql = `SELECT * FROM tasks WHERE ${statusSql} ORDER BY position ASC, created_at DESC LIMIT ? OFFSET ?`;
+        const [rows] = await p.query(sql, [limit, offset]);
         return rows;
     } else {
         // User sees tasks from their groups OR their own tasks
@@ -416,8 +422,8 @@ async function getTasksForUser(user, showArchived = false) {
         }
         whereClause += `)`;
 
-        const sql = `SELECT * FROM tasks WHERE ${whereClause} ORDER BY position ASC, created_at DESC`;
-        const [rows] = await p.query(sql, [user.id]);
+        const sql = `SELECT * FROM tasks WHERE ${whereClause} ORDER BY position ASC, created_at DESC LIMIT ? OFFSET ?`;
+        const [rows] = await p.query(sql, [user.id, limit, offset]);
         return rows;
     }
 }
@@ -585,6 +591,7 @@ async function getTaskFullResults(taskId) {
 
         results.push({
             id: item.original_id,
+            db_id: item.id, // Internal ID for unlocking
             description: item.description,
             valor_venda: parseFloat(item.max_price),
             quantidade: item.quantity,
@@ -596,6 +603,25 @@ async function getTaskFullResults(taskId) {
     // Sort by ID to maintain order
     results.sort((a, b) => parseInt(a.id) - parseInt(b.id));
     return results;
+}
+
+async function getTaskMetadata(taskId) {
+    const p = await getPool();
+    if (!p) return null;
+    const [rows] = await p.query("SELECT * FROM task_metadata WHERE task_id = ?", [taskId]);
+    return rows[0];
+}
+
+async function updateTaskItemLockStatus(itemId, isUnlocked) {
+    const p = await getPool();
+    if (!p) throw new Error("DB not ready");
+    await p.query("UPDATE task_items SET is_unlocked = ? WHERE id = ?", [isUnlocked, itemId]);
+}
+
+async function unlockAllTaskItems(taskId) {
+    const p = await getPool();
+    if (!p) throw new Error("DB not ready");
+    await p.query("UPDATE task_items SET is_unlocked = TRUE WHERE task_id = ?", [taskId]);
 }
 
 // --- OPPORTUNITIES (RADAR/ORACLE) FUNCTIONS ---
@@ -692,6 +718,9 @@ module.exports = {
     getTaskLogs,
     getTaskFullResults,
     createTaskMetadata,
+    getTaskMetadata,
+    updateTaskItemLockStatus,
+    unlockAllTaskItems,
     createOpportunity,
     getRadarOpportunities,
     getUserOpportunities,

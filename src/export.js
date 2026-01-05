@@ -24,6 +24,9 @@ async function generateExcelBuffer(taskId) {
     ];
 
     results.forEach(item => {
+        // FILTER: Only unlocked items
+        if (!item.is_unlocked) return;
+
         if (item.offers && item.offers.length > 0) {
             item.offers.forEach((offer, idx) => {
                 let profit = 0;
@@ -77,6 +80,9 @@ async function generateExcelBuffer(taskId) {
     ];
 
     results.forEach(item => {
+        // FILTER: Only unlocked items
+        if (!item.is_unlocked) return;
+
         let best = null;
         if (item.winnerIndex >= 0 && item.offers && item.offers.length > item.winnerIndex) {
             best = item.offers[item.winnerIndex];
@@ -104,4 +110,47 @@ async function generateExcelBuffer(taskId) {
     return await workbook.xlsx.writeBuffer();
 }
 
-module.exports = { generateExcelBuffer };
+async function generateItemExcelBuffer(taskId, itemDbId) {
+    const results = await getTaskFullResults(taskId);
+    if (!results || results.length === 0) return null;
+
+    // Filter for specific item
+    // Need to convert itemDbId to integer for comparison
+    const item = results.find(i => i.db_id == itemDbId);
+
+    if (!item) return null;
+    if (!item.is_unlocked) return null; // Security check
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Item ' + item.id);
+
+    sheet.columns = [
+        { header: 'Descrição', key: 'desc', width: 40 },
+        { header: 'Candidato', key: 'title', width: 40 },
+        { header: 'Preço', key: 'price', width: 15 },
+        { header: 'Link', key: 'link', width: 50 },
+        { header: 'Loja', key: 'store', width: 20 },
+        { header: 'Risco', key: 'risk', width: 10 },
+        { header: 'Raciocínio IA', key: 'reasoning', width: 50 }
+    ];
+
+    if (item.offers && item.offers.length > 0) {
+        item.offers.forEach(offer => {
+             sheet.addRow({
+                 desc: item.description,
+                 title: offer.title,
+                 price: offer.totalPrice,
+                 link: offer.link,
+                 store: offer.store,
+                 risk: offer.risk_score,
+                 reasoning: offer.aiReasoning
+             });
+        });
+    } else {
+        sheet.addRow({ desc: 'Nenhum candidato encontrado.' });
+    }
+
+    return await workbook.xlsx.writeBuffer();
+}
+
+module.exports = { generateExcelBuffer, generateItemExcelBuffer };

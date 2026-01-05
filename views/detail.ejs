@@ -10,9 +10,17 @@
         </div>
     </div>
     <div class="col-md-4 text-end">
-        <a href="/dashboard" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left"></i> VOLTAR</a>
-        <% if (task.status === 'completed') { %>
-            <a href="/download/<%= task.id %>" class="btn btn-success btn-sm shadow-green"><i class="fas fa-file-excel"></i> RELATÓRIO</a>
+        <a href="/dashboard" class="btn btn-outline-secondary btn-sm glass-button"><i class="fas fa-arrow-left"></i> VOLTAR</a>
+        <% if (task.status === 'running' || task.status === 'pending') { %>
+            <button onclick="abortMission()" class="btn btn-danger btn-sm shadow-red glass-button"><i class="fas fa-ban"></i> ABORTAR MISSÃO</button>
+        <% } %>
+        <%
+           // Check if there are any unlocked items
+           const anyUnlocked = taskItems.some(item => item.is_unlocked);
+           // Allow download if there are unlocked items AND task is not just pending (has some data potentially)
+           if (task.status !== 'pending' && anyUnlocked) {
+        %>
+             <a href="/download/<%= task.id %>" class="btn btn-success btn-sm shadow-green glass-button"><i class="fas fa-file-excel"></i> RELATÓRIO (DESBLOQUEADOS)</a>
         <% } %>
     </div>
 </div>
@@ -62,6 +70,7 @@
                             const profit = item.valor_venda - item.best_price;
                             const margin = (profit / item.valor_venda) * 100;
                             const isWin = hasPrice && profit >= 0;
+                            const isUnlocked = item.is_unlocked;
                         %>
                         <tr>
                             <td>
@@ -71,9 +80,13 @@
                             <td class="text-end text-muted"><%= item.valor_venda.toFixed(2) %></td>
                             <td class="text-end">
                                 <% if (hasPrice) { %>
-                                    <span class="<%= isWin ? 'text-success' : 'text-danger' %> fw-bold">
-                                        <%= item.best_price.toFixed(2) %>
-                                    </span>
+                                    <% if (isUnlocked) { %>
+                                        <span class="<%= isWin ? 'text-success' : 'text-danger' %> fw-bold">
+                                            R$ <%= item.best_price.toFixed(2) %>
+                                        </span>
+                                    <% } else { %>
+                                        <span class="blurred-text">R$ 0000.00</span>
+                                    <% } %>
                                 <% } else { %>
                                     <span class="text-muted">---</span>
                                 <% } %>
@@ -84,14 +97,24 @@
                                 <% } else if (hasPrice) { %>
                                     <span class="badge bg-danger text-dark"><i class="fas fa-arrow-down"></i></span>
                                 <% } else { %>
-                                    <span class="spinner-grow spinner-grow-sm text-secondary" style="width: 0.5rem; height: 0.5rem;"></span>
+                                    <% if (task.status === 'running') { %>
+                                        <span class="spinner-grow spinner-grow-sm text-secondary" style="width: 0.5rem; height: 0.5rem;"></span>
+                                    <% } else { %>
+                                        <span class="text-muted">-</span>
+                                    <% } %>
                                 <% } %>
                             </td>
                             <td class="text-end">
                                 <% if (hasPrice) { %>
-                                    <button class="btn btn-outline-warning btn-sm py-0" style="font-size: 0.7rem;">
-                                        <i class="fas fa-lock"></i>
-                                    </button>
+                                    <% if (isUnlocked) { %>
+                                        <a href="/download/<%= task.id %>/item/<%= item.db_id %>" class="btn btn-success btn-sm py-0 glass-button" title="Baixar Item">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                    <% } else { %>
+                                        <button onclick="unlockItem('<%= item.db_id %>')" class="btn btn-outline-warning btn-sm py-0 glass-button" style="font-size: 0.7rem;">
+                                            <i class="fas fa-lock"></i> 150 W
+                                        </button>
+                                    <% } %>
                                 <% } %>
                             </td>
                         </tr>
@@ -118,23 +141,38 @@
         </div>
 
         <!-- STATS CARD -->
-        <div class="card card-gold">
+        <div class="card card-gold glass-panel">
             <div class="card-body text-center">
-                <h6 class="text-muted small uppercase mb-3">LUCRO PROJETADO</h6>
+                <h6 class="text-muted small uppercase mb-3">LUCRO PROJETADO (POTENCIAL)</h6>
                 <%
                     let totalProfit = 0;
+                    let lockedCount = 0;
                     taskItems.forEach(i => {
                         if (i.best_price > 0 && i.best_price < i.valor_venda) {
                             totalProfit += (i.valor_venda - i.best_price) * i.quantidade;
                         }
+                        if (!i.is_unlocked) lockedCount++;
                     });
+
+                    const unlockAllCost = lockedCount * 75;
                 %>
                 <h2 class="display-4 text-warning fw-bold mb-0">R$ <%= totalProfit.toFixed(2) %></h2>
-                <div class="mt-3">
-                    <button class="btn btn-warning w-100 shadow-gold fw-bold">
-                        <i class="fas fa-bolt"></i> DESBLOQUEAR RELATÓRIO
-                    </button>
-                </div>
+
+                <% if (lockedCount > 0) { %>
+                    <div class="mt-3">
+                        <p class="small text-muted mb-2"><%= lockedCount %> Itens Bloqueados</p>
+                        <button onclick="unlockAll()" class="btn btn-warning w-100 shadow-gold fw-bold glass-button">
+                            <i class="fas fa-bolt"></i> DESBLOQUEAR TUDO (<%= unlockAllCost %> W)
+                            <br><span style="font-size: 0.7rem; font-weight: normal;">50% DE DESCONTO APLICADO</span>
+                        </button>
+                    </div>
+                <% } else { %>
+                    <div class="mt-3">
+                        <div class="alert alert-success bg-transparent border-success text-success">
+                            <i class="fas fa-check-circle"></i> ACESSO TOTAL LIBERADO
+                        </div>
+                    </div>
+                <% } %>
             </div>
         </div>
 
@@ -169,14 +207,58 @@
             });
     }, 2000);
 
-    // Auto-refresh page on completion? Or just partial?
-    // For now, let's just refresh if status changes
+    async function abortMission() {
+        if (!confirm('Tem certeza? Isso irá parar o processo e não poderá ser revertido.')) return;
+        try {
+            const res = await fetch('/api/task/' + taskId + '/abort', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Erro: ' + data.error);
+            }
+        } catch(e) { alert('Erro de conexão'); }
+    }
+
+    async function unlockItem(itemDbId) {
+        if (!confirm('Desbloquear este item por 150 Watts?')) return;
+        try {
+            const res = await fetch('/api/unlock-item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ itemId: itemDbId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Erro: ' + (data.error || 'Saldo insuficiente ou erro desconhecido.'));
+            }
+        } catch(e) { alert('Erro de conexão'); }
+    }
+
+    async function unlockAll() {
+        if (!confirm('Desbloquear TODOS os itens com 50% de desconto?')) return;
+        try {
+            const res = await fetch('/api/unlock-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ taskId: taskId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Erro: ' + (data.error || 'Saldo insuficiente ou erro desconhecido.'));
+            }
+        } catch(e) { alert('Erro de conexão'); }
+    }
+
+    // Auto-refresh page on completion
     const currentStatus = '<%= task.status %>';
     if (currentStatus === 'running' || currentStatus === 'pending') {
-        setInterval(() => {
-            // Check status via logs or new API?
-            // Ideally we'd have a status API.
-            // We can infer from logs if "Finalizado" appears, or just reload every 10s
+        setTimeout(() => {
+           window.location.reload();
         }, 10000);
     }
 </script>

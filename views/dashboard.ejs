@@ -22,55 +22,16 @@
     </div>
 <% } else { %>
     <div class="row g-3">
-        <% tasks.forEach(task => { %>
-            <div class="col-12">
-                <div class="card bg-panel border-secondary hover-glow">
-                    <div class="card-body d-flex align-items-center justify-content-between">
-                        <!-- Left: Info -->
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="status-indicator">
-                                <% if (task.status === 'completed') { %>
-                                    <i class="fas fa-check-circle text-success fa-2x"></i>
-                                <% } else if (task.status === 'failed') { %>
-                                    <i class="fas fa-times-circle text-danger fa-2x"></i>
-                                <% } else if (task.status === 'running') { %>
-                                    <div class="spinner-border text-primary" role="status"></div>
-                                <% } else { %>
-                                    <i class="fas fa-clock text-muted fa-2x"></i>
-                                <% } %>
-                            </div>
-                            <div>
-                                <h5 class="mb-0 text-white"><%= task.name %></h5>
-                                <small class="text-muted"><%= new Date(task.created_at).toLocaleDateString() %> | <%= task.cep %></small>
-                            </div>
-                        </div>
+        <%- include('partials/task_list', { tasks: tasks }) %>
+    </div>
 
-                        <!-- Right: Actions -->
-                        <div class="d-flex align-items-center gap-3">
-                            <% if (task.status === 'completed') { %>
-                                <a href="/download/<%= task.id %>" class="btn btn-success btn-sm"><i class="fas fa-download"></i> EXCEL</a>
-                            <% } %>
-
-                            <a href="/task/<%= task.id %>" class="btn btn-outline-primary btn-sm">
-                                <i class="fas fa-eye"></i> DETALHES
-                            </a>
-
-                            <div class="dropdown">
-                                <button class="btn btn-link text-muted" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-v"></i></button>
-                                <ul class="dropdown-menu dropdown-menu-dark">
-                                    <li>
-                                        <form action="/task/<%= task.id %>/action" method="POST">
-                                            <input type="hidden" name="action" value="archive">
-                                            <button class="dropdown-item"><i class="fas fa-archive"></i> Arquivar</button>
-                                        </form>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        <% }) %>
+    <div class="d-flex justify-content-center mt-4">
+        <% if (page > 1) { %>
+            <a href="/dashboard?page=<%= page - 1 %>&show_archived=<%= showArchived %>" class="btn btn-outline-secondary me-2">Anterior</a>
+        <% } %>
+        <% if (hasNext) { %>
+            <a href="/dashboard?page=<%= page + 1 %>&show_archived=<%= showArchived %>" class="btn btn-outline-secondary">Próximo</a>
+        <% } %>
     </div>
 <% } %>
 
