@@ -1,68 +1,68 @@
-<div class="card bg-dark border-secondary mb-3 shadow-sm status-<%= task.status %>" style="border-left: 4px solid <%= task.status === 'completed' ? '#198754' : (task.status === 'failed' ? '#dc3545' : '#0d6efd') %>;" onclick="window.location.href='/task/<%= task.id %>'">
-    <div class="card-body">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-            <h5 class="card-title text-white mb-0 text-truncate" style="max-width: 70%;"><%= task.name %></h5>
+<div class="card bg-base-100 shadow-md hover:shadow-lg cursor-pointer border border-base-200 transition-all duration-200 status-<%= task.status %>" onclick="window.location.href='/task/<%= task.id %>'">
+    <div class="card-body p-4">
+        <div class="flex justify-between items-start mb-2">
+             <h3 class="card-title text-lg truncate w-3/4"><%= task.name %></h3>
 
-            <!-- Status Badge -->
+             <!-- Status Badge -->
             <% if (task.status === 'completed') { %>
-                <span class="badge bg-success">Concluído</span>
+                <div class="badge badge-success text-white gap-2">Concluído</div>
             <% } else if (task.status === 'failed') { %>
-                <span class="badge bg-danger">Falhou</span>
+                <div class="badge badge-error text-white gap-2">Falhou</div>
             <% } else if (task.status === 'running') { %>
-                <span class="badge bg-primary spinner-border spinner-border-sm"></span>
+                <div class="badge badge-info text-white gap-2"><span class="loading loading-spinner loading-xs"></span>Executando</div>
+            <% } else if (task.status === 'aborted') { %>
+                <div class="badge badge-warning text-white gap-2">Abortado</div>
             <% } else { %>
-                <span class="badge bg-secondary">Pendente</span>
+                <div class="badge badge-ghost gap-2">Pendente</div>
             <% } %>
         </div>
 
-        <p class="card-text text-muted small mb-2">
+        <p class="text-sm text-base-content/60 mb-2">
             <i class="fas fa-map-marker-alt"></i> <%= task.cep || 'N/A' %>
         </p>
 
-        <!-- Tags -->
-        <div class="mb-3">
-            <%
+        <div class="mb-3 flex flex-wrap gap-1">
+             <%
             let tags = [];
             try { tags = typeof task.tags === 'string' ? JSON.parse(task.tags) : (task.tags || []); } catch(e) {}
             tags.forEach(tag => {
             %>
-                <span class="badge me-1" style="background-color: <%= tag.color %>"><%= tag.name %></span>
+                <div class="badge badge-outline text-xs" style="border-color: <%= tag.color %>; color: <%= tag.color %>"><%= tag.name %></div>
             <% }) %>
-            <button class="btn btn-sm btn-outline-secondary py-0 px-1 text-white" style="font-size: 0.7em" onclick="openTagModal('<%= task.id %>'); event.stopPropagation();">+</button>
+             <button class="btn btn-ghost btn-xs" onclick="openTagModal('<%= task.id %>'); event.stopPropagation();">+</button>
         </div>
 
-        <div class="d-flex justify-content-between align-items-center" onclick="event.stopPropagation()">
-            <!-- Actions -->
-            <div class="btn-group">
+        <div class="card-actions justify-end items-center mt-auto" onclick="event.stopPropagation()">
+             <div class="join">
                 <% if (task.external_link) { %>
-                    <a href="<%= task.external_link %>" target="_blank" class="btn btn-sm btn-outline-info" title="Link Externo"><i class="fas fa-external-link-alt"></i></a>
+                    <a href="<%= task.external_link %>" target="_blank" class="btn btn-sm btn-outline join-item" title="Link Externo"><i class="fas fa-external-link-alt"></i></a>
                 <% } %>
                 
                 <% if (task.status === 'completed') { %>
-                    <a href="/download/<%= task.id %>" class="btn btn-sm btn-success" title="Baixar Excel"><i class="fas fa-file-excel"></i></a>
+                    <a href="/download/<%= task.id %>" class="btn btn-sm btn-success text-white join-item" title="Baixar Excel"><i class="fas fa-file-excel"></i></a>
                 <% } %>
 
-                <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                    <i class="fas fa-ellipsis-v"></i>
-                </button>
-                <ul class="dropdown-menu dropdown-menu-dark">
-                    <% if (task.status === 'pending') { %>
+                 <div class="dropdown dropdown-end join-item">
+                    <div tabindex="0" role="button" class="btn btn-sm btn-ghost"><i class="fas fa-ellipsis-v"></i></div>
+                    <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52 border border-base-200">
+                        <% if (task.status === 'pending') { %>
                         <li>
-                            <form action="/task/<%= task.id %>/force-start" method="POST">
-                                <button type="submit" class="dropdown-item"><i class="fas fa-play"></i> Forçar Início</button>
+                            <form action="/task/<%= task.id %>/force-start" method="POST" class="w-full m-0">
+                                <button type="submit" class="w-full text-left"><i class="fas fa-play"></i> Forçar Início</button>
                             </form>
                         </li>
-                    <% } %>
-                    <li>
-                        <form action="/task/<%= task.id %>/action" method="POST">
-                            <input type="hidden" name="action" value="archive">
-                            <button type="submit" class="dropdown-item"><i class="fas fa-archive"></i> Arquivar</button>
-                        </form>
-                    </li>
-                </ul>
-            </div>
+                        <% } %>
+                         <li>
+                            <form action="/task/<%= task.id %>/action" method="POST" class="w-full m-0">
+                                <input type="hidden" name="action" value="archive">
+                                <button type="submit" class="w-full text-left"><i class="fas fa-archive"></i> Arquivar</button>
+                            </form>
+                        </li>
+                    </ul>
+                 </div>
+             </div>
 
-            <small class="text-muted"><%= new Date(task.created_at).toLocaleDateString('pt-BR') %></small>
+             <span class="text-xs text-base-content/50 ml-2"><%= new Date(task.created_at).toLocaleDateString('pt-BR') %></span>
         </div>
     </div>
 </div>

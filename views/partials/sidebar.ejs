@@ -1,35 +1,54 @@
-<nav class="sidebar">
-    <div class="sidebar-brand">
-        <i class="fas fa-cube text-gold"></i> MABUS
+<aside class="w-64 bg-base-100 border-r border-base-300 h-screen overflow-y-auto hidden md:flex flex-col shrink-0">
+    <div class="p-6 border-b border-base-300">
+        <div class="text-2xl font-bold flex items-center gap-2 tracking-tight">
+            <i class="fas fa-cube text-primary"></i> MABUS
+        </div>
     </div>
-    <div class="nav flex-column">
-        <a href="/" class="nav-link <%= path === '/' ? 'active' : '' %>">
-            <i class="fas fa-search"></i> BUSCA
-        </a>
-        <a href="/oracle" class="nav-link <%= path === '/oracle' ? 'active' : '' %>">
-            <i class="fas fa-chart-pie"></i> ANALISADOR
-        </a>
-        <a href="/sniper" class="nav-link <%= path === '/sniper' ? 'active' : '' %>">
-            <i class="fas fa-bullseye"></i> COTADOR
-        </a>
 
-        <div class="mt-4 mb-2 px-3 text-muted small text-uppercase">Gestão</div>
+    <ul class="menu p-4 w-full text-base-content gap-1 flex-1">
+        <li>
+            <a href="/" class="<%= path === '/' ? 'active' : '' %>">
+                <i class="fas fa-search w-5"></i> BUSCA
+            </a>
+        </li>
+        <li>
+            <a href="/oracle" class="<%= path === '/oracle' ? 'active' : '' %>">
+                <i class="fas fa-chart-pie w-5"></i> ANALISADOR
+            </a>
+        </li>
+        <li>
+            <a href="/sniper" class="<%= path === '/sniper' ? 'active' : '' %>">
+                <i class="fas fa-bullseye w-5"></i> COTADOR
+            </a>
+        </li>
 
-        <a href="/dashboard" class="nav-link <%= path === '/dashboard' ? 'active' : '' %>">
-            <i class="fas fa-tasks"></i> DASHBOARD
-        </a>
+        <li class="menu-title mt-4">GESTÃO</li>
+
+        <li>
+            <a href="/dashboard" class="<%= path === '/dashboard' ? 'active' : '' %>">
+                <i class="fas fa-tasks w-5"></i> DASHBOARD
+            </a>
+        </li>
 
         <% if (user && user.role === 'admin') { %>
-        <a href="/admin/dashboard" class="nav-link <%= path === '/admin/dashboard' ? 'active' : '' %>">
-            <i class="fas fa-user-shield"></i> ADMIN
-        </a>
-        <a href="/admin/ai-config" class="nav-link <%= path === '/admin/ai-config' ? 'active' : '' %>">
-            <i class="fas fa-robot"></i> GERENCIAR I.A.
-        </a>
+        <li>
+            <a href="/admin/dashboard" class="<%= path === '/admin/dashboard' ? 'active' : '' %>">
+                <i class="fas fa-user-shield w-5"></i> ADMIN
+            </a>
+        </li>
+        <li>
+            <a href="/admin/ai-config" class="<%= path === '/admin/ai-config' ? 'active' : '' %>">
+                <i class="fas fa-robot w-5"></i> GERENCIAR I.A.
+            </a>
+        </li>
         <% } %>
 
-        <a href="/logout" class="nav-link mt-auto">
-            <i class="fas fa-power-off"></i> SAIR
-        </a>
-    </div>
-</nav>
+        <div class="mt-auto"></div>
+
+        <li>
+            <a href="/logout" class="text-error hover:bg-error/10">
+                <i class="fas fa-power-off w-5"></i> SAIR
+            </a>
+        </li>
+    </ul>
+</aside>
