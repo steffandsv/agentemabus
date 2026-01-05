@@ -383,6 +383,8 @@ app.get('/task/:id', async (req, res) => {
             const winner = r.winnerIndex !== -1 ? r.offers[r.winnerIndex] : (r.offers[0] || null);
             return {
                 id: r.id,
+                db_id: r.db_id, // Internal ID for unlocking
+                is_unlocked: r.is_unlocked, // Lock status
                 description: r.description,
                 valor_venda: r.valor_venda,
                 quantidade: r.quantidade,
