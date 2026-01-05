@@ -149,13 +149,13 @@
     ['dragenter', 'dragover'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
             e.preventDefault(); e.stopPropagation();
-            gsap.to(dropZone, { scale: 1.02, borderColor: '#0071e3', backgroundColor: 'rgba(0, 113, 227, 0.05)', duration: 0.2 });
+            dropZone.classList.add('border-primary', 'bg-base-200');
         }, false);
     });
     ['dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
             e.preventDefault(); e.stopPropagation();
-            gsap.to(dropZone, { scale: 1, borderColor: '', backgroundColor: '', clearProps: "all", duration: 0.2 });
+            dropZone.classList.remove('border-primary', 'bg-base-200');
         }, false);
     });
 
@@ -169,9 +169,7 @@
         const input = document.getElementById('pdfFiles');
         if (input.files.length > 0) {
             document.getElementById('btnProcessPdf').classList.remove('hidden');
-
             document.querySelector('.drop-zone-text').innerText = `${input.files.length} ARQUIVO(S) SELECIONADO(S)`;
-            gsap.from('#btnProcessPdf', { opacity: 0, y: 10, duration: 0.3 });
         }
     }
 
@@ -184,7 +182,6 @@
         // Show Loading
         loadingOverlay.classList.remove('hidden');
         loadingOverlay.style.display = 'flex';
-        gsap.from(loadingOverlay, { opacity: 0, duration: 0.3 });
 
         const formData = new FormData();
         for (let i = 0; i < input.files.length; i++) {
@@ -209,8 +206,6 @@
             uploadContainer.style.display = 'none';
             formContainer.classList.remove('hidden');
             formContainer.style.display = 'flex';
-
-            gsap.from(formContainer, { opacity: 0, y: 30, duration: 0.6, ease: 'power2.out' });
 
             // Fill Data
             if (data.metadata) {
@@ -242,8 +237,6 @@
          formContainer.style.display = 'none';
 
         uploadContainer.style.display = 'flex';
-
-        gsap.from(uploadContainer, { opacity: 0, y: -20, duration: 0.4 });
 
         document.getElementById('items-body').innerHTML = '';
         document.getElementById('taskName').value = '';

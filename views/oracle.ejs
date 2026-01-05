@@ -72,19 +72,19 @@
     const resultContainer = document.getElementById('resultContainer');
     const loader = document.getElementById('loader');
 
-    // Drag & Drop UI
+    // Drag & Drop UI (Tailwind based)
     ['dragenter', 'dragover'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
             e.preventDefault();
             e.stopPropagation();
-            gsap.to(dropZone, { scale: 1.02, borderColor: '#0071e3', backgroundColor: 'rgba(0, 113, 227, 0.05)', duration: 0.2 });
+            dropZone.classList.add('border-primary', 'bg-base-200');
         }, false);
     });
     ['dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
             e.preventDefault();
             e.stopPropagation();
-            gsap.to(dropZone, { scale: 1, borderColor: '', backgroundColor: '', clearProps: 'all', duration: 0.2 });
+            dropZone.classList.remove('border-primary', 'bg-base-200');
         }, false);
     });
     dropZone.addEventListener('drop', (e) => {
@@ -97,18 +97,10 @@
     async function handleUpload() {
         if (fileInput.files.length === 0) return;
 
-        // Start Animation
-        gsap.to(uploadContainer, {
-            opacity: 0,
-            y: -20,
-            duration: 0.4,
-            onComplete: () => {
-                uploadContainer.style.display = 'none';
-                loader.style.display = 'block';
-                loader.classList.remove('hidden');
-                gsap.from(loader, { opacity: 0, scale: 0.9, duration: 0.5 });
-            }
-        });
+        // Toggle UI
+        uploadContainer.style.display = 'none';
+        loader.style.display = 'block';
+        loader.classList.remove('hidden');
 
         const formData = new FormData(uploadForm);
 
@@ -144,34 +136,18 @@
                 }
             }
 
-            // Finish Animation
-            gsap.to(loader, {
-                opacity: 0,
-                duration: 0.4,
-                onComplete: () => {
-                    loader.style.display = 'none';
-                    loader.classList.add('hidden');
+            // Finish
+            loader.style.display = 'none';
+            loader.classList.add('hidden');
 
-                    resultContainer.style.display = 'block';
-                    resultContainer.classList.remove('hidden');
-
-                    // Staggered reveal
-                    gsap.from('#resultContainer .section', {
-                        opacity: 0,
-                        y: 30,
-                        duration: 0.8,
-                        stagger: 0.2,
-                        ease: 'power2.out'
-                    });
-                }
-            });
+            resultContainer.style.display = 'block';
+            resultContainer.classList.remove('hidden');
 
         } catch (error) {
             console.error(error);
             alert("Erro ao processar: " + error.message);
             loader.style.display = 'none';
             uploadContainer.style.display = 'flex';
-            gsap.to(uploadContainer, { opacity: 1, y: 0, duration: 0.4 });
         }
     }
 
@@ -181,9 +157,6 @@
 
         // 1. Header (Teaser)
         const score = meta.ipm_score || 0;
-        let scoreColor = 'text-primary';
-        if (score >= 80) scoreColor = 'text-warning';
-        else if (score < 50) scoreColor = 'text-error';
 
         const ipmEl = document.getElementById('ipmDisplay');
         ipmEl.innerText = score;
@@ -292,7 +265,7 @@
         const overlay = document.getElementById(`overlay-${key}`);
         if (blur) blur.classList.remove('blur-md', 'select-none');
         if (overlay) {
-            gsap.to(overlay, { opacity: 0, duration: 0.3, onComplete: () => overlay.style.display = 'none' });
+            overlay.style.display = 'none';
         }
     };
 </script>
