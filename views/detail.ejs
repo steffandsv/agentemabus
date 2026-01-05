@@ -70,12 +70,12 @@
                             const isWin = hasPrice && profit >= 0;
                             const isUnlocked = item.is_unlocked;
                         %>
-                        <tr class="hover:bg-base-200/30 transition-colors">
+                        <tr class="hover:bg-base-200/50">
                             <td class="max-w-xs">
                                 <div class="font-bold truncate" title="<%= item.description %>"><%= item.description %></div>
-                                <div class="text-xs opacity-60">Qtd: <%= item.quantidade %></div>
+                                <div class="text-xs text-base-content/60">Qtd: <%= item.quantidade %></div>
                             </td>
-                            <td class="text-right font-mono opacity-70"><%= item.valor_venda.toFixed(2) %></td>
+                            <td class="text-right font-mono"><%= item.valor_venda.toFixed(2) %></td>
                             <td class="text-right font-mono">
                                 <% if (hasPrice) { %>
                                     <% if (isUnlocked) { %>
@@ -83,10 +83,10 @@
                                             R$ <%= item.best_price.toFixed(2) %>
                                         </span>
                                     <% } else { %>
-                                        <span class="blur-sm select-none opacity-50">R$ 0000.00</span>
+                                        <span class="text-base-content/30 select-none">R$ ***,**</span>
                                     <% } %>
                                 <% } else { %>
-                                    <span class="opacity-30">---</span>
+                                    <span class="text-base-content/30">---</span>
                                 <% } %>
                             </td>
                             <td class="text-center">
