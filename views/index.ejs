@@ -1,27 +1,41 @@
 <%- include('partials/header') %>
 
-<div class="row mb-4 section">
-    <div class="col-12 text-center">
-        <h1 class="brand-font display-4" style="color: var(--text-primary);">BUSCA DE OPORTUNIDADES</h1>
-        <p class="lead text-secondary">Inteligência de Mercado em Tempo Real</p>
+<!-- HERO SECTION / DASHBOARD HEADER -->
+<div class="content-section">
+    <div class="d-flex justify-content-between align-items-end">
+        <div>
+            <h2 class="section-title">Radar de Oportunidades</h2>
+            <p class="text-secondary mb-0">Inteligência de mercado em tempo real.</p>
+        </div>
+        <div>
+             <a href="/oracle" class="btn btn--primary">
+                <i class="fas fa-plus"></i> Nova Análise
+             </a>
+        </div>
     </div>
 </div>
 
-<!-- RADAR SYSTEM (Opportunities) -->
-<div class="row g-4 mb-5">
+<!-- OPPORTUNITIES GRID -->
+<div class="content-section">
     <% if (opportunities && opportunities.length > 0) { %>
-        <% opportunities.forEach(opp => { %>
-            <!-- Admin/Radar Items are locked for standard users.
-                 Check if user is admin to unlock. -->
-            <% const isLocked = (user && user.role === 'admin') ? false : true; %>
-
-            <%- include('partials/opportunity_card', { opp: opp, isLocked: isLocked }) %>
-        <% }) %>
+        <div class="card-grid">
+            <% opportunities.forEach(opp => { %>
+                <% const isLocked = (user && user.role === 'admin') ? false : true; %>
+                <%- include('partials/opportunity_card', { opp: opp, isLocked: isLocked }) %>
+            <% }) %>
+        </div>
     <% } else { %>
-        <div class="col-12 text-center py-5">
-            <h3 class="text-secondary">Nenhuma oportunidade na busca no momento.</h3>
-            <p class="text-secondary">Utilize o Analisador para escanear seus próprios editais.</p>
-            <a href="/oracle" class="btn btn-primary mt-3">IR PARA O ANALISADOR</a>
+        <div class="card" style="text-align: center; padding: 40px;">
+            <div style="color: var(--color-gray-primary); font-size: 48px; margin-bottom: 16px;">
+                <i class="fas fa-search"></i>
+            </div>
+            <h3 class="card-title">Nenhuma oportunidade encontrada</h3>
+            <p class="text-secondary" style="max-width: 400px; margin: 0 auto 24px auto;">
+                O sistema ainda não encontrou editais relevantes ou você ainda não realizou uma busca.
+            </p>
+            <div>
+                <a href="/oracle" class="btn btn--primary">Ir para o Analisador</a>
+            </div>
         </div>
     <% } %>
 </div>
