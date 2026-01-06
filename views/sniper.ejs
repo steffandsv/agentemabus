@@ -9,23 +9,49 @@
 
 <!-- UPLOAD ZONE -->
 <div id="uploadContainer" class="flex flex-col items-center justify-center min-h-[50vh] gap-6">
-    <label for="pdfFiles" class="w-full max-w-4xl h-80 border-2 border-dashed border-base-300 rounded-2xl flex flex-col justify-center items-center cursor-pointer hover:border-primary hover:bg-base-200 transition-all bg-base-100 shadow-sm relative group" id="dropZoneArea">
-        <i class="fas fa-file-pdf fa-4x text-primary mb-4 group-hover:scale-110 transition-transform"></i>
-        <div class="text-xl font-bold text-primary drop-zone-text">ARRASTE O EDITAL AQUI</div>
-        <div class="text-sm text-base-content/60 mt-2">A I.A. irá ler e preencher tudo automaticamente</div>
-        <input type="file" id="pdfFiles" accept=".pdf" multiple hidden onchange="showProcessButton()">
-    </label>
-
-    <div class="w-full max-w-4xl">
-        <label class="label">
-            <span class="label-text text-xs font-bold uppercase opacity-60"><i class="fas fa-robot"></i> Instruções Especiais para a I.A. (Opcional)</span>
-        </label>
-        <textarea id="aiInstructions" class="textarea textarea-bordered w-full h-24" placeholder="Ex: Cotar apenas itens de informática. Ignorar serviços."></textarea>
+    <!-- Tabs -->
+    <div role="tablist" class="tabs tabs-boxed mb-4">
+        <a role="tab" class="tab tab-active" id="tabPdf" onclick="switchTab('pdf')">Arquivo PDF</a>
+        <a role="tab" class="tab" id="tabManual" onclick="switchTab('manual')">Inserção Manual</a>
     </div>
 
-    <button id="btnProcessPdf" class="btn btn-success btn-lg w-full max-w-2xl hidden shadow-lg text-white" onclick="handlePdfUpload()">
-        <i class="fas fa-microchip"></i> PROCESSAR EDITAL AGORA
-    </button>
+    <!-- PDF Content -->
+    <div id="contentPdf" class="w-full flex flex-col items-center gap-6">
+        <label for="pdfFiles" class="w-full max-w-4xl h-80 border-2 border-dashed border-base-300 rounded-2xl flex flex-col justify-center items-center cursor-pointer hover:border-primary hover:bg-base-200 transition-all bg-base-100 shadow-sm relative group" id="dropZoneArea">
+            <i class="fas fa-file-pdf fa-4x text-primary mb-4 group-hover:scale-110 transition-transform"></i>
+            <div class="text-xl font-bold text-primary drop-zone-text">ARRASTE O EDITAL AQUI</div>
+            <div class="text-sm text-base-content/60 mt-2">A I.A. irá ler e preencher tudo automaticamente</div>
+            <input type="file" id="pdfFiles" accept=".pdf" multiple hidden onchange="showProcessButton()">
+        </label>
+
+        <div class="w-full max-w-4xl">
+            <label class="label">
+                <span class="label-text text-xs font-bold uppercase opacity-60"><i class="fas fa-robot"></i> Instruções Especiais para a I.A. (Opcional)</span>
+            </label>
+            <textarea id="aiInstructions" class="textarea textarea-bordered w-full h-24" placeholder="Ex: Cotar apenas itens de informática. Ignorar serviços."></textarea>
+        </div>
+
+        <button id="btnProcessPdf" class="btn btn-success btn-lg w-full max-w-2xl hidden shadow-lg text-white" onclick="handlePdfUpload()">
+            <i class="fas fa-microchip"></i> PROCESSAR EDITAL AGORA
+        </button>
+    </div>
+
+    <!-- Manual Content -->
+    <div id="contentManual" class="w-full flex flex-col items-center gap-6 hidden">
+        <div class="w-full max-w-4xl">
+            <label class="label">
+                <span class="label-text text-xs font-bold uppercase opacity-60">COLE OS DADOS (CSV: ID;Descrição;Valor;Qtd)</span>
+            </label>
+            <textarea id="manualCsvInput" class="textarea textarea-bordered w-full h-80 font-mono text-xs" placeholder="1;Notebook Dell;3500.00;2&#10;2;Mouse USB;50.00;10&#10;3;Teclado ABNT2;80.00;5"></textarea>
+            <div class="text-xs text-base-content/60 mt-2">
+                * O separador deve ser ponto-e-vírgula (;)<br>
+                * A ordem das colunas é: ID; Descrição; Valor Máximo; Quantidade
+            </div>
+        </div>
+        <button class="btn btn-success btn-lg w-full max-w-2xl text-white shadow-lg" onclick="handleManualCsv()">
+            <i class="fas fa-table"></i> PROCESSAR CSV
+        </button>
+    </div>
 </div>
 
 <!-- RECENT TASKS -->
@@ -144,6 +170,76 @@
     const uploadContainer = document.getElementById('uploadContainer');
     const formContainer = document.getElementById('sniperFormContainer');
     const loadingOverlay = document.getElementById('loadingOverlay');
+
+    function switchTab(tabName) {
+        document.getElementById('tabPdf').classList.remove('tab-active');
+        document.getElementById('tabManual').classList.remove('tab-active');
+        document.getElementById('contentPdf').classList.add('hidden');
+        document.getElementById('contentManual').classList.add('hidden');
+
+        if (tabName === 'pdf') {
+            document.getElementById('tabPdf').classList.add('tab-active');
+            document.getElementById('contentPdf').classList.remove('hidden');
+        } else {
+            document.getElementById('tabManual').classList.add('tab-active');
+            document.getElementById('contentManual').classList.remove('hidden');
+        }
+    }
+
+    function handleManualCsv() {
+        const csvText = document.getElementById('manualCsvInput').value;
+        if (!csvText.trim()) {
+            alert('Cole o conteúdo CSV primeiro.');
+            return;
+        }
+
+        const lines = csvText.split('\n');
+        const items = [];
+        let validLines = 0;
+
+        // Skip header if looks like header
+        const startIdx = (lines[0].toLowerCase().includes('descricao') || lines[0].toLowerCase().includes('descrição')) ? 1 : 0;
+
+        for (let i = startIdx; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            // Handle simple semicolon split (no quote escaping support for now as per instructions "simple csv")
+            const parts = line.split(';');
+            if (parts.length >= 2) { // Allow loose format if ID missing, but instruction says ID;Desc;Val;Qtd
+                // Try to map correctly
+                // Format: ID;Descricao;valor_venda;quantidade
+                let id = parts[0] || (i + 1);
+                let desc = parts[1] || "Item sem descrição";
+                let val = parts[2] ? parts[2].replace(',', '.') : 0; // Fix comma decimal
+                let qtd = parts[3] ? parts[3].replace(',', '.') : 1;
+
+                // Basic cleanup
+                desc = desc.replace(/"/g, '').trim();
+
+                items.push({
+                    id: id,
+                    description: desc,
+                    valor_venda: parseFloat(val) || 0,
+                    quantidade: parseInt(qtd) || 1
+                });
+                validLines++;
+            }
+        }
+
+        if (validLines === 0) {
+            alert('Nenhum item válido encontrado. Verifique o formato: ID;Descrição;Valor;Qtd (separado por ponto e vírgula)');
+            return;
+        }
+
+        // Reset UI
+        uploadContainer.style.display = 'none';
+        formContainer.classList.remove('hidden');
+        formContainer.style.display = 'flex';
+
+        populateGrid(items);
+        alert(`${validLines} itens importados com sucesso!`);
+    }
 
     // Drag & Drop
     ['dragenter', 'dragover'].forEach(eventName => {
