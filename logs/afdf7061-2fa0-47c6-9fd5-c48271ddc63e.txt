@@ -1,9 +1,0 @@
-[13:58:48] 🚀 Iniciando Missão #afdf7061-2fa0-47c6-9fd5-c48271ddc63e
-[13:58:48] 🛠️ Módulo Definido: gemini_meli
-[13:58:48] 📂 Arquivo de Entrada: uploads/grid_1767707121446.csv
-[13:58:48] [Worker] Verificando itens da tarefa...
-[13:58:48] [DB] 8 itens recuperados do banco de dados.
-[13:58:48] 🌐 Abrindo navegador...
-[13:58:48] 📍 Configurando CEP: 78820-000...
-[13:58:49] 💰 Reembolso Total por Falha: 8 créditos.
-[13:58:49] 💀 ERRO GERAL: Connection closed.

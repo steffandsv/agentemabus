@@ -9,10 +9,11 @@
 
 <!-- UPLOAD ZONE -->
 <div id="uploadContainer" class="flex flex-col items-center justify-center min-h-[50vh] gap-6">
-    <!-- Tabs -->
-    <div role="tablist" class="tabs tabs-boxed mb-4">
-        <a role="tab" class="tab tab-active" id="tabPdf" onclick="switchTab('pdf')">Arquivo PDF</a>
-        <a role="tab" class="tab" id="tabManual" onclick="switchTab('manual')">Inserção Manual</a>
+    <!-- Switch Mode -->
+    <div class="flex items-center gap-4 mb-6">
+        <span class="text-base-content/60 font-bold text-sm">ARQUIVO PDF</span>
+        <input type="checkbox" class="toggle toggle-lg toggle-success" onchange="toggleMode(this)">
+        <span class="text-base-content/60 font-bold text-sm">INSERÇÃO MANUAL</span>
     </div>
 
     <!-- PDF Content -->
@@ -38,6 +39,21 @@
 
     <!-- Manual Content -->
     <div id="contentManual" class="w-full flex flex-col items-center gap-6 hidden">
+        <div class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="label">
+                    <span class="label-text text-xs font-bold uppercase opacity-60">NOME DA MISSÃO</span>
+                </label>
+                <input type="text" id="manualName" class="input input-bordered w-full" placeholder="Ex: Pregão Eletrônico 42/2025">
+            </div>
+            <div>
+                <label class="label">
+                    <span class="label-text text-xs font-bold uppercase opacity-60">CEP DESTINO</span>
+                </label>
+                <input type="text" id="manualCep" class="input input-bordered w-full" placeholder="00000-000">
+            </div>
+        </div>
+
         <div class="w-full max-w-4xl">
             <label class="label">
                 <span class="label-text text-xs font-bold uppercase opacity-60">COLE OS DADOS (CSV: ID;Descrição;Valor;Qtd)</span>
@@ -49,7 +65,7 @@
             </div>
         </div>
         <button class="btn btn-success btn-lg w-full max-w-2xl text-white shadow-lg" onclick="handleManualCsv()">
-            <i class="fas fa-table"></i> PROCESSAR CSV
+            <i class="fas fa-check-circle"></i> PROCESSAR DADOS MANUAIS
         </button>
     </div>
 </div>
@@ -171,23 +187,31 @@
     const formContainer = document.getElementById('sniperFormContainer');
     const loadingOverlay = document.getElementById('loadingOverlay');
 
-    function switchTab(tabName) {
-        document.getElementById('tabPdf').classList.remove('tab-active');
-        document.getElementById('tabManual').classList.remove('tab-active');
-        document.getElementById('contentPdf').classList.add('hidden');
-        document.getElementById('contentManual').classList.add('hidden');
-
-        if (tabName === 'pdf') {
-            document.getElementById('tabPdf').classList.add('tab-active');
-            document.getElementById('contentPdf').classList.remove('hidden');
-        } else {
-            document.getElementById('tabManual').classList.add('tab-active');
+    function toggleMode(checkbox) {
+        if (checkbox.checked) {
+            // Manual Mode
+            document.getElementById('contentPdf').classList.add('hidden');
             document.getElementById('contentManual').classList.remove('hidden');
+        } else {
+            // PDF Mode
+            document.getElementById('contentPdf').classList.remove('hidden');
+            document.getElementById('contentManual').classList.add('hidden');
         }
     }
 
     function handleManualCsv() {
+        const manualName = document.getElementById('manualName').value.trim();
+        const manualCep = document.getElementById('manualCep').value.trim();
         const csvText = document.getElementById('manualCsvInput').value;
+
+        if (!manualName) {
+            alert('Por favor, informe o Nome da Missão.');
+            return;
+        }
+        if (!manualCep) {
+            alert('Por favor, informe o CEP de Destino.');
+            return;
+        }
         if (!csvText.trim()) {
             alert('Cole o conteúdo CSV primeiro.');
             return;
@@ -237,8 +261,11 @@
         formContainer.classList.remove('hidden');
         formContainer.style.display = 'flex';
 
+        // Transfer Data
+        document.getElementById('taskName').value = manualName;
+        document.getElementById('taskCep').value = manualCep;
+
         populateGrid(items);
-        alert(`${validLines} itens importados com sucesso!`);
     }
 
     // Drag & Drop
