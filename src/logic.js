@@ -43,6 +43,23 @@ function calculateRiskAndRank(candidates, tenderItem) {
             const techScore = c.technical_score || 0;
             technicalRisk = (10 - techScore) * 10;
 
+            // INTELLIGENT ADJUSTMENT: Dimension/Brand Flexibility
+            // If AI flagged 'is_brand_mismatch' but status is APPROVED/UNCERTAIN, risk is low (Legal compliance).
+            // If AI flagged 'is_dimension_mismatch', it's a "Flexible Factor", risk stays within Yellow (10-30).
+
+            if (c.is_brand_mismatch && c.status === 'APPROVED') {
+                // Do not penalize brand mismatch if specs match (it's legally allowed).
+                // Maybe cosmetic risk (Risk ~10-15) just to prefer exact brand if price is same?
+                // Let's add slight risk to prefer exact match if prices are identical.
+                technicalRisk = Math.max(technicalRisk, 10);
+            }
+
+            if (c.is_dimension_mismatch && c.status !== 'REJECTED') {
+                 // Dimensions didn't cause rejection, so it's acceptable but not perfect.
+                 // Ensure risk is at least 15 (Yellow).
+                 technicalRisk = Math.max(technicalRisk, 15);
+            }
+
             // Adjust for condition (if not caught by hard filter)
             if (c.condition && (c.condition.toLowerCase().includes('usado') || c.condition.toLowerCase().includes('used'))) {
                 technicalRisk = Math.max(technicalRisk, 80);
