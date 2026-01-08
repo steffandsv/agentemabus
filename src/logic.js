@@ -36,12 +36,12 @@ function calculateRiskAndRank(candidates, tenderItem) {
         if (c.status === 'REJECTED') {
             technicalRisk = 100;
         } else {
-            // Map technical_score (0-10) to Risk (100-0)
-            // Score 10 -> Risk 0
-            // Score 0 -> Risk 100
-            // Invert: Risk = (10 - Score) * 10
-            const techScore = c.technical_score || 0;
-            technicalRisk = (10 - techScore) * 10;
+            // Map technical_score (0.0-10.0) to Risk (100.0-0.0)
+            // Score 10.0 -> Risk 0.0
+            // Score 0.0 -> Risk 100.0
+            // Invert: Risk = (10.0 - Score) * 10.0
+            const techScore = parseFloat(c.technical_score) || 0;
+            technicalRisk = Math.max(0, Math.min(100, (10.0 - techScore) * 10.0));
 
             // INTELLIGENT ADJUSTMENT: Dimension/Brand Flexibility
             // If AI flagged 'is_brand_mismatch' but status is APPROVED/UNCERTAIN, risk is low (Legal compliance).
