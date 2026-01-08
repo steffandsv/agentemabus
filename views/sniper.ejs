@@ -150,7 +150,7 @@
                             <div class="flex items-center gap-2">
                                 <label class="btn btn-sm btn-ghost border-base-300 bg-base-100" title="Importar CSV Simples">
                                     <i class="fas fa-file-csv"></i> IMPORTAR CSV
-                                    <input type="file" name="csvFile" hidden onchange="alert('CSV selecionado!')">
+                                    <input type="file" id="gridCsvInput" accept=".csv,.txt" hidden onchange="handleGridCsvUpload(this)">
                                 </label>
                             </div>
                         </div>
@@ -199,44 +199,39 @@
         }
     }
 
-    function handleManualCsv() {
-        const manualName = document.getElementById('manualName').value.trim();
-        const manualCep = document.getElementById('manualCep').value.trim();
-        const csvText = document.getElementById('manualCsvInput').value;
+    function parsePtBrValue(val) {
+        if (!val) return 0;
+        if (typeof val === 'number') return val;
+        val = val.toString().trim();
+        val = val.replace(/^R\$\s?/, '').trim(); // Remove symbol
 
-        if (!manualName) {
-            alert('Por favor, informe o Nome da Missão.');
-            return;
+        // Brazilian Format Check (1.200,50)
+        if (val.includes(',')) {
+            val = val.replace(/\./g, ''); // Remove thousands separator
+            val = val.replace(',', '.');  // Replace decimal separator
         }
-        if (!manualCep) {
-            alert('Por favor, informe o CEP de Destino.');
-            return;
-        }
-        if (!csvText.trim()) {
-            alert('Cole o conteúdo CSV primeiro.');
-            return;
-        }
+        return parseFloat(val) || 0;
+    }
 
+    function parseCsvContent(csvText) {
         const lines = csvText.split('\n');
         const items = [];
-        let validLines = 0;
-
         // Skip header if looks like header
-        const startIdx = (lines[0].toLowerCase().includes('descricao') || lines[0].toLowerCase().includes('descrição')) ? 1 : 0;
+        const startIdx = (lines[0] && (lines[0].toLowerCase().includes('descricao') || lines[0].toLowerCase().includes('descrição'))) ? 1 : 0;
 
         for (let i = startIdx; i < lines.length; i++) {
             const line = lines[i].trim();
             if (!line) continue;
 
-            // Handle simple semicolon split (no quote escaping support for now as per instructions "simple csv")
             const parts = line.split(';');
-            if (parts.length >= 2) { // Allow loose format if ID missing, but instruction says ID;Desc;Val;Qtd
-                // Try to map correctly
-                // Format: ID;Descricao;valor_venda;quantidade
-                let id = parts[0] || (i + 1);
+            if (parts.length >= 2) {
+                let id = parts[0] || (items.length + 1);
                 let desc = parts[1] || "Item sem descrição";
-                let val = parts[2] ? parts[2].replace(',', '.') : 0; // Fix comma decimal
-                let qtd = parts[3] ? parts[3].replace(',', '.') : 1;
+
+                // Use robust parsing
+                let val = parsePtBrValue(parts[2]);
+                let qtd = parsePtBrValue(parts[3]);
+                if (qtd === 0) qtd = 1;
 
                 // Basic cleanup
                 desc = desc.replace(/"/g, '').trim();
@@ -244,15 +239,27 @@
                 items.push({
                     id: id,
                     description: desc,
-                    valor_venda: parseFloat(val) || 0,
-                    quantidade: parseInt(qtd) || 1
+                    valor_venda: val,
+                    quantidade: qtd
                 });
-                validLines++;
             }
         }
+        return items;
+    }
 
-        if (validLines === 0) {
-            alert('Nenhum item válido encontrado. Verifique o formato: ID;Descrição;Valor;Qtd (separado por ponto e vírgula)');
+    function handleManualCsv() {
+        const manualName = document.getElementById('manualName').value.trim();
+        const manualCep = document.getElementById('manualCep').value.trim();
+        const csvText = document.getElementById('manualCsvInput').value;
+
+        if (!manualName) return alert('Por favor, informe o Nome da Missão.');
+        if (!manualCep) return alert('Por favor, informe o CEP de Destino.');
+        if (!csvText.trim()) return alert('Cole o conteúdo CSV primeiro.');
+
+        const items = parseCsvContent(csvText);
+
+        if (items.length === 0) {
+            alert('Nenhum item válido encontrado. Verifique o formato: ID;Descrição;Valor;Qtd');
             return;
         }
 
@@ -394,6 +401,23 @@
     function updateCount() {
         const count = document.getElementById('items-body').children.length;
         document.getElementById('item-count').innerText = `${count} ITENS`;
+    }
+
+    function handleGridCsvUpload(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const items = parseCsvContent(text);
+                if (items.length > 0) {
+                    items.forEach(item => addRow(item));
+                } else {
+                    alert("Não foi possível ler itens do CSV. Verifique o formato.");
+                }
+                input.value = ''; // Clear to allow re-upload
+            };
+            reader.readAsText(input.files[0]);
+        }
     }
 
     // Form Interceptor to Serialize Grid
