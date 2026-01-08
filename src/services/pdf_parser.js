@@ -182,7 +182,8 @@ async function extractItemsFromPdf(files, userInstructions = "") {
 
                 // Parse Value
                 if (typeof val === 'string') {
-                    val = val.replace(/^R\$\s?/, '').trim();
+                    // Remove quotes, R$, spaces
+                    val = val.replace(/["'R$\s]/g, '');
                     // PT-BR format check
                     if (val.includes(',')) {
                         val = val.replace(/\./g, '').replace(',', '.');

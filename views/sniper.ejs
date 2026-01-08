@@ -203,9 +203,10 @@
         if (!val) return 0;
         if (typeof val === 'number') return val;
         val = val.toString().trim();
-        val = val.replace(/^R\$\s?/, '').trim(); // Remove symbol
+        // Remove quotes, R$, spaces and other currency symbols
+        val = val.replace(/["'R$\s]/g, '');
 
-        // Brazilian Format Check (1.200,50)
+        // Brazilian Format Check (1.200,50) - comma is strictly decimal
         if (val.includes(',')) {
             val = val.replace(/\./g, ''); // Remove thousands separator
             val = val.replace(',', '.');  // Replace decimal separator
