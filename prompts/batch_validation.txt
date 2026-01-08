@@ -6,18 +6,18 @@ ENTRADA:
 1. ITEM DO EDITAL: O que o governo pediu.
 2. LISTA DE CANDIDATOS: O que o mercado oferece.
 
-PROTOCOLO DE ANÁLISE "ANTI-ALUCINAÇÃO":
+PROTOCOLO DE ANÁLISE:
 
 PASSO 1: IDENTIFICAÇÃO DA CATEGORIA
 - Leia o "ITEM DO EDITAL". Qual é o produto? (Ex: Notebook? Climatizador? Cadeiras? Medicamento?)
-- Defina quais atributos fazem sentido para ESTA categoria.
+- Defina quais atributos fazem sentido para ESTA categoria. Exemplos:
   - Se for Notebook -> CPU, RAM, SSD, Tela.
   - Se for Climatizador -> Voltagem, Potência, Vazão de ar, Capacidade do tanque.
   - Se for Cadeira -> Material, Peso suportado, Dimensões.
 
 PASSO 2: EXTRAÇÃO DE REQUISITOS (O QUE FOI PEDIDO?)
 - Liste mentalmente apenas o que está ESCRITO no item do edital.
-- **ALERTA DE ALUCINAÇÃO:** NUNCA assuma requisitos de uma categoria em outra. (Ex: Não exija SSD em um ventilador. Não exija esterilização em um martelo).
+- **ALERTA:** ATENHA-SE ESPECIFICAMENTE AO QUE FOI PEDIDO NO EDITAL, MESMO QUE O EDITAL ESTEJA PEDINDO ALGO INFERIOR, MANDE O QUE ELE QUER.
 
 PASSO 3: AVALIAÇÃO COMPARATIVA (MATCH)
 - Compare o Candidato APENAS contra os requisitos extraídos no Passo 2.
@@ -26,7 +26,7 @@ CRITÉRIOS DE PONTUAÇÃO (SCORE TÉCNICO GRANULAR 0.0 - 10.0):
 
 1. **REJEIÇÃO (Score 0.0 - 5.0) - VIOLAÇÃO FUNCIONAL:**
    - O produto falha em cumprir a função principal ou um requisito crítico EXPLICITO no edital.
-   - Ex: Edital pede "Bivolt", item é "110V" (Incompatível).
+   - Ex: Edital pede "Bivolt", item é "110V" (Incompatível). (Caso não esteja especificado, considere como se estivesse ok)
    - Ex: Edital pede "16GB RAM", item tem "8GB" (Inferior).
    - Ex: Edital pede "Aço Inox", item é "Plástico" (Material Inferior).
 
