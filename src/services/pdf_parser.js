@@ -175,6 +175,32 @@ async function extractItemsFromPdf(files, userInstructions = "") {
                 throw new Error("JSON retornado não contém array de 'items'.");
             }
 
+            // Sanitize Items (Ensure numbers for frontend compatibility)
+            result.items = result.items.map(item => {
+                let val = item.valor_venda;
+                let qtd = item.quantidade;
+
+                // Parse Value
+                if (typeof val === 'string') {
+                    val = val.replace(/^R\$\s?/, '').trim();
+                    // PT-BR format check
+                    if (val.includes(',')) {
+                        val = val.replace(/\./g, '').replace(',', '.');
+                    }
+                    val = parseFloat(val);
+                }
+                if (!val || isNaN(val)) val = 0;
+
+                // Parse Qty
+                if (typeof qtd === 'string') {
+                    if (qtd.includes(',')) qtd = qtd.replace(',', '.');
+                    qtd = parseFloat(qtd);
+                }
+                if (!qtd || isNaN(qtd)) qtd = 1;
+
+                return { ...item, valor_venda: val, quantidade: qtd };
+            });
+
             console.log(`[PDF Parser] Success with ${strategy.model}. Extracted ${result.items.length} items.`);
             return result;
 
