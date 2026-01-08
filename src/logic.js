@@ -48,12 +48,24 @@ function calculateRiskAndRank(candidates, tenderItem) {
                 technicalRisk = Math.max(technicalRisk, 80);
             }
 
-            // Adjust for vendor (mock logic as we might not have vendor reputation yet)
-            // If store is "Mercado Livre" without extra info, assume neutral.
+            // Adjust for vendor
         }
 
-        let supplierFactor = 0.5; // Neutral 0-1 scale. 0 = Bad, 1 = Good.
-        // TODO: Extract seller reputation if available.
+        // Supplier Factor Logic (0.0 to 1.0)
+        // platinum/official -> 1.0
+        // gold -> 0.8
+        // green thermometer -> 0.7
+        // yellow -> 0.4
+        // red/none -> 0.2
+        let supplierFactor = 0.5;
+        const rep = (c.seller_reputation || "").toLowerCase();
+
+        if (rep.includes('official') || rep.includes('platinum')) supplierFactor = 1.0;
+        else if (rep.includes('gold')) supplierFactor = 0.8;
+        else if (rep.includes('green') || rep.includes('lider')) supplierFactor = 0.7; // MercadoLider often green
+        else if (rep.includes('yellow')) supplierFactor = 0.4;
+        else if (rep.includes('red')) supplierFactor = 0.2;
+        else supplierFactor = 0.3; // Unknown/None
 
         // Price Score (Lower is better, so 0-1 scale where 1 is best price)
         // Normalized Price Score: 1 - ((Price - Min) / (Max - Min))
@@ -69,7 +81,7 @@ function calculateRiskAndRank(candidates, tenderItem) {
         // Wait, "Risco Técnico" is usually "Lower is Better" (0 is good).
         // "Preço Normalizado" usually "Higher is Better" (Cheap is good) or "Lower is Better" (Cheap is low score)?
         // Let's align: We want a FINAL SCORE where HIGHER IS BETTER (Best Candidate).
-        
+
         // Risk: 0 is Best, 100 is Worst. Convert to 0-1 Score (1 is Best).
         const riskScoreNormalized = 1 - (technicalRisk / 100);
 

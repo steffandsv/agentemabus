@@ -451,6 +451,37 @@ async function getProductDetails(page, url) {
             const descEl = document.querySelector('.ui-pdp-description__content');
             const description = descEl ? descEl.innerText.trim() : "";
 
+            // Seller Reputation Extraction
+            const getSellerReputation = () => {
+                const sellerHeader = document.querySelector('.ui-pdp-seller__header__title');
+                if (sellerHeader && sellerHeader.innerText.includes('Loja oficial')) {
+                    return 'platinum'; // Official Store is high trust
+                }
+
+                const medals = document.querySelectorAll('.ui-seller-info .ui-pdp-seller__reputation-info [class*="ui-pdp-seller__medal"]');
+                for (const m of medals) {
+                    const cl = m.className;
+                    if (cl.includes('platinum')) return 'platinum';
+                    if (cl.includes('gold')) return 'gold';
+                    if (cl.includes('silver')) return 'silver'; // Does Silver exist on ML? Usually Platinum/Gold/Leader.
+                }
+
+                // If no medal, check thermometer level
+                const thermometer = document.querySelectorAll('.ui-seller-info .ui-thermometer li');
+                // The levels are 1 to 5. The active one has a class or style.
+                // ML often puts 'ui-thermometer__level--active'
+                let level = 0;
+                thermometer.forEach((li, index) => {
+                    if (li.className.includes('active') || li.getAttribute('class').includes('active')) {
+                        level = index + 1;
+                    }
+                });
+
+                if (level === 5) return 'green'; // Good
+                if (level >= 3) return 'yellow';
+                return 'red'; // Low rep
+            };
+
             return {
                 attrs,
                 description,
@@ -458,17 +489,22 @@ async function getProductDetails(page, url) {
                 mpn: jsonLd.mpn,
                 brand: jsonLd.brand,
                 model: jsonLd.model,
-                condition: jsonLd.condition
+                condition: jsonLd.condition,
+                seller_reputation: getSellerReputation()
             };
         });
 
-        // Add GTIN/Model to return object if needed by caller,
-        // but `getDetails` mainly returns `attributes` which we just enriched.
-        // We also want to pass these explicit fields up if possible.
-        // The caller (worker/discovery) expects `attributes` and `description` and `shippingCost`.
-        // We will stick to that interface, as `attributes` now contains the critical data.
-
-        return { attributes: data.attrs, description: data.description, shippingCost };
+        return {
+            attributes: data.attrs,
+            description: data.description,
+            shippingCost,
+            gtin: data.gtin,
+            mpn: data.mpn,
+            brand: data.brand,
+            model: data.model,
+            condition: data.condition,
+            seller_reputation: data.seller_reputation
+        };
     } catch (e) {
         if (e.message === 'BLOCKED_BY_PORTAL') throw e;
         return { attributes: {}, description: "", shippingCost: 0 };

@@ -1,0 +1,23 @@
+CONTEXTO:
+Você é um especialista em produtos e especificações técnicas.
+Estamos analisando uma possível compra governamental e precisamos preencher lacunas de informação para validar um item.
+
+ITEM REQUISITADO (EDITAL):
+"{{TENDER_DESCRIPTION}}"
+
+CANDIDATO ENCONTRADO (DADOS PARCIAIS):
+{{CANDIDATE_DATA}}
+
+DADOS OFICIAIS ENCONTRADOS NA WEB (FONTE EXTERNA):
+{{EXTERNAL_DATA}}
+
+TAREFA:
+Com base APENAS nos dados externos oficiais, reavalie o candidato.
+Ele atende aos requisitos do edital?
+
+SAÍDA (JSON):
+{
+  "technical_score": number, // 0-10
+  "status": "APPROVED" | "REJECTED" | "UNCERTAIN",
+  "reasoning": "Explique a decisão baseada nos novos dados."
+}

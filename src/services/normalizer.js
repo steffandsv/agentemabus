@@ -58,9 +58,26 @@ function checkHardExclusions(tenderItem, candidateItem) {
     }
 
     // 2. Voltage Check
-    // More robust regex to catch "110v", "220 volts", etc.
+    // Handle "Bivolt" (accepts anything) or specific voltages
+    const isBivolt = (text) => text.toLowerCase().includes('bivolt') || text.includes('100v-240v') || text.includes('110v-220v');
+
     const tenderVoltage = tenderDesc.match(/\b(110|220|127)\s*[vV]/);
     const itemVoltage = itemTitle.match(/\b(110|220|127)\s*[vV]/);
+
+    const tenderIsBivolt = isBivolt(tenderDesc);
+    const itemIsBivolt = isBivolt(itemTitle);
+
+    // If Item is Bivolt, it fits any Tender voltage requirement.
+    if (itemIsBivolt) {
+        return { excluded: false };
+    }
+
+    // If Tender is Bivolt, Item MUST be Bivolt (usually).
+    // Or does "Tender Bivolt" mean "I can accept either"? Usually means "I need a device that works on both".
+    // So if Tender=Bivolt and Item=220V, it's a mismatch (item won't work in 110V area).
+    if (tenderIsBivolt && !itemIsBivolt) {
+        return { excluded: true, reason: "Tender requires Bivolt, item is specific voltage." };
+    }
 
     // Normalize 127 to 110 for comparison
     const normVolt = (v) => (v === '127' ? '110' : v);
