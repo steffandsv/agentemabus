@@ -525,10 +525,13 @@ async function saveCandidates(taskItemId, candidates, selectedIndex) {
         JSON.stringify(c.specs || {}),
         c.risk_score || '-',
         c.aiReasoning || c.reasoning || '-',
-        index === selectedIndex // is_selected
+        index === selectedIndex, // is_selected
+        c.gtin || null,
+        c.mpn || null,
+        c.enrichment_source || null
     ]);
 
-    const sql = `INSERT INTO item_candidates (task_item_id, title, price, link, image_url, store, specs, risk_score, ai_reasoning, is_selected) VALUES ?`;
+    const sql = `INSERT INTO item_candidates (task_item_id, title, price, link, image_url, store, specs, risk_score, ai_reasoning, is_selected, gtin, manufacturer_part_number, enrichment_source) VALUES ?`;
     await p.query(sql, [values]);
 
     // Update item status

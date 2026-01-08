@@ -326,6 +326,26 @@ async function getProductDetails(page, url) {
              throw new Error("BLOCKED_BY_PORTAL");
         }
 
+        // Lazy Load: Scroll to bottom to trigger scripts
+        await page.evaluate(async () => {
+            await new Promise((resolve) => {
+                let totalHeight = 0;
+                const distance = 100;
+                const timer = setInterval(() => {
+                    const scrollHeight = document.body.scrollHeight;
+                    window.scrollBy(0, distance);
+                    totalHeight += distance;
+
+                    if (totalHeight >= scrollHeight - window.innerHeight) {
+                        clearInterval(timer);
+                        resolve();
+                    }
+                }, 100);
+            });
+        });
+        // Wait a bit for lazy elements
+        await new Promise(r => setTimeout(r, 1000));
+
         // Shipping Logic
         let shippingCost = 0;
         let shippingText = "";
@@ -382,21 +402,109 @@ async function getProductDetails(page, url) {
             }
         }
 
-        // Attributes & Description
+        // Attributes & Description & JSON-LD
         const data = await page.evaluate(() => {
+            const getJsonLd = () => {
+                const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+                for (const script of scripts) {
+                    try {
+                        const json = JSON.parse(script.innerText);
+                        // Look for Product type
+                        if (json['@type'] === 'Product') {
+                            return {
+                                gtin: json.gtin || json.gtin13 || json.gtin14 || null,
+                                mpn: json.mpn || json.sku || null,
+                                brand: json.brand?.name || null,
+                                model: json.model || null,
+                                condition: json.offers?.itemCondition || null,
+                                price_ld: json.offers?.price || null
+                            };
+                        }
+                    } catch (e) { continue; }
+                }
+                return {};
+            };
+
             const attrs = {};
-            document.querySelectorAll('section.ui-pdp-specs tr').forEach(row => {
-                const th = row.querySelector('th');
-                const td = row.querySelector('td');
-                if (th && td) attrs[th.innerText.trim()] = td.innerText.trim();
+            // Strategy 1: Highlighted specs (often hidden in stripes)
+            document.querySelectorAll('.ui-vpp-highlighted-specs__striped-specs .ui-vpp-highlighted-specs__striped-specs__row').forEach(row => {
+                const key = row.querySelector('.ui-vpp-highlighted-specs__striped-specs__row__key')?.innerText.trim();
+                const value = row.querySelector('.ui-vpp-highlighted-specs__striped-specs__row__value')?.innerText.trim();
+                if (key && value) attrs[key] = value;
             });
+
+            // Strategy 2: Table specs
+            document.querySelectorAll('.ui-pdp-specs__table tr').forEach(row => {
+                const key = row.querySelector('th')?.innerText.trim();
+                const value = row.querySelector('td')?.innerText.trim();
+                if (key && value) attrs[key] = value;
+            });
+
+            const jsonLd = getJsonLd();
+            // Merge JSON-LD into specs
+            if (jsonLd.gtin) attrs['GTIN'] = jsonLd.gtin;
+            if (jsonLd.mpn) attrs['MPN'] = jsonLd.mpn;
+            if (jsonLd.brand) attrs['Brand'] = jsonLd.brand;
+            if (jsonLd.model) attrs['Model'] = jsonLd.model;
+            if (jsonLd.condition) attrs['Condition'] = jsonLd.condition;
 
             const descEl = document.querySelector('.ui-pdp-description__content');
             const description = descEl ? descEl.innerText.trim() : "";
-            return { attrs, description };
+
+            // Seller Reputation Extraction
+            const getSellerReputation = () => {
+                const sellerHeader = document.querySelector('.ui-pdp-seller__header__title');
+                if (sellerHeader && sellerHeader.innerText.includes('Loja oficial')) {
+                    return 'platinum'; // Official Store is high trust
+                }
+
+                const medals = document.querySelectorAll('.ui-seller-info .ui-pdp-seller__reputation-info [class*="ui-pdp-seller__medal"]');
+                for (const m of medals) {
+                    const cl = m.className;
+                    if (cl.includes('platinum')) return 'platinum';
+                    if (cl.includes('gold')) return 'gold';
+                    if (cl.includes('silver')) return 'silver'; // Does Silver exist on ML? Usually Platinum/Gold/Leader.
+                }
+
+                // If no medal, check thermometer level
+                const thermometer = document.querySelectorAll('.ui-seller-info .ui-thermometer li');
+                // The levels are 1 to 5. The active one has a class or style.
+                // ML often puts 'ui-thermometer__level--active'
+                let level = 0;
+                thermometer.forEach((li, index) => {
+                    if (li.className.includes('active') || li.getAttribute('class').includes('active')) {
+                        level = index + 1;
+                    }
+                });
+
+                if (level === 5) return 'green'; // Good
+                if (level >= 3) return 'yellow';
+                return 'red'; // Low rep
+            };
+
+            return {
+                attrs,
+                description,
+                gtin: jsonLd.gtin,
+                mpn: jsonLd.mpn,
+                brand: jsonLd.brand,
+                model: jsonLd.model,
+                condition: jsonLd.condition,
+                seller_reputation: getSellerReputation()
+            };
         });
 
-        return { attributes: data.attrs, description: data.description, shippingCost };
+        return {
+            attributes: data.attrs,
+            description: data.description,
+            shippingCost,
+            gtin: data.gtin,
+            mpn: data.mpn,
+            brand: data.brand,
+            model: data.model,
+            condition: data.condition,
+            seller_reputation: data.seller_reputation
+        };
     } catch (e) {
         if (e.message === 'BLOCKED_BY_PORTAL') throw e;
         return { attributes: {}, description: "", shippingCost: 0 };
