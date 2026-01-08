@@ -127,6 +127,10 @@ async function initDB() {
                 risk_score VARCHAR(50),
                 ai_reasoning TEXT,
                 is_selected BOOLEAN DEFAULT FALSE,
+                gtin VARCHAR(50),
+                manufacturer_part_number VARCHAR(100),
+                enrichment_source VARCHAR(50),
+                seller_reputation VARCHAR(50),
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (task_item_id) REFERENCES task_items(id) ON DELETE CASCADE
             )
@@ -191,6 +195,7 @@ async function initDB() {
         }
 
         // Migrations (Safe to run multiple times)
+        // Note: Using loop with individual try-catch to ensure one failure doesn't stop others
         const migrations = [
             "ALTER TABLE tasks ADD COLUMN external_link TEXT",
             "ALTER TABLE tasks ADD COLUMN tags JSON",
@@ -528,10 +533,11 @@ async function saveCandidates(taskItemId, candidates, selectedIndex) {
         index === selectedIndex, // is_selected
         c.gtin || null,
         c.mpn || null,
-        c.enrichment_source || null
+        c.enrichment_source || null,
+        c.seller_reputation || null
     ]);
 
-    const sql = `INSERT INTO item_candidates (task_item_id, title, price, link, image_url, store, specs, risk_score, ai_reasoning, is_selected, gtin, manufacturer_part_number, enrichment_source) VALUES ?`;
+    const sql = `INSERT INTO item_candidates (task_item_id, title, price, link, image_url, store, specs, risk_score, ai_reasoning, is_selected, gtin, manufacturer_part_number, enrichment_source, seller_reputation) VALUES ?`;
     await p.query(sql, [values]);
 
     // Update item status
