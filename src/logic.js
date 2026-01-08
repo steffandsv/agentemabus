@@ -1,59 +1,125 @@
-function filterAndRank(itemDescription, results, requiredAttributes) {
-    // itemDescription: object from parser { original, query, attributes }
-    // results: array of scraped items
-    
-    // 1. Basic Filtering
-    // Remove international items if desired (often take too long)
-    // Remove items that clearly don't match (simple keyword check)
-    
-    const candidates = results.filter(item => {
-        // Exclude international if needed
-        if (item.isInternational) return false;
-        
-        // Check for essential keywords in title
-        const titleLower = item.title.toLowerCase();
-        
-        // Ensure all significant attributes from the description are present in the title
-        // We filter out very short words to avoid false negatives on "de", "com", etc.
-        if (requiredAttributes && requiredAttributes.length > 0) {
-            const missingAttributes = requiredAttributes.filter(attr => {
-                // Ignore small connecting words if they ended up in attributes
-                if (attr.length <= 2) return false; 
-                return !titleLower.includes(attr);
-            });
 
-            // If more than 20% of attributes are missing, discard
-            // This is a heuristic. For strict matching, we'd require 0 missing.
-            // But search results often vary in wording (e.g. "240gb" vs "240 gb")
-            // A safer approach is to check if *most* key terms are there.
-            
-            // For now, let's enforce that at least 70% of keywords match
-            const matchRatio = (requiredAttributes.length - missingAttributes.length) / requiredAttributes.length;
-            if (matchRatio < 0.7) {
-                return false;
+const { normalizeUnit } = require('./services/normalizer');
+
+/**
+ * Calculates the final risk score and ranks candidates.
+ * Formula: Score = (Preço Normalizado * 0.4) + (Risco Técnico * 0.4) + (Fator Fornecedor * 0.2)
+ *
+ * Risk Definitions (0-100):
+ * - 0-10 (Green): Perfect match (GTIN matches, specs match, new).
+ * - 11-30 (Yellow): Cosmetic divergence or Bronze seller.
+ * - 31-60 (Orange): Critical info inferred or no reputation.
+ * - 61-100 (Red): Technical incompatibility or Used.
+ *
+ * @param {Array} candidates - The list of validated candidates.
+ * @param {Object} tenderItem - The original tender item description/requirements.
+ * @returns {Array} - Ranked candidates with enriched 'score' and 'risk_level'.
+ */
+function calculateRiskAndRank(candidates, tenderItem) {
+    if (!candidates || candidates.length === 0) return [];
+
+    // 1. Determine Price Range for Normalization
+    // Filter out obvious outliers (e.g., price < 10% of avg) before calc?
+    // For now, we take the min valid price as baseline.
+    const validPrices = candidates
+        .filter(c => c.price > 0 && c.status !== 'REJECTED')
+        .map(c => c.price);
+    
+    const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : 0;
+    const maxPrice = validPrices.length > 0 ? Math.max(...validPrices) : 1; // Avoid div/0
+
+    return candidates.map(c => {
+        // Base Risk Calculation
+        let technicalRisk = 0;
+        
+        // REJECTED items get max risk
+        if (c.status === 'REJECTED') {
+            technicalRisk = 100;
+        } else {
+            // Map technical_score (0-10) to Risk (100-0)
+            // Score 10 -> Risk 0
+            // Score 0 -> Risk 100
+            // Invert: Risk = (10 - Score) * 10
+            const techScore = c.technical_score || 0;
+            technicalRisk = (10 - techScore) * 10;
+
+            // Adjust for condition (if not caught by hard filter)
+            if (c.condition && (c.condition.toLowerCase().includes('usado') || c.condition.toLowerCase().includes('used'))) {
+                technicalRisk = Math.max(technicalRisk, 80);
             }
+
+            // Adjust for vendor (mock logic as we might not have vendor reputation yet)
+            // If store is "Mercado Livre" without extra info, assume neutral.
         }
+
+        let supplierFactor = 0.5; // Neutral 0-1 scale. 0 = Bad, 1 = Good.
+        // TODO: Extract seller reputation if available.
+
+        // Price Score (Lower is better, so 0-1 scale where 1 is best price)
+        // Normalized Price Score: 1 - ((Price - Min) / (Max - Min))
+        // If Price is Min, score is 1. If Price is Max, score is 0.
+        let priceScore = 0;
+        if (c.price > 0 && maxPrice > minPrice) {
+            priceScore = 1 - ((c.price - minPrice) / (maxPrice - minPrice));
+        } else if (c.price > 0 && maxPrice === minPrice) {
+            priceScore = 1;
+        }
+
+        // The user formula: Score = (Preço Normalizado * 0.4) + (Risco Técnico * 0.4) + (Fator Fornecedor * 0.2)
+        // Wait, "Risco Técnico" is usually "Lower is Better" (0 is good).
+        // "Preço Normalizado" usually "Higher is Better" (Cheap is good) or "Lower is Better" (Cheap is low score)?
+        // Let's align: We want a FINAL SCORE where HIGHER IS BETTER (Best Candidate).
         
-        return true;
-    });
+        // Risk: 0 is Best, 100 is Worst. Convert to 0-1 Score (1 is Best).
+        const riskScoreNormalized = 1 - (technicalRisk / 100);
 
-    // 2. Calculate Total Price
-    // Note: 'shippingCost' is not yet in 'results' at this stage usually, 
-    // we fetch it for the top candidates only to save bandwidth, 
-    // OR we fetched it for all. 
-    // The plan says: "For each compatible ad... Calculate freight".
-    // So we assume we have the price.
-    
-    candidates.forEach(item => {
-        item.totalPrice = item.price + (item.shippingCost || 0);
-    });
+        // Formula Adaptation for "Higher is Better":
+        // Final Score = (PriceScore * 0.4) + (RiskScoreNormalized * 0.4) + (SupplierFactor * 0.2)
 
-    // 3. Rank
-    // Sort by Total Price ascending
-    candidates.sort((a, b) => a.totalPrice - b.totalPrice);
+        const finalScore = (priceScore * 0.4) + (riskScoreNormalized * 0.4) + (supplierFactor * 0.2);
 
-    // 4. Return top 5
-    return candidates.slice(0, 5);
+        // Assign Risk Level Label
+        let riskLevel = 'RED';
+        if (technicalRisk <= 10) riskLevel = 'GREEN';
+        else if (technicalRisk <= 30) riskLevel = 'YELLOW';
+        else if (technicalRisk <= 60) riskLevel = 'ORANGE';
+
+        // Check for "Opportunity"
+        // Will be done after sorting.
+
+        return {
+            ...c,
+            calculated_risk: technicalRisk,
+            final_score: finalScore, // 0 to 1
+            risk_level: riskLevel
+        };
+    }).sort((a, b) => b.final_score - a.final_score); // Sort Descending (Best First)
 }
 
-module.exports = { filterAndRank };
+function checkBiddingStrategy(rankedCandidates) {
+    if (rankedCandidates.length < 2) return null;
+
+    const top1 = rankedCandidates[0];
+    const top2 = rankedCandidates[1];
+
+    // Strategy: If diff between Top1 (Risk ~20) and Top2 (Risk 0) > 15%, choose Risk 20.
+    // We look for a situation where we have a Cheaper but Slightly Riskier item vs a Safe but Expensive item.
+
+    // Check if Top 1 is riskier than Top 2
+    if (top1.calculated_risk > top2.calculated_risk) {
+        const priceDiff = (top2.price - top1.price) / top1.price; // How much cheaper is top1?
+
+        if (priceDiff > 0.15 && top1.calculated_risk <= 30) {
+            return {
+                action: 'OPPORTUNITY_ALERT',
+                message: `Oportunidade de Lucro: O item ${top1.title} é ${(priceDiff*100).toFixed(1)}% mais barato que a opção segura, com risco controlado (${top1.risk_level}).`
+            };
+        }
+    }
+    return null;
+}
+
+module.exports = {
+    calculateRiskAndRank,
+    checkBiddingStrategy
+};
