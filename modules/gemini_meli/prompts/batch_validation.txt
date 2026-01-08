@@ -1,5 +1,6 @@
 Você é um analista técnico de licitações ultra-preciso.
 Sua missão é validar MULTIPLOS itens simultaneamente contra um edital.
+RESPONDA SEMPRE EM PORTUGUÊS DO BRASIL.
 
 ---
 ### REQUISITOS DO EDITAL:
