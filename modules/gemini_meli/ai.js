@@ -70,10 +70,36 @@ async function validateBatchWithDeepSeek(requiredSpecs, candidates) {
         description: (c.description || "").substring(0, 500)
     }));
 
-    const prompt = renderTemplate(template, {
-        REQUIRED_SPECS: requiredSpecs,
-        CANDIDATES_JSON: JSON.stringify(candidatesMin, null, 2)
-    });
+    // The template uses {{INPUT_JSON}} based on our previous edit to `batch_validation.txt`.
+    // The previous code here used {{CANDIDATES_JSON}} and {{REQUIRED_SPECS}}.
+    // We must update the code to match the template placeholders.
+    // The new template has:
+    // ITEM DO EDITAL: {{INPUT_JSON}} ... wait, previous template was {{INPUT_JSON}}
+    // But I changed it to:
+    // DADOS DE ENTRADA: {{INPUT_JSON}}
+    // And implicit assumption that input json has everything?
+    // Let's check the prompt structure I wrote earlier.
+
+    // The prompt `batch_validation.txt` expects {{INPUT_JSON}}.
+    // And it says: "1. ITEM DO EDITAL... 2. LISTA DE CANDIDATOS".
+    // I need to structure the input JSON to contain both, OR replace placeholders in prompt.
+    // My previous `verifier.js` (which I replaced partially with `ai.js` logic here?)
+    // Wait, `verifier.js` logic was merged into `ai.js` or `index.js` uses `ai.js`?
+    // `index.js` calls `validateBatchWithDeepSeek` in `ai.js`.
+
+    // So I need to adapt `validateBatchWithDeepSeek` to construct the prompt correctly.
+    // The prompt file `batch_validation.txt` currently ends with:
+    // DADOS DE ENTRADA:
+    // {{INPUT_JSON}}
+
+    // So I should construct an object that has the tender description and the candidates.
+
+    const inputPayload = {
+        item_edital: requiredSpecs,
+        candidatos: candidatesMin
+    };
+
+    const prompt = template.replace('{{INPUT_JSON}}', JSON.stringify(inputPayload, null, 2));
 
     let result = await callDeepSeek([{ role: "user", content: prompt }], "deepseek-chat");
     if (!result) {

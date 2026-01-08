@@ -94,8 +94,23 @@ async function execute(job, config) {
 
                 candidate.aiMatch = res.status;
                 candidate.aiReasoning = res.reasoning;
-                candidate.brand_model = res.brand_model;
-                candidate.risk_score = res.risk_score;
+                // Capture new fields from AI
+                candidate.is_brand_mismatch = res.is_brand_mismatch;
+                candidate.is_dimension_mismatch = res.is_dimension_mismatch;
+                candidate.data_gaps = res.data_gaps;
+
+                // If the prompt returns technical_score instead of risk_score directly, map it.
+                // The new prompt returns "technical_score" (0-10).
+                // The rest of the system expects "risk_score" (often 0-10 or High/Low).
+                // Map technical_score to risk_score:
+                // Tech Score 10 -> Risk 0
+                // Tech Score 0 -> Risk 10
+                if (res.technical_score !== undefined) {
+                    candidate.risk_score = 10 - res.technical_score;
+                    candidate.technical_score = res.technical_score;
+                } else {
+                     candidate.risk_score = res.risk_score || 10;
+                }
 
                 logger.thought(id, 'validation', {
                     title: candidate.title,
