@@ -131,7 +131,7 @@
                             <table class="table table-pin-rows w-full bg-base-100">
                                 <thead>
                                     <tr class="text-xs uppercase opacity-60 bg-base-200 text-base-content">
-                                        <th class="w-12">#</th>
+                                        <th class="w-16">#</th>
                                         <th>DESCRIÇÃO</th>
                                         <th class="w-40">MAX (R$)</th>
                                         <th class="w-24">QTD</th>
@@ -214,37 +214,78 @@
         return parseFloat(val) || 0;
     }
 
-    function parseCsvContent(csvText) {
-        const lines = csvText.split('\n');
+    // New Robust CSV Parser
+    function parseCsvContent(text) {
         const items = [];
-        // Skip header if looks like header
-        const startIdx = (lines[0] && (lines[0].toLowerCase().includes('descricao') || lines[0].toLowerCase().includes('descrição'))) ? 1 : 0;
+        let cursor = 0;
 
-        for (let i = startIdx; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
+        while (cursor < text.length) {
+            let fields = [];
+            let currentField = '';
+            let inQuotes = false;
+            let rowEnded = false;
 
-            const parts = line.split(';');
-            if (parts.length >= 2) {
-                let id = parts[0] || (items.length + 1);
-                let desc = parts[1] || "Item sem descrição";
+            while (cursor < text.length) {
+                const char = text[cursor];
 
-                // Use robust parsing
-                let val = parsePtBrValue(parts[2]);
-                let qtd = parsePtBrValue(parts[3]);
-                if (qtd === 0) qtd = 1;
+                if (char === '"') {
+                    if (inQuotes && text[cursor + 1] === '"') {
+                        currentField += '"';
+                        cursor += 2; // skip both
+                        continue;
+                    }
+                    inQuotes = !inQuotes;
+                    cursor++;
+                } else if (char === ';' && !inQuotes) {
+                    fields.push(currentField);
+                    currentField = '';
+                    cursor++;
+                } else if ((char === '\n' || char === '\r') && !inQuotes) {
+                    // handle CRLF
+                    if (char === '\r' && text[cursor + 1] === '\n') cursor++;
 
-                // Basic cleanup
-                desc = desc.replace(/"/g, '').trim();
+                    fields.push(currentField);
+                    rowEnded = true;
+                    cursor++;
+                    break;
+                } else {
+                    currentField += char;
+                    cursor++;
+                }
+            }
 
-                items.push({
-                    id: id,
-                    description: desc,
-                    valor_venda: val,
-                    quantidade: qtd
-                });
+            if (!rowEnded && currentField !== '') {
+                 fields.push(currentField);
+            }
+
+            // Validate Row (Min 2 columns)
+            if (fields.length >= 2) {
+                // Header detection (simple check on first row)
+                const firstVal = fields[0].toLowerCase().trim();
+                if (items.length === 0 && (firstVal.includes('id') || firstVal.includes('item') || firstVal.includes('descricao'))) {
+                    // Skip header
+                } else {
+                    // Map Fields
+                    // ID;Description;Value;Qty
+                    let id = fields[0] ? fields[0].trim() : (items.length + 1);
+                    let desc = fields[1] ? fields[1].trim() : "";
+
+                    let val = 0;
+                    if (fields[2]) val = parsePtBrValue(fields[2]);
+
+                    let qtd = 1;
+                    if (fields[3]) qtd = parsePtBrValue(fields[3]);
+
+                    items.push({
+                        id: id,
+                        description: desc,
+                        valor_venda: val,
+                        quantidade: qtd
+                    });
+                }
             }
         }
+
         return items;
     }
 
@@ -382,13 +423,53 @@
         rowCount++;
         const tbody = document.getElementById('items-body');
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td class="text-base-content/60 font-mono text-xs">${rowCount}</td>
-            <td><input type="text" class="input input-ghost input-sm w-full focus:bg-base-100" value="${item.description || ''}" placeholder="Item..." required></td>
-            <td><input type="number" step="0.01" class="input input-ghost input-sm w-full focus:bg-base-100" value="${item.valor_venda || ''}" placeholder="0.00" required></td>
-            <td><input type="number" class="input input-ghost input-sm w-full focus:bg-base-100" value="${item.quantidade || 1}" required></td>
-            <td><button type="button" class="btn btn-ghost btn-xs text-error" onclick="this.closest('tr').remove(); updateCount();"><i class="fas fa-times"></i></button></td>
-        `;
+
+        // Use document.createElement for inputs to prevent XSS in values
+        const tdId = document.createElement('td');
+        const inputId = document.createElement('input');
+        inputId.type = 'text';
+        inputId.className = 'input input-ghost input-sm w-full font-mono input-id';
+        inputId.value = item.id || rowCount;
+        inputId.placeholder = '#';
+        inputId.required = true;
+        tdId.appendChild(inputId);
+
+        const tdDesc = document.createElement('td');
+        const inputDesc = document.createElement('textarea');
+        inputDesc.className = 'textarea textarea-ghost w-full h-full min-h-[3rem] input-desc focus:bg-base-100 p-2';
+        inputDesc.value = item.description || '';
+        inputDesc.placeholder = 'Item...';
+        inputDesc.required = true;
+        tdDesc.appendChild(inputDesc);
+
+        const tdPrice = document.createElement('td');
+        const inputPrice = document.createElement('input');
+        inputPrice.type = 'number';
+        inputPrice.step = '0.01';
+        inputPrice.className = 'input input-ghost input-sm w-full focus:bg-base-100 input-price';
+        inputPrice.value = item.valor_venda || '';
+        inputPrice.placeholder = '0.00';
+        inputPrice.required = true;
+        tdPrice.appendChild(inputPrice);
+
+        const tdQty = document.createElement('td');
+        const inputQty = document.createElement('input');
+        inputQty.type = 'number';
+        inputQty.className = 'input input-ghost input-sm w-full focus:bg-base-100 input-qty';
+        inputQty.value = item.quantidade || 1;
+        inputQty.required = true;
+        tdQty.appendChild(inputQty);
+
+        const tdAction = document.createElement('td');
+        tdAction.innerHTML = '<button type="button" class="btn btn-ghost btn-xs text-error"><i class="fas fa-times"></i></button>';
+        tdAction.querySelector('button').onclick = function() { this.closest('tr').remove(); updateCount(); };
+
+        tr.appendChild(tdId);
+        tr.appendChild(tdDesc);
+        tr.appendChild(tdPrice);
+        tr.appendChild(tdQty);
+        tr.appendChild(tdAction);
+
         tbody.appendChild(tr);
         updateCount();
     }
@@ -428,13 +509,19 @@
         let validRows = 0;
 
         rows.forEach((row, index) => {
-            const inputs = row.querySelectorAll('input');
-            const desc = inputs[0].value.replace(/;/g, ' ').trim();
-            const price = inputs[1].value || 0;
-            const qty = inputs[2].value || 1;
+            // Select by class to ensure correct mapping
+            const idVal = row.querySelector('.input-id').value.trim();
+            // Replace semicolons in description to prevent CSV breakage in backend
+            // But now we support robust CSV? Backend expects strictly semi-colon delimited.
+            // If backend is simple split, we MUST sanitize description.
+            // Assuming backend uses simple split (from memory/context), so replace ; with space.
+            const descVal = row.querySelector('.input-desc').value.replace(/;/g, ' ').replace(/\n/g, ' ').trim();
+            const priceVal = row.querySelector('.input-price').value || 0;
+            const qtyVal = row.querySelector('.input-qty').value || 1;
 
-            if (desc) {
-                data += `${index + 1};${desc};${price};${qty}\n`;
+            if (descVal) {
+                // Use the Captured ID, not the index!
+                data += `${idVal};${descVal};${priceVal};${qtyVal}\n`;
                 validRows++;
             }
         });
