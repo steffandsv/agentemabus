@@ -10,16 +10,12 @@
         </div>
     </div>
     <div class="flex items-center gap-2">
-        <a href="/dashboard" class="btn btn-ghost btn-sm"><i class="fas fa-arrow-left"></i> VOLTAR</a>
+        <a href="/" class="btn btn-ghost btn-sm"><i class="fas fa-arrow-left"></i> VOLTAR</a>
         <% if (task.status === 'running' || task.status === 'pending') { %>
             <button onclick="abortMission()" class="btn btn-error btn-sm text-white"><i class="fas fa-ban"></i> ABORTAR MISSÃO</button>
         <% } %>
-        <%
-           const anyUnlocked = taskItems.some(item => item.is_unlocked);
-           if (task.status !== 'pending' && anyUnlocked) {
-        %>
-             <a href="/download/<%= task.id %>" class="btn btn-success btn-sm text-white"><i class="fas fa-file-excel"></i> RELATÓRIO (DESBLOQUEADOS)</a>
-        <% } %>
+
+        <a href="/download/<%= task.id %>" class="btn btn-success btn-sm text-white"><i class="fas fa-file-excel"></i> BAIXAR RELATÓRIO</a>
     </div>
 </div>
 
@@ -70,7 +66,6 @@
                             const profit = item.valor_venda - item.best_price;
                             const margin = (profit / item.valor_venda) * 100;
                             const isWin = hasPrice && profit >= 0;
-                            const isUnlocked = item.is_unlocked;
                         %>
                         <tr class="hover:bg-base-200/50">
                             <td class="max-w-xs">
@@ -78,22 +73,18 @@
                                 <div class="text-xs text-base-content/60">Qtd: <%= item.quantidade %></div>
                             </td>
                             <td>
-                                <% if (isUnlocked && item.winner) { %>
+                                <% if (item.winner) { %>
                                     <div class="text-xs font-bold" title="<%= item.winner.title %>"><%= item.winner.brand_model || item.winner.title || 'N/A' %></div>
                                 <% } else { %>
-                                    <div class="text-xs text-base-content/30 select-none">**** / *****</div>
+                                    <div class="text-xs text-base-content/30">-</div>
                                 <% } %>
                             </td>
                             <td class="text-right font-mono"><%= item.valor_venda.toFixed(2) %></td>
                             <td class="text-right font-mono">
                                 <% if (hasPrice) { %>
-                                    <% if (isUnlocked) { %>
-                                        <span class="<%= isWin ? 'text-success' : 'text-error' %> font-bold">
-                                            R$ <%= item.best_price.toFixed(2) %>
-                                        </span>
-                                    <% } else { %>
-                                        <span class="text-base-content/30 select-none">R$ ***,**</span>
-                                    <% } %>
+                                    <span class="<%= isWin ? 'text-success' : 'text-error' %> font-bold">
+                                        R$ <%= item.best_price.toFixed(2) %>
+                                    </span>
                                 <% } else { %>
                                     <span class="text-base-content/30">---</span>
                                 <% } %>
@@ -112,7 +103,7 @@
                                 <% } %>
                             </td>
                             <td class="text-center">
-                                <% if (isUnlocked && item.winner && item.winner.link) { %>
+                                <% if (item.winner && item.winner.link) { %>
                                     <a href="<%= item.winner.link %>" target="_blank" class="btn btn-xs btn-ghost text-info"><i class="fas fa-external-link-alt"></i></a>
                                 <% } else { %>
                                     <button class="btn btn-xs btn-ghost text-base-content/20" disabled><i class="fas fa-link"></i></button>
@@ -120,15 +111,9 @@
                             </td>
                             <td class="text-right">
                                 <% if (hasPrice) { %>
-                                    <% if (isUnlocked) { %>
-                                        <a href="/download/<%= task.id %>/item/<%= item.db_id || item.id %>" class="btn btn-square btn-sm btn-ghost text-success" title="Baixar Item">
-                                            <i class="fas fa-download"></i>
-                                        </a>
-                                    <% } else { %>
-                                        <button onclick="unlockItem('<%= item.db_id || item.id %>')" class="btn btn-sm btn-outline btn-warning gap-1 text-xs">
-                                            <i class="fas fa-lock"></i> 150
-                                        </button>
-                                    <% } %>
+                                    <a href="/download/<%= task.id %>/item/<%= item.db_id || item.id %>" class="btn btn-square btn-sm btn-ghost text-success" title="Baixar Item">
+                                        <i class="fas fa-download"></i>
+                                    </a>
                                 <% } %>
                             </td>
                         </tr>
@@ -155,43 +140,19 @@
         </div>
 
         <!-- STATS CARD -->
-        <div class="card bg-base-100 border-2 border-warning/20 shadow-lg">
+        <div class="card bg-base-100 border-2 border-primary/20 shadow-lg">
             <div class="card-body items-center text-center">
-                <h6 class="text-xs font-bold uppercase opacity-60 mb-2">LUCRO PROJETADO (POTENCIAL)</h6>
+                <h6 class="text-xs font-bold uppercase opacity-60 mb-2">MARGEM TOTAL PROJETADA</h6>
                 <%
                     let totalProfit = 0;
-                    let lockedCount = 0;
                     taskItems.forEach(i => {
                         if (i.best_price > 0 && i.best_price < i.valor_venda) {
                             totalProfit += (i.valor_venda - i.best_price) * i.quantidade;
                         }
-                        if (!i.is_unlocked) lockedCount++;
                     });
-
-                    const unlockAllCost = lockedCount * 75;
                 %>
-                <h2 class="text-4xl font-black text-warning tracking-tight">R$ <%= totalProfit.toFixed(2) %></h2>
-
-                <% if (lockedCount > 0) { %>
-                    <div class="mt-6 w-full">
-                        <p class="text-xs text-center opacity-60 mb-3"><%= lockedCount %> Itens Bloqueados</p>
-                        <button onclick="unlockAll()" class="btn btn-warning w-full shadow-lg text-black font-bold">
-                            <div class="flex flex-col items-center leading-none">
-                                <span class="flex items-center gap-2"><i class="fas fa-bolt"></i> DESBLOQUEAR TUDO (<%= unlockAllCost %> W)</span>
-                                <span class="text-[10px] font-normal opacity-80 mt-1">50% DE DESCONTO APLICADO</span>
-                            </div>
-                        </button>
-                    </div>
-                <% } else { %>
-                    <div class="mt-6 w-full space-y-2">
-                        <div class="alert alert-success bg-success/10 text-success border-success/20 flex justify-center text-sm font-bold">
-                            <i class="fas fa-check-circle"></i> ACESSO TOTAL LIBERADO
-                        </div>
-                        <a href="/download/<%= task.id %>" class="btn btn-primary w-full shadow-lg text-white font-bold">
-                            <i class="fas fa-file-excel"></i> BAIXAR PLANILHA COMPLETA
-                        </a>
-                    </div>
-                <% } %>
+                <h2 class="text-4xl font-black text-primary tracking-tight">R$ <%= totalProfit.toFixed(2) %></h2>
+                <p class="text-xs opacity-50 mt-2">Valor economizado em relação ao teto.</p>
             </div>
         </div>
 
@@ -225,40 +186,6 @@
                 window.location.reload();
             } else {
                 alert('Erro: ' + data.error);
-            }
-        } catch(e) { alert('Erro de conexão'); }
-    }
-
-    async function unlockItem(itemDbId) {
-        if (!confirm('Desbloquear este item por 150 Watts?')) return;
-        try {
-            const res = await fetch('/api/unlock-item', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ itemId: itemDbId })
-            });
-            const data = await res.json();
-            if (data.success) {
-                window.location.reload();
-            } else {
-                alert('Erro: ' + (data.error || 'Saldo insuficiente ou erro desconhecido.'));
-            }
-        } catch(e) { alert('Erro de conexão'); }
-    }
-
-    async function unlockAll() {
-        if (!confirm('Desbloquear TODOS os itens com 50% de desconto?')) return;
-        try {
-            const res = await fetch('/api/unlock-all', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ taskId: taskId })
-            });
-            const data = await res.json();
-            if (data.success) {
-                window.location.reload();
-            } else {
-                alert('Erro: ' + (data.error || 'Saldo insuficiente ou erro desconhecido.'));
             }
         } catch(e) { alert('Erro de conexão'); }
     }
