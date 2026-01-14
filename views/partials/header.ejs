@@ -34,18 +34,6 @@
         </div>
 
         <div class="flex-none gap-4">
-             <!-- Watts Capacitor -->
-            <div class="tooltip tooltip-bottom" data-tip="Reserva de Créditos">
-                <div class="flex items-center gap-2 bg-base-200 px-3 py-1 rounded-full border border-base-300">
-                    <i class="fas fa-bolt text-warning"></i>
-                    <div class="flex flex-col w-24 gap-1">
-                         <% const percentage = Math.min(100, (user.current_credits / 1000) * 100); %>
-                         <progress class="progress progress-warning w-full" value="<%= percentage %>" max="100"></progress>
-                    </div>
-                    <span class="text-xs font-bold font-mono"><%= user.current_credits %></span>
-                </div>
-            </div>
-
             <button id="themeToggle" class="btn btn-circle btn-ghost btn-sm" onclick="toggleTheme()" title="Alternar Tema">
                 <i class="fas fa-sun"></i>
             </button>

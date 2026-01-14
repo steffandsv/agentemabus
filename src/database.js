@@ -366,19 +366,8 @@ async function getTasksForUser(user, showArchived = false, limit = 100, offset =
     }
 
     // 4. User/Group Scope
-    if (user.role !== 'admin') {
-        const userGroups = await getUserGroups(user.id);
-        const groupIds = userGroups.map(g => g.id);
-
-        let scopeClause = "(user_id = ?";
-        params.push(user.id);
-
-        if (groupIds.length > 0) {
-            scopeClause += ` OR group_id IN (${groupIds.join(',')})`;
-        }
-        scopeClause += ")";
-        whereParts.push(scopeClause);
-    }
+    // Removed visibility restrictions: All users see all tasks.
+    // if (user.role !== 'admin') { ... }
 
     // Construct Query
     const whereSql = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
