@@ -15,7 +15,15 @@
             <button onclick="abortMission()" class="btn btn-error btn-sm text-white"><i class="fas fa-ban"></i> ABORTAR MISSÃO</button>
         <% } %>
 
-        <a href="/download/<%= task.id %>" class="btn btn-success btn-sm text-white"><i class="fas fa-file-excel"></i> BAIXAR RELATÓRIO</a>
+        <div class="flex flex-col items-end">
+            <a href="/download/<%= task.id %>" class="btn <%= task.status === 'completed' ? 'btn-success' : 'btn-warning' %> btn-sm text-white">
+                <i class="fas fa-file-excel"></i>
+                <%= task.status === 'completed' ? 'BAIXAR RELATÓRIO COMPLETO' : 'BAIXAR RELATÓRIO PARCIAL' %>
+            </a>
+            <% if (task.status !== 'completed') { %>
+                <span class="text-[10px] text-warning font-bold mt-1 uppercase">Em progresso...</span>
+            <% } %>
+        </div>
     </div>
 </div>
 
