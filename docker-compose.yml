@@ -6,7 +6,7 @@ services:
     restart: always
     shm_size: '4gb'
     ports:
-      - "127.0.0.1:3003:3000"
+      - "127.0.0.1:3002:3000"
     environment:
       - REDIS_URL=redis://redis:6379
       - DB_DB=${DB_DB}
