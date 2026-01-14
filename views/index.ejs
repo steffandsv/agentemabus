@@ -1,43 +1,118 @@
 <%- include('partials/header') %>
 
-<!-- HERO SECTION / DASHBOARD HEADER -->
-<div class="mb-8">
-    <div class="flex flex-col md:flex-row justify-between items-end gap-4">
-        <div>
-            <h2 class="text-3xl font-bold text-base-content">Radar de Oportunidades</h2>
-            <p class="text-base-content/60">Inteligência de mercado em tempo real.</p>
-        </div>
-        <div>
-             <a href="/oracle" class="btn btn-primary text-white">
-                <i class="fas fa-plus"></i> Nova Análise
-             </a>
-        </div>
+<div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+    <div>
+        <h1 class="text-3xl font-bold tracking-tight text-base-content">Histórico de Cotações</h1>
+        <p class="text-base-content/60 text-sm mt-1">Gerencie e visualize todas as suas cotações passadas.</p>
+    </div>
+    <a href="/sniper" class="btn btn-primary gap-2 shadow-lg">
+        <i class="fas fa-plus"></i> NOVA COTAÇÃO
+    </a>
+</div>
+
+<!-- FILTERS -->
+<div class="card bg-base-100 shadow-sm border border-base-200 mb-6">
+    <div class="card-body p-4">
+        <form action="/" method="GET" class="flex flex-col md:flex-row gap-4 items-end">
+            <div class="form-control w-full md:w-auto">
+                <label class="label"><span class="label-text">Buscar</span></label>
+                <input type="text" name="search" value="<%= search %>" placeholder="Nome da Tarefa..." class="input input-bordered w-full md:w-64" />
+            </div>
+            <div class="form-control w-full md:w-auto">
+                <label class="label"><span class="label-text">Status</span></label>
+                <select name="status" class="select select-bordered w-full md:w-40">
+                    <option value="">Todos</option>
+                    <option value="completed" <%= status === 'completed' ? 'selected' : '' %>>Concluídos</option>
+                    <option value="running" <%= status === 'running' ? 'selected' : '' %>>Em Execução</option>
+                    <option value="pending" <%= status === 'pending' ? 'selected' : '' %>>Pendentes</option>
+                    <option value="failed" <%= status === 'failed' ? 'selected' : '' %>>Falhas</option>
+                </select>
+            </div>
+            <div class="form-control w-full md:w-auto">
+                <label class="label"><span class="label-text">Data Início</span></label>
+                <input type="date" name="date_from" value="<%= dateFrom %>" class="input input-bordered" />
+            </div>
+             <div class="form-control w-full md:w-auto">
+                <label class="label"><span class="label-text">Data Fim</span></label>
+                <input type="date" name="date_to" value="<%= dateTo %>" class="input input-bordered" />
+            </div>
+            <div class="flex gap-2 w-full md:w-auto mt-4 md:mt-0">
+                <button type="submit" class="btn btn-neutral flex-1"><i class="fas fa-filter"></i> Filtrar</button>
+                <a href="/" class="btn btn-ghost btn-square" title="Limpar"><i class="fas fa-times"></i></a>
+            </div>
+        </form>
     </div>
 </div>
 
-<!-- OPPORTUNITIES GRID -->
-<div class="mb-12">
-    <% if (opportunities && opportunities.length > 0) { %>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-            <% opportunities.forEach(opp => { %>
-                <% const isLocked = (user && user.role === 'admin') ? false : true; %>
-                <%- include('partials/opportunity_card', { opp: opp, isLocked: isLocked }) %>
-            <% }) %>
-        </div>
-    <% } else { %>
-        <div class="card bg-base-100 shadow-sm border border-base-200 text-center py-16">
-            <div class="text-6xl text-base-content/20 mb-4">
-                <i class="fas fa-search"></i>
-            </div>
-            <h3 class="text-xl font-bold mb-2">Nenhuma oportunidade encontrada</h3>
-            <p class="text-base-content/60 max-w-md mx-auto mb-6">
-                O sistema ainda não encontrou editais relevantes ou você ainda não realizou uma busca.
-            </p>
-            <div>
-                <a href="/oracle" class="btn btn-primary text-white">Ir para o Analisador</a>
-            </div>
-        </div>
-    <% } %>
+<!-- TASKS TABLE -->
+<div class="card bg-base-100 shadow-sm border border-base-200 overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="table w-full">
+            <thead>
+                <tr class="bg-base-200/50 text-base-content/70 uppercase text-xs font-bold">
+                    <th>ID / Data</th>
+                    <th>Nome da Tarefa</th>
+                    <th>Status</th>
+                    <th class="text-right">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% if (tasks.length === 0) { %>
+                    <tr><td colspan="4" class="text-center py-10 opacity-50">Nenhuma cotação encontrada.</td></tr>
+                <% } %>
+                <% tasks.forEach(task => {
+                    // Manual filter check (if server logic not fully implemented yet)
+                    let show = true;
+                    if (status && task.status !== status) show = false;
+                    if (search && !task.name.toLowerCase().includes(search.toLowerCase())) show = false;
+                    // (Date filter omitted for brevity in template loop, ideally done in DB)
+
+                    if (show) {
+                %>
+                <tr class="hover:bg-base-200/30 transition-colors cursor-pointer" onclick="window.location='/task/<%= task.id %>'">
+                    <td>
+                        <div class="font-mono text-xs opacity-50"><%= task.id.substring(0,8) %>...</div>
+                        <div class="text-xs font-bold"><%= new Date(task.created_at).toLocaleDateString('pt-BR') %></div>
+                    </td>
+                    <td>
+                        <div class="font-bold"><%= task.name %></div>
+                        <% if (task.cep) { %><div class="text-xs opacity-60"><i class="fas fa-map-marker-alt"></i> <%= task.cep %></div><% } %>
+                    </td>
+                    <td>
+                        <% if (task.status === 'completed') { %>
+                            <div class="badge badge-success gap-1 text-white text-xs"><i class="fas fa-check"></i> CONCLUÍDO</div>
+                        <% } else if (task.status === 'running') { %>
+                            <div class="badge badge-info gap-1 text-white text-xs"><span class="loading loading-spinner loading-xs"></span> RODANDO</div>
+                        <% } else if (task.status === 'pending') { %>
+                            <div class="badge badge-warning gap-1 text-white text-xs"><i class="fas fa-clock"></i> NA FILA</div>
+                        <% } else if (task.status === 'failed') { %>
+                            <div class="badge badge-error gap-1 text-white text-xs"><i class="fas fa-times"></i> ERRO</div>
+                        <% } else { %>
+                            <div class="badge badge-ghost text-xs"><%= task.status %></div>
+                        <% } %>
+                    </td>
+                    <td class="text-right">
+                        <a href="/task/<%= task.id %>" class="btn btn-sm btn-ghost btn-square text-primary"><i class="fas fa-eye"></i></a>
+                    </td>
+                </tr>
+                <% } }); %>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- PAGINATION (Simple) -->
+<div class="flex justify-between items-center mt-4">
+    <div class="text-xs opacity-50">Página <%= page %></div>
+    <div class="join">
+        <% if (page > 1) { %>
+            <a href="/?page=<%= page - 1 %>&status=<%= status %>&search=<%= search %>" class="join-item btn btn-sm">«</a>
+        <% } %>
+        <button class="join-item btn btn-sm btn-active"><%= page %></button>
+        <% if (hasNext) { %>
+            <a href="/?page=<%= page + 1 %>&status=<%= status %>&search=<%= search %>" class="join-item btn btn-sm">»</a>
+        <% } %>
+    </div>
 </div>
 
 <%- include('partials/footer') %>

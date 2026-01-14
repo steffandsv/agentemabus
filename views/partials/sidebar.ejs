@@ -3,42 +3,32 @@
         <div class="text-2xl font-bold flex items-center gap-2 tracking-tight">
             <i class="fas fa-cube text-primary"></i> MABUS
         </div>
+        <div class="text-xs text-base-content/60 mt-1">Internal Tool</div>
     </div>
 
     <ul class="menu p-4 w-full text-base-content gap-1 flex-1">
+        <li class="menu-title">MENU PRINCIPAL</li>
         <li>
             <a href="/" class="<%= path === '/' ? 'active' : '' %>">
-                <i class="fas fa-search w-5"></i> BUSCA
-            </a>
-        </li>
-        <li>
-            <a href="/oracle" class="<%= path === '/oracle' ? 'active' : '' %>">
-                <i class="fas fa-chart-pie w-5"></i> ANALISADOR
+                <i class="fas fa-history w-5"></i> HISTÓRICO
             </a>
         </li>
         <li>
             <a href="/sniper" class="<%= path === '/sniper' ? 'active' : '' %>">
-                <i class="fas fa-bullseye w-5"></i> COTADOR
-            </a>
-        </li>
-
-        <li class="menu-title mt-4">GESTÃO</li>
-
-        <li>
-            <a href="/dashboard" class="<%= path === '/dashboard' ? 'active' : '' %>">
-                <i class="fas fa-tasks w-5"></i> DASHBOARD
+                <i class="fas fa-plus-circle w-5"></i> NOVA COTAÇÃO
             </a>
         </li>
 
         <% if (user && user.role === 'admin') { %>
+        <li class="menu-title mt-4">ADMINISTRAÇÃO</li>
         <li>
             <a href="/admin/dashboard" class="<%= path === '/admin/dashboard' ? 'active' : '' %>">
-                <i class="fas fa-user-shield w-5"></i> ADMIN
+                <i class="fas fa-users-cog w-5"></i> USUÁRIOS
             </a>
         </li>
         <li>
             <a href="/admin/ai-config" class="<%= path === '/admin/ai-config' ? 'active' : '' %>">
-                <i class="fas fa-robot w-5"></i> GERENCIAR I.A.
+                <i class="fas fa-robot w-5"></i> CONFIGURAÇÃO I.A.
             </a>
         </li>
         <% } %>

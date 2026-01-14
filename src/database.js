@@ -15,7 +15,7 @@ async function initDB() {
             waitForConnections: true,
             connectionLimit: 10,
             queueLimit: 0,
-            ssl: { rejectUnauthorized: false } // Often needed for external hosting
+            ssl: { rejectUnauthorized: false }
         };
 
         pool = mysql.createPool(config);
@@ -84,19 +84,6 @@ async function initDB() {
             )
         `);
 
-        // --- CREDITS LEDGER TABLE ---
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS credits_ledger (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT NOT NULL,
-                amount INT NOT NULL,
-                reason VARCHAR(255),
-                task_id VARCHAR(36),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        `);
-
         // --- TASK ITEMS TABLE ---
         await pool.query(`
             CREATE TABLE IF NOT EXISTS task_items (
@@ -107,7 +94,7 @@ async function initDB() {
                 max_price DECIMAL(10, 2),
                 quantity INT,
                 status VARCHAR(50) DEFAULT 'pending',
-                is_unlocked BOOLEAN DEFAULT FALSE,
+                is_unlocked BOOLEAN DEFAULT TRUE,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
             )
@@ -159,23 +146,6 @@ async function initDB() {
             )
         `);
 
-        // --- OPPORTUNITIES (ORACLE/RADAR) TABLE ---
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS opportunities (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT, -- Null for Admin/Radar, Set for User History
-                title VARCHAR(255),
-                municipality VARCHAR(255),
-                metadata_json JSON, -- The Public Teaser
-                locked_content_json JSON, -- The Private Analysis
-                items_json JSON, -- Extracted Items for Sniper
-                ipm_score INT DEFAULT 0,
-                status VARCHAR(50) DEFAULT 'available', -- available, unlocked, archived
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        `);
-
         // --- SETTINGS TABLE ---
         await pool.query(`
             CREATE TABLE IF NOT EXISTS settings (
@@ -195,7 +165,6 @@ async function initDB() {
         }
 
         // Migrations (Safe to run multiple times)
-        // Note: Using loop with individual try-catch to ensure one failure doesn't stop others
         const migrations = [
             "ALTER TABLE tasks ADD COLUMN external_link TEXT",
             "ALTER TABLE tasks ADD COLUMN tags JSON",
@@ -208,12 +177,12 @@ async function initDB() {
             "ALTER TABLE users ADD COLUMN cpf VARCHAR(20)",
             "ALTER TABLE users ADD COLUMN cnpj VARCHAR(20)",
             "ALTER TABLE users ADD COLUMN current_credits INT DEFAULT 0",
-            "ALTER TABLE task_items ADD COLUMN is_unlocked BOOLEAN DEFAULT FALSE"
+            "ALTER TABLE task_items ADD COLUMN is_unlocked BOOLEAN DEFAULT TRUE"
         ];
 
         for (const sql of migrations) {
             try { await pool.query(sql); } catch (e) {
-                // Ignore "duplicate column" errors
+                // Ignore errors
             }
         }
 
@@ -249,7 +218,7 @@ async function createUser(userData) {
     const hash = await bcrypt.hash(password, 10);
     await p.query(
         "INSERT INTO users (username, password_hash, role, full_name, cpf, cnpj, current_credits) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [username, hash, role || 'user', full_name, cpf, cnpj, 500]
+        [username, hash, role || 'user', full_name, cpf, cnpj, 999999] // Unlimited default
     );
 }
 
@@ -273,7 +242,7 @@ async function updateUserRole(id, role) {
 }
 
 
-// --- GROUP & CREDIT FUNCTIONS ---
+// --- GROUP FUNCTIONS ---
 
 async function createGroup(name, description) {
     const p = await getPool();
@@ -316,43 +285,6 @@ async function removeUserFromGroup(userId, groupId) {
     await p.query("DELETE FROM user_groups WHERE user_id = ? AND group_id = ?", [userId, groupId]);
 }
 
-async function addCredits(userId, amount, reason, taskId = null) {
-    const p = await getPool();
-    if (!p) throw new Error("DB not ready");
-
-    const connection = await p.getConnection();
-    try {
-        await connection.beginTransaction();
-
-        // 1. Insert Ledger
-        await connection.query(
-            "INSERT INTO credits_ledger (user_id, amount, reason, task_id) VALUES (?, ?, ?, ?)",
-            [userId, amount, reason, taskId]
-        );
-
-        // 2. Update User Balance
-        await connection.query(
-            "UPDATE users SET current_credits = current_credits + ? WHERE id = ?",
-            [amount, userId]
-        );
-
-        await connection.commit();
-    } catch (e) {
-        await connection.rollback();
-        throw e;
-    } finally {
-        connection.release();
-    }
-}
-
-async function getUserCredits(userId) {
-    const p = await getPool();
-    if (!p) return 0;
-    const [rows] = await p.query("SELECT current_credits FROM users WHERE id = ?", [userId]);
-    return rows[0] ? rows[0].current_credits : 0;
-}
-
-
 // --- TASK FUNCTIONS ---
 async function createTask(task) {
     const p = await getPool();
@@ -375,7 +307,7 @@ async function createTask(task) {
         task.module_name || 'gemini_meli',
         task.group_id || null,
         task.user_id || null,
-        task.cost_estimate || 0
+        0
     ]);
     return task.id;
 }
@@ -398,43 +330,69 @@ async function updateTaskStatus(id, status, outputFile = null) {
     await p.query(sql, params);
 }
 
-// Updated getTasks to support scoping
-async function getTasksForUser(user, showArchived = false, limit = 100, offset = 0) {
+// Updated getTasks to support scoping and filters
+async function getTasksForUser(user, showArchived = false, limit = 100, offset = 0, filters = {}) {
     const p = await getPool();
     if (!p) return [];
 
-    let statusSql = "status != 'archived'";
-    if (showArchived) statusSql = "status = 'archived'";
+    const params = [];
+    let whereParts = [];
 
-    // Safe params
-    limit = parseInt(limit) || 100;
-    offset = parseInt(offset) || 0;
-
-    if (user.role === 'admin') {
-        // Admin sees all
-        const sql = `SELECT * FROM tasks WHERE ${statusSql} ORDER BY position ASC, created_at DESC LIMIT ? OFFSET ?`;
-        const [rows] = await p.query(sql, [limit, offset]);
-        return rows;
+    // 1. Status Filter
+    if (showArchived) {
+        whereParts.push("status = 'archived'");
     } else {
-        // User sees tasks from their groups OR their own tasks
-        // Get user groups
+        whereParts.push("status != 'archived'");
+        if (filters.status) {
+            whereParts.push("status = ?");
+            params.push(filters.status);
+        }
+    }
+
+    // 2. Search Filter
+    if (filters.search && filters.search.trim().length > 0) {
+        whereParts.push("name LIKE ?");
+        params.push(`%${filters.search.trim()}%`);
+    }
+
+    // 3. Date Filters
+    if (filters.dateFrom) {
+        whereParts.push("created_at >= ?");
+        params.push(`${filters.dateFrom} 00:00:00`);
+    }
+    if (filters.dateTo) {
+        whereParts.push("created_at <= ?");
+        params.push(`${filters.dateTo} 23:59:59`);
+    }
+
+    // 4. User/Group Scope
+    if (user.role !== 'admin') {
         const userGroups = await getUserGroups(user.id);
         const groupIds = userGroups.map(g => g.id);
 
-        let whereClause = `(${statusSql}) AND (user_id = ?`;
-        if (groupIds.length > 0) {
-            whereClause += ` OR group_id IN (${groupIds.join(',')})`; // Safe int join
-        }
-        whereClause += `)`;
+        let scopeClause = "(user_id = ?";
+        params.push(user.id);
 
-        const sql = `SELECT * FROM tasks WHERE ${whereClause} ORDER BY position ASC, created_at DESC LIMIT ? OFFSET ?`;
-        const [rows] = await p.query(sql, [user.id, limit, offset]);
-        return rows;
+        if (groupIds.length > 0) {
+            scopeClause += ` OR group_id IN (${groupIds.join(',')})`;
+        }
+        scopeClause += ")";
+        whereParts.push(scopeClause);
     }
+
+    // Construct Query
+    const whereSql = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
+    const sql = `SELECT * FROM tasks ${whereSql} ORDER BY position ASC, created_at DESC LIMIT ? OFFSET ?`;
+
+    // Add pagination params
+    params.push(parseInt(limit) || 100);
+    params.push(parseInt(offset) || 0);
+
+    const [rows] = await p.query(sql, params);
+    return rows;
 }
 
 async function getTasks(showArchived = false) {
-    // Legacy/Internal use
     const p = await getPool();
     if (!p) return [];
 
@@ -493,12 +451,13 @@ async function createTaskItems(taskId, items) {
         i.ID || i.id,
         i.Descricao || i.description || i.Description,
         i.valor_venda,
-        i.quantidade
+        i.quantidade,
+        true // is_unlocked default TRUE
     ]);
 
     if (values.length === 0) return;
 
-    const sql = `INSERT INTO task_items (task_id, original_id, description, max_price, quantity) VALUES ?`;
+    const sql = `INSERT INTO task_items (task_id, original_id, description, max_price, quantity, is_unlocked) VALUES ?`;
     await p.query(sql, [values]);
 }
 
@@ -561,7 +520,6 @@ async function getTaskLogs(taskId) {
     return rows;
 }
 
-// Fetch Full Results for Excel Generation
 async function createTaskMetadata(taskId, data) {
     const p = await getPool();
     if (!p) return;
@@ -601,7 +559,7 @@ async function getTaskFullResults(taskId) {
         results.push({
             id: item.original_id,
             db_id: item.id, // Internal ID for unlocking
-            is_unlocked: item.is_unlocked,
+            is_unlocked: true, // ALWAYS TRUE
             description: item.description,
             valor_venda: parseFloat(item.max_price),
             quantidade: item.quantity,
@@ -619,62 +577,6 @@ async function getTaskMetadata(taskId) {
     const p = await getPool();
     if (!p) return null;
     const [rows] = await p.query("SELECT * FROM task_metadata WHERE task_id = ?", [taskId]);
-    return rows[0];
-}
-
-async function updateTaskItemLockStatus(itemId, isUnlocked) {
-    const p = await getPool();
-    if (!p) throw new Error("DB not ready");
-    await p.query("UPDATE task_items SET is_unlocked = ? WHERE id = ?", [isUnlocked, itemId]);
-}
-
-async function unlockAllTaskItems(taskId) {
-    const p = await getPool();
-    if (!p) throw new Error("DB not ready");
-    await p.query("UPDATE task_items SET is_unlocked = TRUE WHERE task_id = ?", [taskId]);
-}
-
-// --- OPPORTUNITIES (RADAR/ORACLE) FUNCTIONS ---
-
-async function createOpportunity(userId, data) {
-    const p = await getPool();
-    if (!p) throw new Error("DB not ready");
-
-    // data expects: { title, municipality, metadata, locked_content, items, ipm_score }
-    const sql = `INSERT INTO opportunities
-        (user_id, title, municipality, metadata_json, locked_content_json, items_json, ipm_score)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`;
-
-    await p.query(sql, [
-        userId || null, // If null, it's global/radar
-        data.title,
-        data.municipality,
-        JSON.stringify(data.metadata),
-        JSON.stringify(data.locked_content),
-        JSON.stringify(data.items),
-        data.ipm_score || 0
-    ]);
-}
-
-async function getRadarOpportunities() {
-    const p = await getPool();
-    if (!p) return [];
-    // Where user_id is NULL (Admin/System generated)
-    const [rows] = await p.query("SELECT * FROM opportunities WHERE user_id IS NULL ORDER BY created_at DESC");
-    return rows;
-}
-
-async function getUserOpportunities(userId) {
-    const p = await getPool();
-    if (!p) return [];
-    const [rows] = await p.query("SELECT * FROM opportunities WHERE user_id = ? ORDER BY created_at DESC", [userId]);
-    return rows;
-}
-
-async function getOpportunityById(id) {
-    const p = await getPool();
-    if (!p) return null;
-    const [rows] = await p.query("SELECT * FROM opportunities WHERE id = ?", [id]);
     return rows[0];
 }
 
@@ -718,8 +620,6 @@ module.exports = {
     getUserGroups,
     addUserToGroup,
     removeUserFromGroup,
-    addCredits,
-    getUserCredits,
     createTaskItems,
     getTaskItem,
     getTaskItems,
@@ -729,12 +629,6 @@ module.exports = {
     getTaskFullResults,
     createTaskMetadata,
     getTaskMetadata,
-    updateTaskItemLockStatus,
-    unlockAllTaskItems,
-    createOpportunity,
-    getRadarOpportunities,
-    getUserOpportunities,
-    getOpportunityById,
     getSetting,
     setSetting
 };

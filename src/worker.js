@@ -2,9 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const pLimit = require('p-limit');
 const { readInput } = require('./input');
-// writeOutput is no longer used directly for file generation in worker,
-// but we might need the logic? No, we save to DB.
-// const { writeOutput } = require('./output');
 const {
     updateTaskStatus,
     getTaskById,
@@ -14,7 +11,6 @@ const {
     getTaskItems,
     saveCandidates,
     logTaskMessage,
-    addCredits,
     getSetting
 } = require('./database');
 
@@ -34,14 +30,7 @@ function Logger(taskId, logPath) {
         const line = `[${timestamp}] ${msg}`;
         console.log(`[Worker] ${line}`);
 
-        // Log to File (Legacy/Backup)
-        try {
-            if (logPath) fs.appendFileSync(logPath, line + '\n');
-        } catch (e) {
-            console.error('Error writing to log file:', e);
-        }
-
-        // Log to DB (New)
+        // Log to DB
         if (this.taskId) {
             logTaskMessage(this.taskId, msg, 'info');
         }
@@ -55,13 +44,6 @@ function Logger(taskId, logPath) {
             content: content,
             timestamp: new Date().toLocaleTimeString('pt-BR')
         };
-        const line = `[PENSAMENTO]${JSON.stringify(payload)}`;
-
-        // File
-        try {
-            if (logPath) fs.appendFileSync(logPath, line + '\n');
-        } catch (e) {}
-
         // DB (As a debug log?)
         if (this.taskId) {
             logTaskMessage(this.taskId, `[THOUGHT] Item ${itemId} (${stage})`, 'debug');
@@ -147,8 +129,7 @@ async function processTask(task) {
         
         if (items && items.length > 0) {
              logger.log(`[DB] ${items.length} itens recuperados do banco de dados.`);
-             // Normalize keys if needed (DB columns: original_id, description, max_price, quantity)
-             // Worker logic expects: id, description, valor_venda, quantidade
+             // Normalize keys
              items = items.map(i => ({
                  id: i.original_id,
                  description: i.description,
@@ -199,28 +180,11 @@ async function processTask(task) {
         const concurrency = pLimit(CONCURRENT_ITEMS_LIMIT);
         logger.log(`⚡ Processamento Paralelo: ${CONCURRENT_ITEMS_LIMIT} threads.`);
 
-        // Fetch Task Metadata for AI Override
-        // We need to fetch metadata for the task to check for overrides
-        // Assuming a helper exists or we query metadata table directly.
-        // For simplicity, let's look at getTaskById again or fetch metadata.
-        // There is no direct `getTaskMetadata` exported in `database.js` easily accessible here?
-        // Wait, `createTaskMetadata` exists. `getTaskFullResults`?
-        // Let's assume we can fetch it or trust global settings for now,
-        // OR add `getTaskMetadata` to database.js?
-        // Actually, let's fetch it via raw query if needed or add a helper.
-        // But to be cleaner, let's modify `getTaskById` to include metadata?
-        // Or just add `getTaskMetadata` to imports.
-
-        // Quick helper query for metadata since it's in a separate table 'task_metadata'
-        // We need to import 'getPool' or similar? No, worker imports from database.js.
-        // Let's assume I can add `getTaskMetadata` to database.js export later.
-        // For now, I will use the global setting as fallback.
-
-        const { getTaskMetadata } = require('./database'); // Need to ensure this is exported!
+        const { getTaskMetadata } = require('./database');
         let overrideProvider = null;
         try {
             const metaRows = await getTaskMetadata(taskId);
-            if (metaRows && metaRows.data) { // Assuming it returns the object { data: ... }
+            if (metaRows && metaRows.data) {
                  const metaData = typeof metaRows.data === 'string' ? JSON.parse(metaRows.data) : metaRows.data;
                  if (metaData.ai_provider_override) {
                      overrideProvider = metaData.ai_provider_override;
@@ -233,7 +197,7 @@ async function processTask(task) {
 
         const sniperConfig = {
             provider: overrideProvider || globalProvider,
-            model: await getSetting('sniper_model'), // Could override model too if UI supported it
+            model: await getSetting('sniper_model'),
             apiKey: await getSetting('sniper_api_key')
         };
 
@@ -263,7 +227,6 @@ async function processTask(task) {
                 // Result structure: { ..., offers: [...], winnerIndex: N }
                 if (result && result.offers && result.offers.length > 0) {
                     // Save to DB
-                    // Need to find the task_item_id.
                     const dbItem = await getTaskItem(taskId, itemJob.id);
                     if (dbItem) {
                         await saveCandidates(dbItem.id, result.offers, result.winnerIndex);
@@ -272,14 +235,7 @@ async function processTask(task) {
                         logger.log(`[Item ${itemJob.id}] ⚠️ ERRO: Item não encontrado no DB.`);
                     }
                 } else {
-                     // Save empty result to mark as done?
-                     const dbItem = await getTaskItem(taskId, itemJob.id);
-                     if (dbItem) {
-                         // Save nothing but mark done? Or save a "not found" candidate?
-                         // For now, simple logic: if no result, just log.
-                         // Maybe update status to 'error'?
-                         logger.log(`[Item ${itemJob.id}] ⚠️ Nenhum resultado encontrado.`);
-                     }
+                     logger.log(`[Item ${itemJob.id}] ⚠️ Nenhum resultado encontrado.`);
                 }
             } catch (e) {
                 logger.log(`💥 [Item ${itemJob.id}] Falha Crítica: ${e.message}`);
@@ -294,82 +250,10 @@ async function processTask(task) {
             return;
         }
 
-        // --- CREDIT REFUND LOGIC ---
-        // 1. Calculate Actual Cost (Items with successful results and risk < 5)
-        // Note: Risk score is string "High", "Medium", "Low" or numerical?
-        // Checking saveCandidates: stores 'risk_score' VARCHAR.
-        // Assuming AI returns Low/Medium/High or 1-10. Prompt says "risk < 5".
-        // Let's assume numerical or map "Low" -> 1.
-        // For safety, let's count ANY successfully found item (where we have a candidate) as a success for now,
-        // or refine if we can parse risk.
-        // The prompt says: "consumirá 1 crédito por item que foi cotado corretamente (risco menor que 5)".
-        // We need to fetch the results to count.
-
-        // Count successes
-        const { getTaskFullResults } = require('./database');
-        const results = await getTaskFullResults(taskId);
-
-        let successfulItems = 0;
-        if (results) {
-            results.forEach(item => {
-                if (item.offers && item.offers.length > 0) {
-                    // Check winner or best offer risk
-                    // item.winnerIndex points to the selected one.
-                    const winner = item.offers[item.winnerIndex];
-                    if (winner) {
-                        // Parse risk. If it's "Low" or "1/10", etc.
-                        // Let's assume if we found a winner, it's a success.
-                        // To follow strict "risk < 5" rule, we need to know the format.
-                        // Assuming the validator output "risk_score" is a number string like "2/10".
-                        const riskStr = String(winner.risk_score).split('/')[0];
-                        const riskVal = parseInt(riskStr);
-                        if (!isNaN(riskVal) && riskVal < 5) {
-                            successfulItems++;
-                        } else if (winner.risk_score === 'Low' || winner.risk_score === 'Medium') {
-                             // Fallback for text
-                            successfulItems++;
-                        }
-                    }
-                }
-            });
-        }
-
-        // 2. Refund Logic
-        // Cost Estimate was stored in Task? Yes, tasks.cost_estimate.
-        // We need to fetch the task again to get the estimate (or pass it through).
-        // Let's fetch task info with cost_estimate (added to schema).
-        const taskInfo = await getTaskById(taskId);
-        const initialCost = taskInfo.cost_estimate || 0;
-        const actualCost = successfulItems; // 1 credit per success
-
-        const refundAmount = Math.max(0, initialCost - actualCost);
-
-        if (refundAmount > 0 && taskInfo.user_id) {
-            logger.log(`💰 Reembolsando ${refundAmount} créditos (Estimado: ${initialCost}, Real: ${actualCost}).`);
-            try {
-                await addCredits(taskInfo.user_id, refundAmount, `Reembolso de Sobra - Tarefa: ${taskInfo.name}`, taskId);
-            } catch (err) {
-                logger.log(`❌ Erro ao reembolsar créditos: ${err.message}`);
-            }
-        }
-
         logger.log('🎉 Finalizado com Sucesso. Resultados persistidos no Banco de Dados.');
         await updateTaskStatus(taskId, 'completed', 'db-generated');
 
     } catch (e) {
-        // If Failed Completely, Refund ALL?
-        // "caso o sistema falhe inteiramente... a quantidade correta será devolvida"
-        // If logic fails here, we should probably refund everything.
-        try {
-            const taskInfo = await getTaskById(taskId);
-            if (taskInfo && taskInfo.cost_estimate > 0 && taskInfo.user_id) {
-                 logger.log(`💰 Reembolso Total por Falha: ${taskInfo.cost_estimate} créditos.`);
-                 await addCredits(taskInfo.user_id, taskInfo.cost_estimate, `Reembolso Falha Total - Tarefa: ${taskInfo.name}`, taskId);
-            }
-        } catch(refundErr) {
-            console.error("Refund error:", refundErr);
-        }
-
         logger.log(`💀 ERRO GERAL: ${e.message}`);
         console.error(e);
         await updateTaskStatus(taskId, 'failed');
