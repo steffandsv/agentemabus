@@ -108,7 +108,8 @@ function startWorker() {
 // --- TASK PROCESSOR ---
 async function processTask(task) {
     const { id: taskId, cep, input_file: filePath, log_file: logPath, module_name } = task;
-    const moduleName = module_name || 'gemini_meli';
+    // HIVE-MIND is now the default module
+    const moduleName = module_name || 'hivemind';
     
     const logger = new Logger(taskId, logPath);
     logger.log(`🚀 Iniciando Missão #${taskId}`);

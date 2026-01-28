@@ -156,6 +156,38 @@ async function initDB() {
             )
         `);
 
+        // --- ENTITY CACHE TABLE (HIVE-MIND) ---
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS entity_cache (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                specs_hash VARCHAR(64) NOT NULL,
+                entity_name VARCHAR(255) NOT NULL,
+                manufacturer VARCHAR(255),
+                model_number VARCHAR(100),
+                validation_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                specs_json TEXT,
+                search_queries TEXT,
+                source_urls TEXT,
+                INDEX idx_specs_hash (specs_hash)
+            )
+        `);
+
+        // --- AGENT LOGS TABLE (HIVE-MIND) ---
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS agent_logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                task_id VARCHAR(36) NOT NULL,
+                item_id VARCHAR(50),
+                agent_name VARCHAR(20),
+                action VARCHAR(100),
+                input_json TEXT,
+                output_json TEXT,
+                duration_ms INT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_task (task_id)
+            )
+        `);
+
         // Check for default admin
         const [users] = await pool.query("SELECT * FROM users WHERE username = 'admin'");
         if (users.length === 0) {
@@ -589,6 +621,7 @@ async function setSetting(key, value) {
 
 module.exports = {
     initDB,
+    getPool,
     createTask,
     updateTaskStatus,
     getTasks,
@@ -621,3 +654,4 @@ module.exports = {
     getSetting,
     setSetting
 };
+
