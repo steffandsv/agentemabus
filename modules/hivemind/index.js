@@ -46,6 +46,8 @@ async function execute(job, config) {
     let state = {
         current: STATES.INIT,
         item: { id, description, maxPrice, quantity },
+        complexity: null,              // NEW: LOW or HIGH
+        marketplaceSearchTerm: null,   // NEW: Clean query for marketplace
         killSpecs: null,
         googleQueries: null,
         discoveredEntities: [],
@@ -153,22 +155,41 @@ async function runPerito(state, config, logger, itemId) {
     try {
         const result = await executePerito(state.item.description, config);
         
+        state.complexity = result.complexity || 'HIGH';
+        state.marketplaceSearchTerm = result.marketplaceSearchTerm || state.item.description.substring(0, 50);
         state.killSpecs = result.killSpecs;
         state.googleQueries = result.queries;
         state.negativeTerms = result.negativeTerms || [];
         
+        logger.log(`📊 [Item ${itemId}] Complexidade: ${state.complexity}`);
+        logger.log(`🏷️ [Item ${itemId}] Termo de Busca: "${state.marketplaceSearchTerm}"`);
         logger.log(`📋 [Item ${itemId}] Kill-Specs: ${state.killSpecs.join(', ')}`);
-        logger.log(`🔍 [Item ${itemId}] Queries: ${state.googleQueries.length} geradas`);
         
-        logState(state, `PERITO extraiu ${state.killSpecs.length} especificações únicas`, logger, itemId);
+        logState(state, `PERITO extraiu ${state.killSpecs.length} especificações (${state.complexity})`, logger, itemId);
         
-        state.current = STATES.DETETIVE;
+        // COMPLEXITY ROUTING: LOW items skip DETETIVE/AUDITOR
+        if (state.complexity === 'LOW') {
+            logger.log(`⚡ [Item ${itemId}] ROTEAMENTO: Complexidade BAIXA - pulando investigação`);
+            state.goldEntity = {
+                name: state.marketplaceSearchTerm,
+                manufacturer: null,
+                searchQueries: [state.marketplaceSearchTerm],
+                isGeneric: true,
+                isLowComplexity: true
+            };
+            state.current = STATES.SNIPER; // Skip directly to marketplace search
+        } else {
+            logger.log(`🔍 [Item ${itemId}] ROTEAMENTO: Complexidade ALTA - iniciando investigação`);
+            state.current = STATES.DETETIVE;
+        }
         
     } catch (err) {
         logger.log(`❌ [Item ${itemId}] PERITO Error: ${err.message}`);
-        // Fallback: use description as-is
+        // Fallback: use marketplace term, default to DETETIVE
+        state.complexity = 'HIGH';
+        state.marketplaceSearchTerm = state.item.description.substring(0, 50);
         state.killSpecs = [state.item.description];
-        state.googleQueries = [state.item.description];
+        state.googleQueries = [state.item.description.substring(0, 60)];
         state.current = STATES.DETETIVE;
     }
     
@@ -198,11 +219,11 @@ async function runDetetive(state, config, logger, itemId) {
         
         if (!result.entities || result.entities.length === 0) {
             logger.log(`⚠️ [Item ${itemId}] DETETIVE: Nenhuma entidade descoberta.`);
-            // Fallback to direct marketplace search
+            // Fallback to direct marketplace search with clean query
             state.goldEntity = {
-                name: state.item.description,
+                name: state.marketplaceSearchTerm || state.item.description.substring(0, 50),
                 manufacturer: null,
-                searchQueries: [state.item.description],
+                searchQueries: [state.marketplaceSearchTerm || state.item.description.substring(0, 50)],
                 isGeneric: true
             };
             state.current = STATES.SNIPER;
@@ -221,11 +242,11 @@ async function runDetetive(state, config, logger, itemId) {
         
     } catch (err) {
         logger.log(`❌ [Item ${itemId}] DETETIVE Error: ${err.message}`);
-        // Fallback
+        // Fallback with clean query
         state.goldEntity = {
-            name: state.item.description,
+            name: state.marketplaceSearchTerm || state.item.description.substring(0, 50),
             manufacturer: null,
-            searchQueries: [state.item.description],
+            searchQueries: [state.marketplaceSearchTerm || state.item.description.substring(0, 50)],
             isGeneric: true
         };
         state.current = STATES.SNIPER;
@@ -281,12 +302,12 @@ async function runAuditor(state, page, config, logger, itemId) {
             return state;
         }
         
-        // All retries exhausted - fallback to generic search
+        // All retries exhausted - fallback to generic search with clean query
         logger.log(`⚠️ [Item ${itemId}] AUDITOR: Todas as entidades falharam. Usando busca genérica.`);
         state.goldEntity = {
-            name: state.item.description,
+            name: state.marketplaceSearchTerm || state.item.description.substring(0, 50),
             manufacturer: null,
-            searchQueries: [state.item.description],
+            searchQueries: [state.marketplaceSearchTerm || state.item.description.substring(0, 50)],
             isGeneric: true
         };
         state.current = STATES.SNIPER;
@@ -294,9 +315,9 @@ async function runAuditor(state, page, config, logger, itemId) {
     } catch (err) {
         logger.log(`❌ [Item ${itemId}] AUDITOR Error: ${err.message}`);
         state.goldEntity = {
-            name: state.item.description,
+            name: state.marketplaceSearchTerm || state.item.description.substring(0, 50),
             manufacturer: null,
-            searchQueries: [state.item.description],
+            searchQueries: [state.marketplaceSearchTerm || state.item.description.substring(0, 50)],
             isGeneric: true
         };
         state.current = STATES.SNIPER;

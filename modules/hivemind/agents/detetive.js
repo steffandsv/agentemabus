@@ -5,7 +5,8 @@
  * Find the actual MANUFACTURER/MODEL that matches the Kill-Specs.
  * 
  * Tools:
- * - Google Custom Search API (or SerpAPI)
+ * - Google Custom Search API (primary)
+ * - DuckDuckGo Search (fallback - no API key required)
  * - Jina Reader (convert any URL to markdown)
  * 
  * Output:
@@ -16,6 +17,7 @@
 const path = require('path');
 const fs = require('fs');
 const fetch = require('node-fetch');
+const { search: duckDuckGoSearch } = require('duckduckgo-search');
 const { generateText, PROVIDERS } = require('../../../src/services/ai_manager');
 const { getSetting } = require('../../../src/database');
 const { googleSearch: customSearch } = require('../../../src/google_services');
@@ -113,17 +115,29 @@ async function executeSearches(queries, relaxationLevel) {
             let results = [];
             
             if (searchEnabled && process.env.GOOGLE_SEARCH_API_KEY && process.env.GOOGLE_SEARCH_CX) {
-                // Use existing Google Custom Search
+                // Primary: Google Custom Search
+                console.log(`[DETETIVE] Using Google Custom Search for: "${query.substring(0, 50)}..."`);
                 results = await customSearch(query) || [];
             } else {
-                // Fallback: Mock/limited search
-                console.log(`[DETETIVE] Google Search not configured. Using mock data.`);
-                results = generateMockSearchResults(query);
+                // Fallback: DuckDuckGo (free, no API key)
+                console.log(`[DETETIVE] Google Search not configured. Using DuckDuckGo fallback.`);
+                results = await searchWithDuckDuckGo(query);
             }
             
             allResults.push(...results);
         } catch (err) {
             console.warn(`[DETETIVE] Search error for "${query}": ${err.message}`);
+            
+            // Try DuckDuckGo as last resort if Google failed
+            if (err.message !== 'DUCKDUCKGO_FAILED') {
+                try {
+                    console.log(`[DETETIVE] Google failed, trying DuckDuckGo...`);
+                    const ddgResults = await searchWithDuckDuckGo(query);
+                    allResults.push(...ddgResults);
+                } catch (ddgErr) {
+                    console.error(`[DETETIVE] All search engines failed: ${ddgErr.message}`);
+                }
+            }
         }
     }
     
@@ -134,6 +148,42 @@ async function executeSearches(queries, relaxationLevel) {
         seen.add(r.link);
         return true;
     });
+}
+
+/**
+ * Search using DuckDuckGo (free, no API key required)
+ */
+async function searchWithDuckDuckGo(query) {
+    try {
+        // Sanitize query - DuckDuckGo doesn't like special operators
+        const cleanQuery = query
+            .replace(/site:\S+/gi, '')
+            .replace(/filetype:\S+/gi, '')
+            .replace(/["']/g, '')
+            .trim();
+        
+        console.log(`[DETETIVE] DuckDuckGo search: "${cleanQuery.substring(0, 50)}..."`);
+        
+        const searchResults = await duckDuckGoSearch(cleanQuery, { maxResults: 5 });
+        
+        if (!searchResults || searchResults.length === 0) {
+            console.log('[DETETIVE] DuckDuckGo returned no results');
+            return [];
+        }
+        
+        // Normalize to match Google format
+        return searchResults.map(r => ({
+            title: r.title || '',
+            link: r.href || r.url || '',
+            snippet: r.body || r.description || ''
+        })).filter(r => r.link);
+        
+    } catch (err) {
+        console.error(`[DETETIVE] DuckDuckGo error: ${err.message}`);
+        const error = new Error('DUCKDUCKGO_FAILED');
+        error.cause = err;
+        throw error;
+    }
 }
 
 /**
@@ -304,13 +354,5 @@ function relaxQueries(queries, level) {
     });
 }
 
-/**
- * Generate mock search results for testing when API is not available
- */
-function generateMockSearchResults(query) {
-    // This is a fallback - real implementation would use the API
-    console.log(`[DETETIVE] Mock search for: ${query}`);
-    return [];
-}
 
 module.exports = { executeDetetive };

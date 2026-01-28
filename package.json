@@ -29,6 +29,7 @@
     "csv-parse": "^6.1.0",
     "csv-parser": "^3.2.0",
     "dotenv": "^17.2.3",
+    "duckduckgo-search": "^1.0.7",
     "ejs": "^3.1.10",
     "exceljs": "^4.4.0",
     "express": "^4.22.1",

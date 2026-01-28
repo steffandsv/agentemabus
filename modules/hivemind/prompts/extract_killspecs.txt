@@ -1,41 +1,69 @@
 Você é um especialista em análise de editais de licitação.
-Sua missão: Extrair as especificações ÚNICAS (Kill-Specs) que diferenciam este produto.
+Sua missão: Analisar este item e extrair informações estruturadas para cotação inteligente.
 
 DESCRIÇÃO DO ITEM:
 {{DESCRIPTION}}
 
-REGRAS:
-1. IGNORE especificações genéricas: bivolt, 220V, plástico, metal, novo, original, garantia, lacrado
-2. FOQUE em números específicos, capacidades, funcionalidades raras
-3. Identifique características que um fornecedor teria que descrever obrigatoriamente
-4. Gere queries de "Google Hacking" para encontrar fabricantes/fichas técnicas
+=== TAREFA 1: CLASSIFICAR COMPLEXIDADE ===
 
-EXEMPLOS DE KILL-SPECS BONS:
-- "72 músicas pré-gravadas" → Número específico que define o produto
-- "entrada cartão SD" → Funcionalidade diferenciada
+Antes de tudo, classifique a COMPLEXIDADE do item:
+
+COMPLEXIDADE "LOW" (Commodities simples):
+- Itens de escritório: lápis, caneta, papel, borracha, grampo, clips
+- Materiais básicos: água, café, açúcar, copo descartável
+- Produtos genéricos sem especificações técnicas críticas
+- Itens onde qualquer marca serve (sem requisitos diferenciadores)
+
+COMPLEXIDADE "HIGH" (Produtos técnicos):
+- Eletrônicos: computadores, impressoras, sirenes, relógios programáveis
+- Equipamentos: instrumentos musicais, hospitalar, laboratório
+- Itens com especificações numéricas críticas (72 músicas, 500GB, 32 polegadas)
+- Produtos que exigem marca/modelo específico para atender ao edital
+
+=== TAREFA 2: EXTRAIR KILL-SPECS ===
+
+Kill-Specs são especificações ÚNICAS que diferenciam o produto.
+
+IGNORE especificações genéricas:
+- bivolt, 220V, 110V (99% dos produtos são bivolt)
+- plástico, metal, ABS (materiais comuns)
+- novo, original, lacrado (óbvio em licitação)
+- garantia 12 meses (padrão de mercado)
+
+FOQUE em especificações diferenciadores:
+- "72 músicas pré-gravadas" → Número específico
+- "entrada cartão SD" → Funcionalidade técnica
 - "capacidade 10 litros" → Medida exata
 - "bateria de contingência" → Requisito técnico raro
 
-EXEMPLOS DE ESPECIFICAÇÕES GENÉRICAS (IGNORAR):
-- "bivolt" → 99% dos produtos são bivolt
-- "plástico ABS" → Material comum
-- "novo" → Óbvio em licitação
-- "garantia 12 meses" → Padrão de mercado
+=== TAREFA 3: GERAR TERMO DE BUSCA COMERCIAL ===
 
-FORMATO DE RESPOSTA (JSON obrigatório):
+Crie um `marketplace_search_term`: nome comercial CURTO (máx 5-7 palavras) para buscar no Mercado Livre.
+
+Exemplos:
+- Edital: "Dispositivo cronometrador sonoro programável com 72 músicas..." 
+  → marketplace_search_term: "Sirene Escolar Digital"
+- Edital: "Lápis grafite hexagonal nº2 com borracha..."
+  → marketplace_search_term: "Lápis grafite nº2"
+
+=== FORMATO DE RESPOSTA (JSON OBRIGATÓRIO) ===
+
 ```json
 {
+    "complexity": "LOW" ou "HIGH",
+    "marketplace_search_term": "Nome comercial curto para busca",
     "kill_specs": ["spec1", "spec2", "spec3"],
     "generic_specs": ["bivolt", "plástico", "novo"],
     "google_queries": [
         "'sirene escolar \"72 músicas\" site:com.br'",
-        "'central musical \"cartão SD\" ficha técnica'",
-        "'relógio programável \"bateria contingência\" manual filetype:pdf'"
+        "'central musical \"cartão SD\" ficha técnica'"
     ],
     "negative_terms": ["timer", "despertador", "campainha residencial"],
-    "reasoning": "Explicação sucinta da estratégia de busca"
+    "reasoning": "Explicação sucinta da classificação e estratégia"
 }
 ```
 
-DICA: As queries devem priorizar encontrar o FABRICANTE do produto, não lojas.
-Sites como fabricante.com.br, manuais PDF, e fichas técnicas são mais valiosos que marketplaces.
+REGRAS CRÍTICAS:
+1. Se complexity = "LOW", google_queries pode estar vazio (não precisa investigar)
+2. marketplace_search_term DEVE ter no máximo 7 palavras
+3. google_queries devem buscar FABRICANTES, não marketplaces

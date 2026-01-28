@@ -17,6 +17,9 @@ const { getSetting } = require('../../../src/database');
 // Price anomaly threshold (items below this % of median are suspicious)
 const PRICE_ANOMALY_THRESHOLD = 0.30;
 
+// CRITICAL: Maximum query length to prevent "query dumping"
+const MAX_QUERY_LENGTH = 60;
+
 /**
  * Execute SNIPER agent
  * @param {object} entity - Gold Entity validated by AUDITOR
@@ -103,13 +106,52 @@ async function executeSniper(entity, kitComponents, maxPrice, quantity, page, ce
 }
 
 /**
+ * Sanitize query to prevent "query dumping" (oversized queries)
+ */
+function sanitizeQuery(query, entity = null) {
+    if (!query) return '';
+    
+    const originalLength = query.length;
+    let sanitized = query.trim();
+    
+    // If query is too long, truncate intelligently
+    if (sanitized.length > MAX_QUERY_LENGTH) {
+        // Try to use marketplace search term if available
+        if (entity && entity.marketplaceSearchTerm && entity.marketplaceSearchTerm.length <= MAX_QUERY_LENGTH) {
+            console.log(`[SNIPER] Query sanitized: ${originalLength} chars -> ${entity.marketplaceSearchTerm.length} chars (using marketplace term)`);
+            return entity.marketplaceSearchTerm;
+        }
+        
+        // Take first N words that fit within limit
+        const words = sanitized.split(/\s+/);
+        sanitized = '';
+        for (const word of words) {
+            if ((sanitized + ' ' + word).trim().length <= MAX_QUERY_LENGTH) {
+                sanitized = (sanitized + ' ' + word).trim();
+            } else {
+                break;
+            }
+        }
+        
+        console.log(`[SNIPER] Query sanitized: ${originalLength} chars -> ${sanitized.length} chars`);
+    }
+    
+    return sanitized || query.substring(0, MAX_QUERY_LENGTH);
+}
+
+/**
  * Search for a specific entity
  */
 async function searchForEntity(entity, page, cep) {
     const allResults = [];
     
-    for (const query of (entity.searchQueries || [entity.name]).slice(0, 2)) {
+    // Get search queries, applying sanitization
+    const rawQueries = entity.searchQueries || [entity.name];
+    const sanitizedQueries = rawQueries.map(q => sanitizeQuery(q, entity));
+    
+    for (const query of sanitizedQueries.slice(0, 2)) {
         try {
+            console.log(`[SNIPER] Searching marketplace: "${query}"`);
             const results = await searchAndScrape(page, query);
             allResults.push(...results);
         } catch (err) {
@@ -129,11 +171,13 @@ async function searchForEntity(entity, page, cep) {
 }
 
 /**
- * Search with a generic query
+ * Search with a generic query (also sanitized)
  */
 async function searchWithQuery(query, page, cep) {
     try {
-        const results = await searchAndScrape(page, query);
+        const sanitized = sanitizeQuery(query);
+        console.log(`[SNIPER] Generic search: "${sanitized}"`);
+        const results = await searchAndScrape(page, sanitized);
         return results.filter(r => r.price);
     } catch (err) {
         console.warn(`[SNIPER] Query search error: ${err.message}`);

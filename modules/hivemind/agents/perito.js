@@ -62,7 +62,21 @@ function parseResponse(response, originalDescription) {
         if (jsonMatch) {
             const json = JSON.parse(jsonMatch[1] || jsonMatch[0]);
             
+            // Extract marketplace search term (critical for query sanitization)
+            let marketplaceSearchTerm = json.marketplace_search_term || json.marketplaceSearchTerm || '';
+            
+            // Enforce max 7 words for marketplace term
+            if (marketplaceSearchTerm) {
+                const words = marketplaceSearchTerm.split(/\s+/).slice(0, 7);
+                marketplaceSearchTerm = words.join(' ');
+            } else {
+                // Generate fallback from description
+                marketplaceSearchTerm = generateMarketplaceTerm(originalDescription);
+            }
+            
             return {
+                complexity: json.complexity || 'HIGH', // Default to HIGH for safety
+                marketplaceSearchTerm,
                 killSpecs: json.kill_specs || json.killSpecs || [],
                 queries: json.google_queries || json.queries || [],
                 negativeTerms: json.negative_terms || json.negativeTerms || [],
@@ -75,6 +89,56 @@ function parseResponse(response, originalDescription) {
     }
     
     return fallbackExtraction(originalDescription);
+}
+
+/**
+ * Generate a marketplace search term from description
+ */
+function generateMarketplaceTerm(description) {
+    // Remove common noise words and take first meaningful words
+    const noiseWords = ['aquisição', 'de', 'para', 'com', 'em', 'ao', 'do', 'da', 'dos', 'das', 'o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'e', 'ou', 'que', 'tipo', 'modelo', 'marca', 'conforme', 'especificação', 'técnica', 'segundo', 'contendo', 'composto', 'aproximadamente'];
+    
+    const words = description
+        .toLowerCase()
+        .replace(/[^a-záàâãéèêíïóôõöúçñ0-9\s]/gi, ' ')
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !noiseWords.includes(w));
+    
+    // Take first 5 meaningful words
+    return words.slice(0, 5).join(' ') || description.substring(0, 50);
+}
+
+/**
+ * Classify complexity based on description keywords
+ */
+function classifyComplexity(description) {
+    const lowComplexityKeywords = [
+        'lápis', 'caneta', 'papel', 'borracha', 'grampo', 'clips', 'envelope',
+        'água', 'café', 'açúcar', 'copo', 'guardanapo', 'sabão', 'detergente',
+        'vassoura', 'pano', 'balde', 'escova', 'pasta', 'fichário', 'caderno'
+    ];
+    
+    const highComplexityKeywords = [
+        'digital', 'eletrônico', 'programável', 'automático', 'computador',
+        'impressora', 'monitor', 'sirene', 'sensor', 'câmera', 'servidor',
+        'músicas', 'memória', 'gb', 'tb', 'processador', 'bateria', 'bivolt',
+        'instrumento', 'hospitalar', 'laborat', 'científico', 'médico'
+    ];
+    
+    const desc = description.toLowerCase();
+    
+    // Check for high complexity first (takes precedence)
+    if (highComplexityKeywords.some(kw => desc.includes(kw))) {
+        return 'HIGH';
+    }
+    
+    // Check for low complexity
+    if (lowComplexityKeywords.some(kw => desc.includes(kw))) {
+        return 'LOW';
+    }
+    
+    // Default to HIGH for safety
+    return 'HIGH';
 }
 
 /**
@@ -117,17 +181,25 @@ function fallbackExtraction(description) {
     // If nothing specific found, use whole description
     const finalSpecs = filtered.length > 0 ? filtered : [description.substring(0, 100)];
     
-    // Generate basic queries
-    const queries = finalSpecs.map(spec => 
-        `"${spec}" site:com.br OR site:gov.br`
-    );
+    // Classify complexity
+    const complexity = classifyComplexity(description);
+    
+    // Generate marketplace term
+    const marketplaceSearchTerm = generateMarketplaceTerm(description);
+    
+    // Generate basic queries (only if HIGH complexity)
+    const queries = complexity === 'HIGH' 
+        ? finalSpecs.map(spec => `"${spec}" site:com.br OR site:gov.br`)
+        : [];
     
     return {
+        complexity,
+        marketplaceSearchTerm,
         killSpecs: finalSpecs,
         queries,
         negativeTerms: genericTerms,
         genericSpecs: [],
-        reasoning: 'Fallback extraction (AI unavailable)'
+        reasoning: `Fallback extraction (AI unavailable). Complexity: ${complexity}`
     };
 }
 
