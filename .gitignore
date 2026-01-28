@@ -5,3 +5,4 @@ debug_*.html
 debug_*.png
 cotacao_final.csv
 cookies.json
+.env
