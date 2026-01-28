@@ -121,6 +121,40 @@
                     </div>
                     <% } %>
 
+                    <!-- MODULE SELECTION -->
+                    <div class="mb-6">
+                        <label class="label">
+                            <span class="label-text text-xs font-bold uppercase opacity-60">MODO DE COTAÇÃO</span>
+                        </label>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <label class="cursor-pointer">
+                                <input type="radio" name="moduleName" value="hivemind" class="hidden peer" checked>
+                                <div class="card bg-base-200 border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary/10 p-4 transition-all hover:border-base-300">
+                                    <div class="flex items-center gap-3">
+                                        <div class="text-2xl">🧠</div>
+                                        <div>
+                                            <div class="font-bold text-sm">HIVE-MIND</div>
+                                            <div class="text-xs opacity-60">5 Agentes Inteligentes</div>
+                                        </div>
+                                        <span class="badge badge-success badge-sm ml-auto">RECOMENDADO</span>
+                                    </div>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="moduleName" value="gemini_meli" class="hidden peer">
+                                <div class="card bg-base-200 border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary/10 p-4 transition-all hover:border-base-300">
+                                    <div class="flex items-center gap-3">
+                                        <div class="text-2xl">⚡</div>
+                                        <div>
+                                            <div class="font-bold text-sm">CLÁSSICO</div>
+                                            <div class="text-xs opacity-60">Busca Direta (Rápido)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
                     <!-- ITEM LIST AREA -->
                     <div class="card bg-base-200 border border-base-300 mb-6 rounded-box overflow-hidden">
                         <div class="p-4 bg-base-200 flex justify-between items-center border-b border-base-300">

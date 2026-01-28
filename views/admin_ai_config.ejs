@@ -322,5 +322,89 @@
     </div>
 
     <%- include('partials/footer') %>
+
+    <script>
+        // Agent configurations
+        const agents = ['perito', 'detetive', 'auditor', 'sniper', 'juiz'];
+        
+        // Attach event listeners to all provider dropdowns
+        agents.forEach(agent => {
+            const providerSelect = document.getElementById(`${agent}_provider`);
+            if (providerSelect) {
+                // Initial load - fetch models for current provider
+                fetchModelsForAgent(agent, providerSelect.value);
+                
+                // On change - fetch models for new provider
+                providerSelect.addEventListener('change', function() {
+                    fetchModelsForAgent(agent, this.value);
+                });
+            }
+        });
+
+        async function fetchModelsForAgent(agent, provider) {
+            const modelInput = document.querySelector(`input[name="${agent}_model"]`);
+            if (!modelInput) return;
+            
+            const currentValue = modelInput.value;
+            const container = modelInput.parentElement;
+            
+            // Show loading state
+            modelInput.placeholder = 'Carregando modelos...';
+            modelInput.disabled = true;
+            
+            try {
+                const res = await fetch('/api/admin/fetch-models', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider })
+                });
+
+                if (!res.ok) {
+                    throw new Error('Erro ao carregar modelos');
+                }
+
+                const models = await res.json();
+                
+                if (models && models.length > 0) {
+                    // Replace input with select
+                    const select = document.createElement('select');
+                    select.className = 'form-select';
+                    select.name = `${agent}_model`;
+                    select.id = `${agent}_model`;
+                    
+                    models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.id;
+                        option.textContent = model.name || model.id;
+                        if (model.id === currentValue) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+                    
+                    // If current value not in list, add it
+                    if (currentValue && !models.find(m => m.id === currentValue)) {
+                        const option = document.createElement('option');
+                        option.value = currentValue;
+                        option.textContent = currentValue + ' (atual)';
+                        option.selected = true;
+                        select.insertBefore(option, select.firstChild);
+                    }
+                    
+                    // Replace input with select
+                    container.replaceChild(select, modelInput);
+                } else {
+                    // Re-enable input if no models returned
+                    modelInput.placeholder = 'Digite o modelo manualmente';
+                    modelInput.disabled = false;
+                }
+            } catch (e) {
+                console.error('Error fetching models:', e);
+                // Re-enable input on error
+                modelInput.placeholder = 'Erro - digite manualmente';
+                modelInput.disabled = false;
+            }
+        }
+    </script>
 </body>
 </html>
