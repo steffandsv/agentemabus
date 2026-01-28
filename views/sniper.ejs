@@ -1,6 +1,16 @@
 <%- include('partials/header') %>
 
-<!-- No custom style block needed, using Tailwind -->
+<!-- Custom Styles for Module Glow -->
+<style>
+    @keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 0 15px 3px rgba(56, 189, 248, 0.6); }
+        50% { box-shadow: 0 0 25px 6px rgba(56, 189, 248, 0.8); }
+    }
+    .module-glow {
+        animation: pulse-glow 2s ease-in-out infinite;
+        border-color: #38bdf8 !important;
+    }
+</style>
 
 <div class="mb-8 text-center mt-6">
     <h2 class="text-3xl font-bold text-base-content">COTADOR AUTOMÁTICO</h2>
@@ -73,8 +83,14 @@
 <!-- RECENT TASKS -->
 <div class="mt-12 mb-8">
     <div class="container mx-auto max-w-5xl">
-        <h4 class="text-xs font-bold uppercase opacity-60 mb-4 ml-1"><i class="fas fa-history"></i> MISSÕES RECENTES</h4>
-        <div class="grid grid-cols-1 gap-4">
+        <div class="flex items-center justify-between mb-4">
+            <h4 class="text-xs font-bold uppercase opacity-60 ml-1"><i class="fas fa-history"></i> MISSÕES RECENTES</h4>
+            <div class="flex gap-2">
+                <button class="btn btn-xs btn-ghost task-filter active" data-filter="active" onclick="filterTasks('active')">Ativas</button>
+                <button class="btn btn-xs btn-ghost task-filter" data-filter="archived" onclick="filterTasks('archived')"><i class="fas fa-archive"></i> Arquivadas</button>
+            </div>
+        </div>
+        <div id="taskListContainer" class="grid grid-cols-1 gap-4">
              <%- include('partials/task_list', { tasks: recentTasks }) %>
         </div>
     </div>
@@ -127,9 +143,9 @@
                             <span class="label-text text-xs font-bold uppercase opacity-60">MODO DE COTAÇÃO</span>
                         </label>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <label class="cursor-pointer">
-                                <input type="radio" name="moduleName" value="hivemind" class="hidden peer" checked>
-                                <div class="card bg-base-200 border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary/10 p-4 transition-all hover:border-base-300">
+                            <label class="cursor-pointer" onclick="selectModule(this)">
+                                <input type="radio" name="moduleName" value="hivemind" class="hidden peer">
+                                <div class="card bg-base-200 border-2 border-transparent peer-checked:border-sky-400 peer-checked:bg-sky-400/10 p-4 transition-all hover:border-base-300 module-card">
                                     <div class="flex items-center gap-3">
                                         <div class="text-2xl">🧠</div>
                                         <div>
@@ -140,9 +156,9 @@
                                     </div>
                                 </div>
                             </label>
-                            <label class="cursor-pointer">
-                                <input type="radio" name="moduleName" value="gemini_meli" class="hidden peer">
-                                <div class="card bg-base-200 border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary/10 p-4 transition-all hover:border-base-300">
+                            <label class="cursor-pointer" onclick="selectModule(this)">
+                                <input type="radio" name="moduleName" value="gemini_meli" class="hidden peer" checked>
+                                <div class="card bg-base-200 border-2 border-transparent peer-checked:border-sky-400 peer-checked:bg-sky-400/10 p-4 transition-all hover:border-base-300 module-card module-glow">
                                     <div class="flex items-center gap-3">
                                         <div class="text-2xl">⚡</div>
                                         <div>
@@ -568,6 +584,41 @@
 
         document.getElementById('gridData').value = data;
     });
+
+    // Module Glow Selection
+    function selectModule(label) {
+        // Remove glow from all module cards
+        document.querySelectorAll('.module-card').forEach(card => {
+            card.classList.remove('module-glow');
+        });
+        // Add glow to selected
+        const card = label.querySelector('.module-card');
+        if (card) {
+            card.classList.add('module-glow');
+        }
+    }
+
+    // Archive Filter
+    async function filterTasks(filter) {
+        // Update button states
+        document.querySelectorAll('.task-filter').forEach(btn => {
+            btn.classList.remove('btn-active', 'btn-primary');
+        });
+        document.querySelector(`[data-filter="${filter}"]`).classList.add('btn-active', 'btn-primary');
+        
+        // Fetch filtered tasks
+        const container = document.getElementById('taskListContainer');
+        container.innerHTML = '<div class="text-center py-8"><span class="loading loading-spinner"></span></div>';
+        
+        try {
+            const showArchived = filter === 'archived';
+            const res = await fetch(`/api/tasks/list?archived=${showArchived}`);
+            const html = await res.text();
+            container.innerHTML = html || '<div class="text-center py-8 text-base-content/50">Nenhuma missão encontrada</div>';
+        } catch (e) {
+            container.innerHTML = '<div class="text-center py-8 text-error">Erro ao carregar missões</div>';
+        }
+    }
 
 </script>
 

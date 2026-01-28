@@ -426,6 +426,23 @@ app.post('/api/admin/fetch-models', isAdmin, async (req, res) => {
 });
 
 // API endpoints (Some restricted?)
+
+// API: Get Filtered Task List (for AJAX)
+app.get('/api/tasks/list', isAuthenticated, async (req, res) => {
+    try {
+        const user = await getUserById(req.session.userId);
+        const showArchived = req.query.archived === 'true';
+        const tasks = await getTasksForUser(user, showArchived, 20, 0);
+        // Render partial HTML
+        res.render('partials/task_list', { tasks }, (err, html) => {
+            if (err) return res.status(500).send('Error');
+            res.send(html);
+        });
+    } catch (e) {
+        res.status(500).send('Error');
+    }
+});
+
 app.post('/api/tasks/reorder', async (req, res) => { // Removed strict middleware for simplicity or add back
     if (req.body.orderedIds && Array.isArray(req.body.orderedIds)) {
         try {

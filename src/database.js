@@ -403,7 +403,7 @@ async function getTasksForUser(user, showArchived = false, limit = 100, offset =
 
     // Construct Query
     const whereSql = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
-    const sql = `SELECT * FROM tasks ${whereSql} ORDER BY position ASC, created_at DESC LIMIT ? OFFSET ?`;
+    const sql = `SELECT * FROM tasks ${whereSql} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
 
     // Add pagination params
     params.push(parseInt(limit) || 100);
