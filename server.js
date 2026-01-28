@@ -329,17 +329,30 @@ app.get('/admin/dashboard', isAdmin, async (req, res) => {
     res.render('admin_dashboard', { users, groups });
 });
 
-// --- NEW ADMIN AI ROUTES ---
+// --- HIVE-MIND AI ADMIN ROUTES ---
 app.get('/admin/ai-config', isAdmin, async (req, res) => {
     try {
         const settings = {
-            sniper_provider: await getSetting('sniper_provider'),
-            sniper_model: await getSetting('sniper_model'),
-            sniper_api_key: await getSetting('sniper_api_key'),
-            parser_primary: JSON.parse(await getSetting('parser_primary') || '{}'),
-            parser_backup1: JSON.parse(await getSetting('parser_backup1') || '{}'),
-            parser_backup2: JSON.parse(await getSetting('parser_backup2') || '{}'),
-            parser_backup3: JSON.parse(await getSetting('parser_backup3') || '{}')
+            // PERITO Agent
+            perito_provider: await getSetting('perito_provider') || 'deepseek',
+            perito_model: await getSetting('perito_model') || 'deepseek-chat',
+            // DETETIVE Agent
+            detetive_provider: await getSetting('detetive_provider') || 'deepseek',
+            detetive_model: await getSetting('detetive_model') || 'deepseek-chat',
+            // AUDITOR Agent
+            auditor_provider: await getSetting('auditor_provider') || 'deepseek',
+            auditor_model: await getSetting('auditor_model') || 'deepseek-chat',
+            // SNIPER Agent
+            sniper_provider: await getSetting('sniper_provider') || 'gemini',
+            sniper_model: await getSetting('sniper_model') || 'gemini-2.0-flash',
+            // JUIZ Agent
+            juiz_provider: await getSetting('juiz_provider') || 'deepseek',
+            juiz_model: await getSetting('juiz_model') || 'deepseek-chat',
+            // Global API Keys
+            deepseek_api_key: await getSetting('deepseek_api_key') || '',
+            gemini_api_key: await getSetting('gemini_api_key') || '',
+            qwen_api_key: await getSetting('qwen_api_key') || '',
+            perplexity_api_key: await getSetting('perplexity_api_key') || ''
         };
         res.render('admin_ai_config', { settings });
     } catch (e) {
@@ -349,26 +362,44 @@ app.get('/admin/ai-config', isAdmin, async (req, res) => {
 
 app.post('/admin/ai-config/save', isAdmin, async (req, res) => {
     const {
-        sniper_provider, sniper_model, sniper_api_key,
-        // Parser Fields
-        parser_provider_0, parser_key_0, parser_model_0,
-        parser_provider_1, parser_key_1, parser_model_1,
-        parser_provider_2, parser_key_2, parser_model_2,
-        parser_provider_3, parser_key_3, parser_model_3
+        // Agent providers and models
+        perito_provider, perito_model,
+        detetive_provider, detetive_model,
+        auditor_provider, auditor_model,
+        sniper_provider, sniper_model,
+        juiz_provider, juiz_model,
+        // Global API Keys
+        deepseek_api_key, gemini_api_key, qwen_api_key, perplexity_api_key
     } = req.body;
 
     try {
-        if(sniper_provider) await setSetting('sniper_provider', sniper_provider);
-        if(sniper_model) await setSetting('sniper_model', sniper_model);
-        if(sniper_api_key && sniper_api_key.trim() !== '') await setSetting('sniper_api_key', sniper_api_key);
+        // Save PERITO settings
+        if (perito_provider) await setSetting('perito_provider', perito_provider);
+        if (perito_model) await setSetting('perito_model', perito_model);
+        
+        // Save DETETIVE settings
+        if (detetive_provider) await setSetting('detetive_provider', detetive_provider);
+        if (detetive_model) await setSetting('detetive_model', detetive_model);
+        
+        // Save AUDITOR settings
+        if (auditor_provider) await setSetting('auditor_provider', auditor_provider);
+        if (auditor_model) await setSetting('auditor_model', auditor_model);
+        
+        // Save SNIPER settings
+        if (sniper_provider) await setSetting('sniper_provider', sniper_provider);
+        if (sniper_model) await setSetting('sniper_model', sniper_model);
+        
+        // Save JUIZ settings
+        if (juiz_provider) await setSetting('juiz_provider', juiz_provider);
+        if (juiz_model) await setSetting('juiz_model', juiz_model);
+        
+        // Save Global API Keys (only if not empty)
+        if (deepseek_api_key && deepseek_api_key.trim()) await setSetting('deepseek_api_key', deepseek_api_key);
+        if (gemini_api_key && gemini_api_key.trim()) await setSetting('gemini_api_key', gemini_api_key);
+        if (qwen_api_key && qwen_api_key.trim()) await setSetting('qwen_api_key', qwen_api_key);
+        if (perplexity_api_key && perplexity_api_key.trim()) await setSetting('perplexity_api_key', perplexity_api_key);
 
-        // Save Parser Settings (as JSON strings to keep table clean)
-        await setSetting('parser_primary', JSON.stringify({ provider: parser_provider_0, key: parser_key_0, model: parser_model_0 }));
-        await setSetting('parser_backup1', JSON.stringify({ provider: parser_provider_1, key: parser_key_1, model: parser_model_1 }));
-        await setSetting('parser_backup2', JSON.stringify({ provider: parser_provider_2, key: parser_key_2, model: parser_model_2 }));
-        await setSetting('parser_backup3', JSON.stringify({ provider: parser_provider_3, key: parser_key_3, model: parser_model_3 }));
-
-        req.flash('success', 'Configurações de IA atualizadas.');
+        req.flash('success', 'Configurações HIVE-MIND atualizadas!');
         res.redirect('/admin/ai-config');
     } catch (e) {
         req.flash('error', e.message);
