@@ -46,12 +46,36 @@ Exemplos:
 - Edital: "Lápis grafite hexagonal nº2 com borracha..."
   → marketplace_search_term: "Lápis grafite nº2"
 
+=== TAREFA 4: GERAR ÂNCORA DE BUSCA (CRÍTICO) ===
+
+A "search_anchor" é a especificação TÉCNICA MAIS RESTRITIVA que DEVE aparecer 
+no anúncio do produto correto. Ela é usada entre ASPAS DUPLAS na busca do marketplace
+para FILTRAR produtos genéricos e baratos que não atendem ao edital.
+
+Exemplos:
+- Edital: "Central musical com 72 músicas pré-gravadas"
+  → search_anchor: "\"72 músicas\""
+- Edital: "Projetor 5000 lumens full HD"
+  → search_anchor: "\"5000 lumens\""
+- Edital: "Violão Zebrano com trastes em escala"
+  → search_anchor: "\"Zebrano\""
+- Edital: "Computador com 16GB RAM e SSD 512GB"
+  → search_anchor: "\"16GB\""
+
+REGRAS DA ÂNCORA:
+- SEMPRE coloque a âncora ENTRE ASPAS DUPLAS (escape com \")
+- Prefira especificações NUMÉRICAS (são mais filtráveis)
+- Se não houver spec numérica, use a característica técnica mais rara
+- Para itens LOW complexity, search_anchor pode ser null
+
 === FORMATO DE RESPOSTA (JSON OBRIGATÓRIO) ===
 
 ```json
 {
     "complexity": "LOW" ou "HIGH",
     "marketplace_search_term": "Nome comercial curto para busca",
+    "search_anchor": "\"72 músicas\"",
+    "max_price_estimate": 3050,
     "kill_specs": ["spec1", "spec2", "spec3"],
     "generic_specs": ["bivolt", "plástico", "novo"],
     "google_queries": [
@@ -64,6 +88,8 @@ Exemplos:
 ```
 
 REGRAS CRÍTICAS:
-1. Se complexity = "LOW", google_queries pode estar vazio (não precisa investigar)
+1. Se complexity = "LOW", google_queries e search_anchor podem estar vazios
 2. marketplace_search_term DEVE ter no máximo 7 palavras
 3. google_queries devem buscar FABRICANTES, não marketplaces
+4. search_anchor DEVE conter aspas duplas escapadas (\") para forçar busca exata
+5. max_price_estimate é o valor estimado do edital (se mencionado) ou 0 se desconhecido

@@ -93,7 +93,13 @@ async function executeDetetive(killSpecs, queries, relaxationLevel, config) {
     // Sort by confidence
     entities.sort((a, b) => b.confidence - a.confidence);
     
-    return { entities, retry: false };
+    // Return with best detected model for SNIPER's dual search logic
+    const bestEntity = entities[0];
+    return { 
+        entities, 
+        detectedModel: bestEntity ? bestEntity.name : null, // NEW: Best model for SNIPER
+        retry: false 
+    };
 }
 
 /**

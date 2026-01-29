@@ -29,12 +29,16 @@ const MAX_QUERY_LENGTH = 60;
  * @param {object} page - Puppeteer page
  * @param {string} cep - CEP for shipping calculation
  * @param {object} config - AI configuration
+ * @param {string} searchAnchor - Search anchor for fallback searches (ANCHOR & LOCK doctrine)
  */
-async function executeSniper(entity, kitComponents, maxPrice, quantity, page, cep, config) {
+async function executeSniper(entity, kitComponents, maxPrice, quantity, page, cep, config, searchAnchor = null) {
     console.log(`[SNIPER] Targeting: ${entity.name}`);
+    if (searchAnchor) {
+        console.log(`[SNIPER] Search Anchor disponível: ${searchAnchor}`);
+    }
     
-    // 1. Search for main entity
-    const mainCandidates = await searchForEntity(entity, page, cep);
+    // 1. Search for main entity (using ANCHOR & LOCK doctrine)
+    const mainCandidates = await searchForEntity(entity, page, cep, searchAnchor);
     
     if (mainCandidates.length === 0 && !entity.isGeneric) {
         // Try broader search with just the model name
@@ -140,23 +144,64 @@ function sanitizeQuery(query, entity = null) {
 }
 
 /**
- * Search for a specific entity
+ * Search for a specific entity (ANCHOR & LOCK doctrine)
+ * Implements dual search logic:
+ * 1. If detected model exists, search by exact model name
+ * 2. If fallback (generic), use marketplace term + search anchor
  */
-async function searchForEntity(entity, page, cep) {
+async function searchForEntity(entity, page, cep, searchAnchor = null) {
     const allResults = [];
     
-    // Get search queries, applying sanitization
-    const rawQueries = entity.searchQueries || [entity.name];
-    const sanitizedQueries = rawQueries.map(q => sanitizeQuery(q, entity));
-    
-    for (const query of sanitizedQueries.slice(0, 2)) {
+    // CASO 1: Modelo específico detectado pelo DETETIVE
+    if (entity.detectedModel && !entity.isGeneric) {
+        console.log(`[SNIPER] 🎯 Modo MODELO DETECTADO: "${entity.detectedModel}"`);
+        const sanitized = sanitizeQuery(entity.detectedModel, entity);
         try {
-            console.log(`[SNIPER] Searching marketplace: "${query}"`);
-            const results = await searchAndScrape(page, query);
+            const results = await searchAndScrape(page, sanitized);
             allResults.push(...results);
         } catch (err) {
             if (err.message === 'BLOCKED_BY_PORTAL') throw err;
-            console.warn(`[SNIPER] Search error for "${query}": ${err.message}`);
+            console.warn(`[SNIPER] Search error for detected model: ${err.message}`);
+        }
+    }
+    // CASO 2: Fallback com Âncora (A MÁGICA DO ANCHOR & LOCK)
+    else if (searchAnchor) {
+        // Combina termo comercial + âncora técnica
+        // Ex: "Sirene Escolar Digital" + "72 músicas" = 'Sirene Escolar Digital "72 músicas"'
+        const anchoredQuery = `${entity.name} ${searchAnchor}`;
+        const sanitized = sanitizeQuery(anchoredQuery, entity);
+        console.log(`[SNIPER] ⚓ Modo ÂNCORA: "${sanitized}"`);
+        try {
+            const results = await searchAndScrape(page, sanitized);
+            allResults.push(...results);
+            
+            // Se não encontrou resultados com âncora, tenta sem (mas loga aviso)
+            if (results.length === 0) {
+                console.log(`[SNIPER] ⚠️ Âncora não retornou resultados, tentando busca simples...`);
+                const simpleQuery = sanitizeQuery(entity.name, entity);
+                const fallbackResults = await searchAndScrape(page, simpleQuery);
+                allResults.push(...fallbackResults);
+            }
+        } catch (err) {
+            if (err.message === 'BLOCKED_BY_PORTAL') throw err;
+            console.warn(`[SNIPER] Search error for anchored query: ${err.message}`);
+        }
+    }
+    // CASO 3: Busca genérica (último recurso - sem proteção)
+    else {
+        console.log(`[SNIPER] ⚠️ Modo GENÉRICO (sem âncora): "${entity.name}"`);
+        const rawQueries = entity.searchQueries || [entity.name];
+        const sanitizedQueries = rawQueries.map(q => sanitizeQuery(q, entity));
+        
+        for (const query of sanitizedQueries.slice(0, 2)) {
+            try {
+                console.log(`[SNIPER] Searching marketplace: "${query}"`);
+                const results = await searchAndScrape(page, query);
+                allResults.push(...results);
+            } catch (err) {
+                if (err.message === 'BLOCKED_BY_PORTAL') throw err;
+                console.warn(`[SNIPER] Search error for "${query}": ${err.message}`);
+            }
         }
     }
     

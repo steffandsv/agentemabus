@@ -46,8 +46,10 @@ async function execute(job, config) {
     let state = {
         current: STATES.INIT,
         item: { id, description, maxPrice, quantity },
-        complexity: null,              // NEW: LOW or HIGH
-        marketplaceSearchTerm: null,   // NEW: Clean query for marketplace
+        complexity: null,              // LOW or HIGH
+        marketplaceSearchTerm: null,   // Clean query for marketplace
+        searchAnchor: null,            // NEW: Anchor for fallback searches (ANCHOR & LOCK)
+        maxPriceEstimate: null,        // NEW: Price estimate from PERITO
         killSpecs: null,
         googleQueries: null,
         discoveredEntities: [],
@@ -157,12 +159,17 @@ async function runPerito(state, config, logger, itemId) {
         
         state.complexity = result.complexity || 'HIGH';
         state.marketplaceSearchTerm = result.marketplaceSearchTerm || state.item.description.substring(0, 50);
+        state.searchAnchor = result.searchAnchor || null;  // NEW: Anchor for fallback searches
+        state.maxPriceEstimate = result.maxPriceEstimate || state.item.maxPrice; // NEW: Price estimate
         state.killSpecs = result.killSpecs;
         state.googleQueries = result.queries;
         state.negativeTerms = result.negativeTerms || [];
         
         logger.log(`📊 [Item ${itemId}] Complexidade: ${state.complexity}`);
         logger.log(`🏷️ [Item ${itemId}] Termo de Busca: "${state.marketplaceSearchTerm}"`);
+        if (state.searchAnchor) {
+            logger.log(`⚓ [Item ${itemId}] Âncora de Busca: ${state.searchAnchor}`);
+        }
         logger.log(`📋 [Item ${itemId}] Kill-Specs: ${state.killSpecs.join(', ')}`);
         
         logState(state, `PERITO extraiu ${state.killSpecs.length} especificações (${state.complexity})`, logger, itemId);
@@ -268,6 +275,7 @@ async function runAuditor(state, page, config, logger, itemId) {
             if (result.validated) {
                 state.goldEntity = {
                     ...entity,
+                    detectedModel: entity.name,  // NEW: Enable SNIPER's detected model search
                     validatedSpecs: result.specs,
                     searchQueries: result.searchQueries || [entity.name],
                     sourceUrl: result.sourceUrl
@@ -340,7 +348,8 @@ async function runSniper(state, page, cep, config, logger, itemId) {
             state.item.quantity,
             page,
             cep,
-            config
+            config,
+            state.searchAnchor  // NEW: Pass search anchor for ANCHOR & LOCK doctrine
         );
         
         if (!result.candidates || result.candidates.length === 0) {

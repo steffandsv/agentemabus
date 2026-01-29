@@ -14,6 +14,10 @@
 const { generateText, PROVIDERS } = require('../../../src/services/ai_manager');
 const { getSetting } = require('../../../src/database');
 
+// PRICE FLOOR: Minimum viable price as percentage of max tender price
+// Items below this threshold are rejected as suspected accessories/scrap
+const PRICE_FLOOR_PERCENTAGE = 0.15; // 15%
+
 /**
  * Execute JUIZ agent
  * @param {object[]} candidates - Candidates from SNIPER
@@ -33,11 +37,28 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config) {
         };
     }
     
-    // 1. Validate each candidate against Gold Entity
-    const validatedCandidates = [];
+    // ============================================
+    // PRICE FLOOR - Primeira Linha de Defesa
+    // (ANCHOR & LOCK doctrine)
+    // ============================================
+    const maxPrice = item.maxPrice || 0;
+    if (maxPrice > 0) {
+        candidates = applyPriceFloor(candidates, maxPrice);
+        const rejected = candidates.filter(c => c.priceFloorRejection).length;
+        if (rejected > 0) {
+            console.log(`[JUIZ] 🚫 Price Floor rejeitou ${rejected} candidatos (preço < R$ ${(maxPrice * PRICE_FLOOR_PERCENTAGE).toFixed(2)})`);
+        }
+    }
     
-    for (let i = 0; i < candidates.length; i++) {
-        const candidate = candidates[i];
+    // Filter out price floor rejections before AI analysis (saves tokens)
+    const viableCandidates = candidates.filter(c => !c.priceFloorRejection);
+    
+    // 1. Validate each VIABLE candidate against Gold Entity
+    // (price floor rejections are kept but not analyzed by AI)
+    const validatedCandidates = [...candidates.filter(c => c.priceFloorRejection)];
+    
+    for (let i = 0; i < viableCandidates.length; i++) {
+        const candidate = viableCandidates[i];
         
         // If candidate is from Gold Entity search and has price anomaly, mark as uncertain
         if (candidate.priceAnomaly) {
@@ -118,6 +139,37 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config) {
         winnerIndex,
         defenseReport
     };
+}
+
+/**
+ * Apply Price Floor defense (ANCHOR & LOCK doctrine)
+ * Rejects candidates whose price is suspiciously low (< 15% of tender max price)
+ * This prevents the system from accepting accessories/scrap as valid matches
+ * 
+ * @param {object[]} candidates - Candidates from SNIPER
+ * @param {number} maxPrice - Maximum tender price
+ * @returns {object[]} Candidates with price floor rejections marked
+ */
+function applyPriceFloor(candidates, maxPrice) {
+    const minViablePrice = maxPrice * PRICE_FLOOR_PERCENTAGE;
+    
+    return candidates.map(candidate => {
+        const candidatePrice = candidate.price || 0;
+        
+        if (candidatePrice < minViablePrice && candidatePrice > 0) {
+            return {
+                ...candidate,
+                aiMatch: 'REJECTED',
+                aiReasoning: `⛔ PREÇO VIL (R$ ${candidatePrice.toFixed(2)}). ` +
+                             `Piso mínimo: R$ ${minViablePrice.toFixed(2)} (15% de R$ ${maxPrice.toFixed(2)}). ` +
+                             `Suspeita de acessório, peça de reposição ou sucata.`,
+                risk_score: 10,
+                technical_score: 0,
+                priceFloorRejection: true
+            };
+        }
+        return candidate;
+    });
 }
 
 /**

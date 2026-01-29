@@ -74,9 +74,22 @@ function parseResponse(response, originalDescription) {
                 marketplaceSearchTerm = generateMarketplaceTerm(originalDescription);
             }
             
+            // Extract search anchor (ANCHOR & LOCK doctrine)
+            let searchAnchor = json.search_anchor || json.searchAnchor || null;
+            
+            // Ensure anchor has quotes if provided without them
+            if (searchAnchor && !searchAnchor.includes('"')) {
+                searchAnchor = `"${searchAnchor}"`;
+            }
+            
+            // Extract max price estimate
+            const maxPriceEstimate = json.max_price_estimate || json.maxPriceEstimate || 0;
+            
             return {
                 complexity: json.complexity || 'HIGH', // Default to HIGH for safety
                 marketplaceSearchTerm,
+                searchAnchor,         // NEW: Anchor for fallback searches
+                maxPriceEstimate,     // NEW: Price estimate for floor calculation
                 killSpecs: json.kill_specs || json.killSpecs || [],
                 queries: json.google_queries || json.queries || [],
                 negativeTerms: json.negative_terms || json.negativeTerms || [],
@@ -106,6 +119,34 @@ function generateMarketplaceTerm(description) {
     
     // Take first 5 meaningful words
     return words.slice(0, 5).join(' ') || description.substring(0, 50);
+}
+
+/**
+ * Generate a search anchor from kill specs (ANCHOR & LOCK doctrine)
+ * The anchor is the most restrictive numeric/technical spec wrapped in quotes
+ */
+function generateSearchAnchor(killSpecs) {
+    if (!killSpecs || killSpecs.length === 0) return null;
+    
+    // Priority 1: Find specs with numbers (most filterable)
+    const numericSpec = killSpecs.find(spec => /\d+/.test(spec));
+    if (numericSpec) {
+        // Extract the core numeric phrase (e.g., "72 músicas" from "capacidade de 72 músicas")
+        const numericMatch = numericSpec.match(/(\d+\s*[a-záàâãéèêíïóôõöúçñ]+)/i);
+        if (numericMatch) {
+            return `"${numericMatch[1].trim()}"`;
+        }
+        return `"${numericSpec.trim()}"`;
+    }
+    
+    // Priority 2: Find short technical terms (max 3 words)
+    const shortSpec = killSpecs.find(spec => spec.split(/\s+/).length <= 3 && spec.length > 3);
+    if (shortSpec) {
+        return `"${shortSpec.trim()}"`;
+    }
+    
+    // Priority 3: Use first spec
+    return `"${killSpecs[0].trim()}"`;
 }
 
 /**
@@ -187,6 +228,9 @@ function fallbackExtraction(description) {
     // Generate marketplace term
     const marketplaceSearchTerm = generateMarketplaceTerm(description);
     
+    // Generate search anchor (ANCHOR & LOCK doctrine)
+    const searchAnchor = complexity === 'HIGH' ? generateSearchAnchor(finalSpecs) : null;
+    
     // Generate basic queries (only if HIGH complexity)
     const queries = complexity === 'HIGH' 
         ? finalSpecs.map(spec => `"${spec}" site:com.br OR site:gov.br`)
@@ -195,6 +239,8 @@ function fallbackExtraction(description) {
     return {
         complexity,
         marketplaceSearchTerm,
+        searchAnchor,         // NEW: Anchor for fallback searches
+        maxPriceEstimate: 0,  // NEW: Unknown in fallback mode
         killSpecs: finalSpecs,
         queries,
         negativeTerms: genericTerms,
