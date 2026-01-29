@@ -1,0 +1,1081 @@
+============================================================
+HIVE-MIND DEBUG LOG
+Task ID: unknown
+Item ID: 1
+Started: 2026-01-29T19:05:14.254Z
+============================================================
+
+
+--------------------------------------------------
+[2026-01-29T19:05:14.402Z] PERITO - INPUT
+--------------------------------------------------
+Aquisição de relógios musicais eletrônicos programáveis modelo amplificado. Os equipamentos devem possuir, no mínimo: Central eletrônica programável  Configuração de volume e duração dos sinais  Biblioteca de sons/músicas adequadas ou possibilidade de inclusão  Programação automática de horários  Sistema de acionamento não manual  Capacidade compatível com o porte de cada unidade escolar. Bivolt automático (110v e 220v) Baixo consumo de energia (aprox. 2W para o controlador) Visor/Display LED Deve ter bateria de contingência (mantém a hora e programação em caso de queda de energia) Armazenamento entrada USB e para cartão SD (para músicas personalizadas) Conteúdo de no mínimo 72 músicas pré gravadas e no mínimo 18 espaços livres para personalização Deve ter aproximadamente 200 programações de horário Mínimo de 10 níveis de volume ajustáveis, com ajuste diurno e noturno Deve ter na programação o período de férias, função horário de verão, e acionamento manual Deve ser compatível com caixa de fixação padrão 4x2 Deve ter garantia de no mínimo 1 ano de fábrica Uso contínuo (IP20 não protegido contra chuva ou ambientes que pode molhar) Deverá estar incluso 02 cornetas Empresa deverá dar todo o suporte para configurar o aparelho.
+
+--------------------------------------------------
+[2026-01-29T19:05:14.403Z] PERITO - AI PROMPT SENT
+--------------------------------------------------
+Você é um especialista em análise de editais de licitação.
+Sua missão: Analisar este item e extrair informações estruturadas para cotação inteligente.
+
+=== REGRA ANTI-ALUCINAÇÃO (CRÍTICO) ===
+
+VOCÊ NÃO PODE ABREVIAR UNIDADES OU PALAVRAS.
+Se o texto diz "72 músicas", você DEVE extrair "72 músicas" (NÃO "72 m").
+Se o texto diz "1000 litros", você DEVE extrair "1000 litros" (NÃO "1 l").
+Se o texto diz "16 polegadas", você DEVE extrair "16 polegadas" (NÃO "16 pol").
+
+EXEMPLOS DE ERRO FATAL (O PROCESSO FALHARÁ):
+❌ "72 m" → ERRADO (abreviou "músicas")
+❌ "1 a" → ERRADO (abreviou "ano")
+❌ "500 g" → ERRADO (abreviou "gramas")
+
+EXEMPLOS CORRETOS:
+✅ "72 músicas"
+✅ "1 ano"
+✅ "500 gramas"
+
+DESCRIÇÃO DO ITEM:
+Aquisição de relógios musicais eletrônicos programáveis modelo amplificado. Os equipamentos devem possuir, no mínimo: Central eletrônica programável  Configuração de volume e duração dos sinais  Biblioteca de sons/músicas adequadas ou possibilidade de inclusão  Programação automática de horários  Sistema de acionamento não manual  Capacidade compatível com o porte de cada unidade escolar. Bivolt automático (110v e 220v) Baixo consumo de energia (aprox. 2W para o controlador) Visor/Display LED Deve ter bateria de contingência (mantém a hora e programação em caso de queda de energia) Armazenamento entrada USB e para cartão SD (para músicas personalizadas) Conteúdo de no mínimo 72 músicas pré gravadas e no mínimo 18 espaços livres para personalização Deve ter aproximadamente 200 programações de horário Mínimo de 10 níveis de volume ajustáveis, com ajuste diurno e noturno Deve ter na programação o período de férias, função horário de verão, e acionamento manual Deve ser compatível com caixa de fixação padrão 4x2 Deve ter garantia de no mínimo 1 ano de fábrica Uso contínuo (IP20 não protegido contra chuva ou ambientes que pode molhar) Deverá estar incluso 02 cornetas Empresa deverá dar todo o suporte para configurar o aparelho.
+
+=== TAREFA 1: CLASSIFICAR COMPLEXIDADE ===
+
+Antes de tudo, classifique a COMPLEXIDADE do item:
+
+COMPLEXIDADE "LOW" (Commodities simples):
+- Itens de escritório: lápis, caneta, papel, borracha, grampo, clips
+- Materiais básicos: água, café, açúcar, copo descartável
+- Produtos genéricos sem especificações técnicas críticas
+- Itens onde qualquer marca serve (sem requisitos diferenciadores)
+
+COMPLEXIDADE "HIGH" (Produtos técnicos):
+- Eletrônicos: computadores, impressoras, sirenes, relógios programáveis
+- Equipamentos: instrumentos musicais, hospitalar, laboratório
+- Itens com especificações numéricas críticas (72 músicas, 500GB, 32 polegadas)
+- Produtos que exigem marca/modelo específico para atender ao edital
+
+=== TAREFA 2: EXTRAIR KILL-SPECS ===
+
+Kill-Specs são especificações ÚNICAS que diferenciam o produto.
+
+IGNORE especificações genéricas:
+- bivolt, 220V, 110V (99% dos produtos são bivolt)
+- plástico, metal, ABS (materiais comuns)
+- novo, original, lacrado (óbvio em licitação)
+- garantia 12 meses (padrão de mercado)
+
+FOQUE em especif...[TRUNCATED]
+
+--------------------------------------------------
+[2026-01-29T19:05:46.293Z] PERITO - AI RAW RESPONSE
+--------------------------------------------------
+```json
+{
+    "complexity": "HIGH",
+    "marketplace_search_term": "Sirene Escolar Digital Programável",
+    "search_anchor": "\"72 músicas\"",
+    "max_price_estimate": 0,
+    "kill_specs": ["72 músicas pré gravadas", "18 espaços livres para personalização", "aproximadamente 200 programações de horário", "10 níveis de volume ajustáveis", "bateria de contingência", "armazenamento entrada USB e para cartão SD", "02 cornetas inclusas"],
+    "generic_specs": ["bivolt automático", "baixo consumo de energia", "visor display LED", "garantia de no mínimo 1 ano", "uso contínuo", "IP20", "novo", "original"],
+    "negative_constraints": ["rotativa", "mecânica", "eletromecânica", "campainha", "despertador", "timer analógico", "sem programação", "manual", "ficha de relógio"],
+    "critical_specs": [
+        {"spec": "72 músicas", "weight": 50},
+        {"spec": "bateria de contingência", "weight": 10},
+        {"spec": "entrada USB e cartão SD", "weight": 10},
+        {"spec": "200 programações de horário", "weight": 10},
+        {"spec": "10 níveis de volume ajustáveis", "weight": 10},
+        {"spec": "programação automática de horários", "weight": 5},
+        {"spec": "acionamento não manual", "weight": 5}
+    ],
+    "google_queries": [
+        "'relógio musical escolar \"72 músicas\" fabricante'",
+        "'central de sineta digital \"cartão SD\" ficha técnica'",
+        "'sirene programável \"bateria de contingência\" site:.com.br'"
+    ],
+    "negative_terms": ["despertador pessoal", "relógio de parede comum", "alarme residencial", "interfone"],
+    "reasoning": "Classificado como HIGH devido às inúmeras especificações técnicas numéricas críticas (ex: 72 músicas, 18 espaços, 200 programações, 10 níveis de volume) e requisitos funcionais específicos (bateria de contingência, USB/SD). O termo de busca 'Sirene Escolar Digital Programável' reflete o uso típico do produto. A âncora '\"72 músicas\"' é a especificação numérica mais distintiva e restritiva para filtrar anúncios genéricos. As negative_constraints visam eliminar sirenes mecânicas/antigas e produtos residenciais não programáveis."
+}
+```
+
+--------------------------------------------------
+[2026-01-29T19:05:46.297Z] PERITO - VALIDATION
+--------------------------------------------------
+✓ kill_spec: 72 músicas pré gravadas → OK
+✓ kill_spec: 18 espaços livres para personalização → OK
+✓ kill_spec: aproximadamente 200 programações de horário → OK
+✓ kill_spec: 10 níveis de volume ajustáveis → OK
+✓ kill_spec: bateria de contingência → OK
+✓ kill_spec: armazenamento entrada USB e para cartão SD → OK
+✓ kill_spec: 02 cornetas inclusas → OK
+
+--------------------------------------------------
+[2026-01-29T19:05:46.298Z] PERITO - OUTPUT
+--------------------------------------------------
+{
+  "complexity": "HIGH",
+  "marketplaceSearchTerm": "Sirene Escolar Digital Programável",
+  "searchAnchor": "\"72 músicas\"",
+  "searchAnchorRaw": "72 músicas",
+  "searchAnchorQuoted": "\"72 músicas\"",
+  "maxPriceEstimate": 0,
+  "killSpecs": [
+    "72 músicas pré gravadas",
+    "18 espaços livres para personalização",
+    "aproximadamente 200 programações de horário",
+    "10 níveis de volume ajustáveis",
+    "bateria de contingência",
+    "armazenamento entrada USB e para cartão SD",
+    "02 cornetas inclusas"
+  ],
+  "queries": [
+    "'relógio musical escolar \"72 músicas\" fabricante'",
+    "'central de sineta digital \"cartão SD\" ficha técnica'",
+    "'sirene programável \"bateria de contingência\" site:.com.br'"
+  ],
+  "negativeTerms": [
+    "despertador pessoal",
+    "relógio de parede comum",
+    "alarme residencial",
+    "interfone"
+  ],
+  "genericSpecs": [
+    "bivolt automático",
+    "baixo consumo de energia",
+    "visor display LED",
+    "garantia de no mínimo 1 ano",
+    "uso contínuo",
+    "IP20",
+    "novo",
+    "original"
+  ],
+  "negativeConstraints": [
+    "rotativa",
+    "mecânica",
+    "eletromecânica",
+    "campainha",
+    "despertador",
+    "timer analógico",
+    "sem programação",
+    "manual",
+    "ficha de relógio"
+  ],
+  "criticalSpecs": [
+    {
+      "spec": "72 músicas",
+      "weight": 50
+    },
+    {
+      "spec": "bateria de contingência",
+      "weight": 10
+    },
+    {
+      "spec": "entrada USB e cartão SD",
+      "weight": 10
+    },
+    {
+      "spec": "200 programações de horário",
+      "weight": 10
+    },
+    {
+      "spec": "10 níveis de volume ajustáveis",
+      "weight": 10
+    },
+    {
+      "spec": "programação automática de horários",
+      "weight": 5
+    },
+    {
+      "spec": "acionamento não manual",
+      "weight": 5
+    }
+  ],
+  "reasoning": "Classificado como HIGH devido às inúmeras especificações técnicas numéricas críticas (ex: 72 músicas, 18 espaços, 200 programações, 10 níveis de volume) e requisitos funcionais específicos (bateria de contingência, USB/SD). O termo de busca 'Sirene Escolar Digital Programável' reflete o uso típico do produto. A âncora '\"72 músicas\"' é a especificação numérica mais distintiva e restritiva para filtrar anúncios genéricos. As negative_constraints visam eliminar sirenes mecânicas/antigas e produtos residenciais não programáveis.",
+  "originalDescription": "Aquisição de relógios musicais eletrônicos programáveis modelo amplificado. Os equipamentos devem possuir, no mínimo: Central eletrônica programável  Configuração de volume e duração dos sinais  Biblioteca de sons/músicas adequadas ou possibilidade de inclusão  Programação automática de horários  Sistema de acionamento não manual  Capacidade compatível com o porte de cada unidade escolar. Bivolt automático (110v e 220v) Baixo consumo de energia (aprox. 2W para o controlador) Visor/Display LED Deve ter bateria de contingência (mantém a hora e programação em caso de queda de energia) Armazenamento entrada USB e para cartão SD (para músicas personalizadas) Conteúdo de no mínimo 72 músicas pré gravadas e no mínimo 18 espaços livres para personalização Deve ter aproximadamente 200 programações de horário Mínimo de 10 níveis de volume ajustáveis, com ajuste diurno e noturno Deve ter na programação o período de férias, função horário de verão, e acionamento manual Deve ser compatível com caixa de fixação padrão 4x2 Deve ter garantia de no mínimo 1 ano de fábrica Uso contínuo (IP20 não protegido contra chuva ou ambientes que pode molhar) Deverá estar incluso 02 cornetas Empresa deverá dar todo o suporte para configurar o aparelho."
+}
+
+--------------------------------------------------
+[2026-01-29T19:05:46.321Z] PERITO - INPUT
+--------------------------------------------------
+Aquisição de relógios musicais eletrônicos programáveis modelo amplificado. Os equipamentos devem possuir, no mínimo: Central eletrônica programável  Configuração de volume e duração dos sinais  Biblioteca de sons/músicas adequadas ou possibilidade de inclusão  Programação automática de horários  Sistema de acionamento não manual  Capacidade compatível com o porte de cada unidade escolar. Bivolt automático (110v e 220v) Baixo consumo de energia (aprox. 2W para o controlador) Visor/Display LED Deve ter bateria de contingência (mantém a hora e programação em caso de queda de energia) Armazenamento entrada USB e para cartão SD (para músicas personalizadas) Conteúdo de no mínimo 72 músicas pré gravadas e no mínimo 18 espaços livres para personalização Deve ter aproximadamente 200 programações de horário Mínimo de 10 níveis de volume ajustáveis, com ajuste diurno e noturno Deve ter na programação o período de férias, função horário de verão, e acionamento manual Deve ser compatível com caixa de fixação padrão 4x2 Deve ter garantia de no mínimo 1 ano de fábrica Uso contínuo (IP20 não protegido contra chuva ou ambientes que pode molhar) Deverá estar incluso 02 cornetas Empresa deverá dar todo o suporte para configurar o aparelho.
+
+--------------------------------------------------
+[2026-01-29T19:05:46.321Z] PERITO - AI PROMPT SENT
+--------------------------------------------------
+Você é um especialista em análise de editais de licitação.
+Sua missão: Analisar este item e extrair informações estruturadas para cotação inteligente.
+
+=== REGRA ANTI-ALUCINAÇÃO (CRÍTICO) ===
+
+VOCÊ NÃO PODE ABREVIAR UNIDADES OU PALAVRAS.
+Se o texto diz "72 músicas", você DEVE extrair "72 músicas" (NÃO "72 m").
+Se o texto diz "1000 litros", você DEVE extrair "1000 litros" (NÃO "1 l").
+Se o texto diz "16 polegadas", você DEVE extrair "16 polegadas" (NÃO "16 pol").
+
+EXEMPLOS DE ERRO FATAL (O PROCESSO FALHARÁ):
+❌ "72 m" → ERRADO (abreviou "músicas")
+❌ "1 a" → ERRADO (abreviou "ano")
+❌ "500 g" → ERRADO (abreviou "gramas")
+
+EXEMPLOS CORRETOS:
+✅ "72 músicas"
+✅ "1 ano"
+✅ "500 gramas"
+
+DESCRIÇÃO DO ITEM:
+Aquisição de relógios musicais eletrônicos programáveis modelo amplificado. Os equipamentos devem possuir, no mínimo: Central eletrônica programável  Configuração de volume e duração dos sinais  Biblioteca de sons/músicas adequadas ou possibilidade de inclusão  Programação automática de horários  Sistema de acionamento não manual  Capacidade compatível com o porte de cada unidade escolar. Bivolt automático (110v e 220v) Baixo consumo de energia (aprox. 2W para o controlador) Visor/Display LED Deve ter bateria de contingência (mantém a hora e programação em caso de queda de energia) Armazenamento entrada USB e para cartão SD (para músicas personalizadas) Conteúdo de no mínimo 72 músicas pré gravadas e no mínimo 18 espaços livres para personalização Deve ter aproximadamente 200 programações de horário Mínimo de 10 níveis de volume ajustáveis, com ajuste diurno e noturno Deve ter na programação o período de férias, função horário de verão, e acionamento manual Deve ser compatível com caixa de fixação padrão 4x2 Deve ter garantia de no mínimo 1 ano de fábrica Uso contínuo (IP20 não protegido contra chuva ou ambientes que pode molhar) Deverá estar incluso 02 cornetas Empresa deverá dar todo o suporte para configurar o aparelho.
+
+=== TAREFA 1: CLASSIFICAR COMPLEXIDADE ===
+
+Antes de tudo, classifique a COMPLEXIDADE do item:
+
+COMPLEXIDADE "LOW" (Commodities simples):
+- Itens de escritório: lápis, caneta, papel, borracha, grampo, clips
+- Materiais básicos: água, café, açúcar, copo descartável
+- Produtos genéricos sem especificações técnicas críticas
+- Itens onde qualquer marca serve (sem requisitos diferenciadores)
+
+COMPLEXIDADE "HIGH" (Produtos técnicos):
+- Eletrônicos: computadores, impressoras, sirenes, relógios programáveis
+- Equipamentos: instrumentos musicais, hospitalar, laboratório
+- Itens com especificações numéricas críticas (72 músicas, 500GB, 32 polegadas)
+- Produtos que exigem marca/modelo específico para atender ao edital
+
+=== TAREFA 2: EXTRAIR KILL-SPECS ===
+
+Kill-Specs são especificações ÚNICAS que diferenciam o produto.
+
+IGNORE especificações genéricas:
+- bivolt, 220V, 110V (99% dos produtos são bivolt)
+- plástico, metal, ABS (materiais comuns)
+- novo, original, lacrado (óbvio em licitação)
+- garantia 12 meses (padrão de mercado)
+
+FOQUE em especif...[TRUNCATED]
+
+--------------------------------------------------
+[2026-01-29T19:06:40.124Z] PERITO - AI RAW RESPONSE
+--------------------------------------------------
+```json
+{
+    "complexity": "HIGH",
+    "marketplace_search_term": "Sirene Escolar Programável com Cornetas",
+    "search_anchor": "\"72 músicas\"",
+    "max_price_estimate": 0,
+    "kill_specs": ["72 músicas pré gravadas", "18 espaços livres para personalização", "aproximadamente 200 programações de horário", "mínimo 10 níveis de volume ajustáveis com ajuste diurno e noturno", "bateria de contingência", "armazenamento entrada USB e para cartão SD", "visor display LED", "02 cornetas", "uso contínuo IP20", "compatível com caixa de fixação padrão 4x2"],
+    "generic_specs": ["bivolt automático", "baixo consumo de energia", "garantia de no mínimo 1 ano", "novo", "original"],
+    "negative_constraints": ["rotativa", "mecânica", "a ar", "eletromecânica", "campainha", "timer", "despertador", "relógio de parede", "residencial"],
+    "critical_specs": [
+        {"spec": "72 músicas", "weight": 50},
+        {"spec": "bateria de contingência", "weight": 10},
+        {"spec": "entrada USB e cartão SD", "weight": 10},
+        {"spec": "18 espaços para personalização", "weight": 10},
+        {"spec": "200 programações de horário", "weight": 10},
+        {"spec": "10 níveis de volume com ajuste diurno e noturno", "weight": 10},
+        {"spec": "02 cornetas", "weight": 10},
+        {"spec": "programação automática", "weight": 10},
+        {"spec": "IP20", "weight": 10},
+        {"spec": "display LED", "weight": 5},
+        {"spec": "baixo consumo 2W", "weight": 5},
+        {"spec": "compatível com caixa 4x2", "weight": 5},
+        {"spec": "função horário de verão", "weight": 5},
+        {"spec": "período de férias", "weight": 5}
+    ],
+    "google_queries": [
+        "\"sirene escolar 72 músicas\" fabricante",
+        "\"central musical programável\" site:com.br",
+        "\"relógio musical escolar\" ficha técnica"
+    ],
+    "negative_terms": ["timer", "despertador", "campainha residencial", "relógio de parede comum"],
+    "reasoning": "O item é classificado como HIGH devido às inúmeras especificações técnicas numéricas e funcionais críticas (ex: 72 músicas, 200 programações, 10 níveis de volume, bateria de contingência, USB/SD) que o diferenciam de produtos genéricos. O termo de busca comercial foca no uso escolar e na funcionalidade principal. A âncora '72 músicas' é a especificação mais restritiva e única, ideal para filtrar produtos inadequados. As kill-words eliminam sirenes mecânicas/analógicas e produtos residenciais. As specs críticas são ponderadas para priorizar as obrigatórias do edital."
+}
+```
+
+--------------------------------------------------
+[2026-01-29T19:06:40.126Z] PERITO - VALIDATION
+--------------------------------------------------
+✓ kill_spec: 72 músicas pré gravadas → OK
+✓ kill_spec: 18 espaços livres para personalização → OK
+✓ kill_spec: aproximadamente 200 programações de horário → OK
+✓ kill_spec: mínimo 10 níveis de volume ajustáveis com ajuste diurno e noturno → OK
+✓ kill_spec: bateria de contingência → OK
+✓ kill_spec: armazenamento entrada USB e para cartão SD → OK
+✓ kill_spec: visor display LED → OK
+✓ kill_spec: 02 cornetas → OK
+✓ kill_spec: uso contínuo IP20 → OK
+✓ kill_spec: compatível com caixa de fixação padrão 4x2 → OK
+
+--------------------------------------------------
+[2026-01-29T19:06:40.127Z] PERITO - OUTPUT
+--------------------------------------------------
+{
+  "complexity": "HIGH",
+  "marketplaceSearchTerm": "Sirene Escolar Programável com Cornetas",
+  "searchAnchor": "\"72 músicas\"",
+  "searchAnchorRaw": "72 músicas",
+  "searchAnchorQuoted": "\"72 músicas\"",
+  "maxPriceEstimate": 0,
+  "killSpecs": [
+    "72 músicas pré gravadas",
+    "18 espaços livres para personalização",
+    "aproximadamente 200 programações de horário",
+    "mínimo 10 níveis de volume ajustáveis com ajuste diurno e noturno",
+    "bateria de contingência",
+    "armazenamento entrada USB e para cartão SD",
+    "visor display LED",
+    "02 cornetas",
+    "uso contínuo IP20",
+    "compatível com caixa de fixação padrão 4x2"
+  ],
+  "queries": [
+    "\"sirene escolar 72 músicas\" fabricante",
+    "\"central musical programável\" site:com.br",
+    "\"relógio musical escolar\" ficha técnica"
+  ],
+  "negativeTerms": [
+    "timer",
+    "despertador",
+    "campainha residencial",
+    "relógio de parede comum"
+  ],
+  "genericSpecs": [
+    "bivolt automático",
+    "baixo consumo de energia",
+    "garantia de no mínimo 1 ano",
+    "novo",
+    "original"
+  ],
+  "negativeConstraints": [
+    "rotativa",
+    "mecânica",
+    "a ar",
+    "eletromecânica",
+    "campainha",
+    "timer",
+    "despertador",
+    "relógio de parede",
+    "residencial"
+  ],
+  "criticalSpecs": [
+    {
+      "spec": "72 músicas",
+      "weight": 50
+    },
+    {
+      "spec": "bateria de contingência",
+      "weight": 10
+    },
+    {
+      "spec": "entrada USB e cartão SD",
+      "weight": 10
+    },
+    {
+      "spec": "18 espaços para personalização",
+      "weight": 10
+    },
+    {
+      "spec": "200 programações de horário",
+      "weight": 10
+    },
+    {
+      "spec": "10 níveis de volume com ajuste diurno e noturno",
+      "weight": 10
+    },
+    {
+      "spec": "02 cornetas",
+      "weight": 10
+    },
+    {
+      "spec": "programação automática",
+      "weight": 10
+    },
+    {
+      "spec": "IP20",
+      "weight": 10
+    },
+    {
+      "spec": "display LED",
+      "weight": 5
+    },
+    {
+      "spec": "baixo consumo 2W",
+      "weight": 5
+    },
+    {
+      "spec": "compatível com caixa 4x2",
+      "weight": 5
+    },
+    {
+      "spec": "função horário de verão",
+      "weight": 5
+    },
+    {
+      "spec": "período de férias",
+      "weight": 5
+    }
+  ],
+  "reasoning": "O item é classificado como HIGH devido às inúmeras especificações técnicas numéricas e funcionais críticas (ex: 72 músicas, 200 programações, 10 níveis de volume, bateria de contingência, USB/SD) que o diferenciam de produtos genéricos. O termo de busca comercial foca no uso escolar e na funcionalidade principal. A âncora '72 músicas' é a especificação mais restritiva e única, ideal para filtrar produtos inadequados. As kill-words eliminam sirenes mecânicas/analógicas e produtos residenciais. As specs críticas são ponderadas para priorizar as obrigatórias do edital.",
+  "originalDescription": "Aquisição de relógios musicais eletrônicos programáveis modelo amplificado. Os equipamentos devem possuir, no mínimo: Central eletrônica programável  Configuração de volume e duração dos sinais  Biblioteca de sons/músicas adequadas ou possibilidade de inclusão  Programação automática de horários  Sistema de acionamento não manual  Capacidade compatível com o porte de cada unidade escolar. Bivolt automático (110v e 220v) Baixo consumo de energia (aprox. 2W para o controlador) Visor/Display LED Deve ter bateria de contingência (mantém a hora e programação em caso de queda de energia) Armazenamento entrada USB e para cartão SD (para músicas personalizadas) Conteúdo de no mínimo 72 músicas pré gravadas e no mínimo 18 espaços livres para personalização Deve ter aproximadamente 200 programações de horário Mínimo de 10 níveis de volume ajustáveis, com ajuste diurno e noturno Deve ter na programação o período de férias, função horário de verão, e acionamento manual Deve ser compatível com caixa de fixação padrão 4x2 Deve ter garantia de no mínimo 1 ano de fábrica Uso contínuo (IP20 não protegido contra chuva ou ambientes que pode molhar) Deverá estar incluso 02 cornetas Empresa deverá dar todo o suporte para configurar o aparelho."
+}
+
+--------------------------------------------------
+[2026-01-29T19:06:40.132Z] PERITO - INPUT
+--------------------------------------------------
+Aquisição de relógios musicais eletrônicos programáveis modelo amplificado. Os equipamentos devem possuir, no mínimo: Central eletrônica programável  Configuração de volume e duração dos sinais  Biblioteca de sons/músicas adequadas ou possibilidade de inclusão  Programação automática de horários  Sistema de acionamento não manual  Capacidade compatível com o porte de cada unidade escolar. Bivolt automático (110v e 220v) Baixo consumo de energia (aprox. 2W para o controlador) Visor/Display LED Deve ter bateria de contingência (mantém a hora e programação em caso de queda de energia) Armazenamento entrada USB e para cartão SD (para músicas personalizadas) Conteúdo de no mínimo 72 músicas pré gravadas e no mínimo 18 espaços livres para personalização Deve ter aproximadamente 200 programações de horário Mínimo de 10 níveis de volume ajustáveis, com ajuste diurno e noturno Deve ter na programação o período de férias, função horário de verão, e acionamento manual Deve ser compatível com caixa de fixação padrão 4x2 Deve ter garantia de no mínimo 1 ano de fábrica Uso contínuo (IP20 não protegido contra chuva ou ambientes que pode molhar) Deverá estar incluso 02 cornetas Empresa deverá dar todo o suporte para configurar o aparelho.
+
+--------------------------------------------------
+[2026-01-29T19:06:40.132Z] PERITO - AI PROMPT SENT
+--------------------------------------------------
+Você é um especialista em análise de editais de licitação.
+Sua missão: Analisar este item e extrair informações estruturadas para cotação inteligente.
+
+=== REGRA ANTI-ALUCINAÇÃO (CRÍTICO) ===
+
+VOCÊ NÃO PODE ABREVIAR UNIDADES OU PALAVRAS.
+Se o texto diz "72 músicas", você DEVE extrair "72 músicas" (NÃO "72 m").
+Se o texto diz "1000 litros", você DEVE extrair "1000 litros" (NÃO "1 l").
+Se o texto diz "16 polegadas", você DEVE extrair "16 polegadas" (NÃO "16 pol").
+
+EXEMPLOS DE ERRO FATAL (O PROCESSO FALHARÁ):
+❌ "72 m" → ERRADO (abreviou "músicas")
+❌ "1 a" → ERRADO (abreviou "ano")
+❌ "500 g" → ERRADO (abreviou "gramas")
+
+EXEMPLOS CORRETOS:
+✅ "72 músicas"
+✅ "1 ano"
+✅ "500 gramas"
+
+DESCRIÇÃO DO ITEM:
+Aquisição de relógios musicais eletrônicos programáveis modelo amplificado. Os equipamentos devem possuir, no mínimo: Central eletrônica programável  Configuração de volume e duração dos sinais  Biblioteca de sons/músicas adequadas ou possibilidade de inclusão  Programação automática de horários  Sistema de acionamento não manual  Capacidade compatível com o porte de cada unidade escolar. Bivolt automático (110v e 220v) Baixo consumo de energia (aprox. 2W para o controlador) Visor/Display LED Deve ter bateria de contingência (mantém a hora e programação em caso de queda de energia) Armazenamento entrada USB e para cartão SD (para músicas personalizadas) Conteúdo de no mínimo 72 músicas pré gravadas e no mínimo 18 espaços livres para personalização Deve ter aproximadamente 200 programações de horário Mínimo de 10 níveis de volume ajustáveis, com ajuste diurno e noturno Deve ter na programação o período de férias, função horário de verão, e acionamento manual Deve ser compatível com caixa de fixação padrão 4x2 Deve ter garantia de no mínimo 1 ano de fábrica Uso contínuo (IP20 não protegido contra chuva ou ambientes que pode molhar) Deverá estar incluso 02 cornetas Empresa deverá dar todo o suporte para configurar o aparelho.
+
+=== TAREFA 1: CLASSIFICAR COMPLEXIDADE ===
+
+Antes de tudo, classifique a COMPLEXIDADE do item:
+
+COMPLEXIDADE "LOW" (Commodities simples):
+- Itens de escritório: lápis, caneta, papel, borracha, grampo, clips
+- Materiais básicos: água, café, açúcar, copo descartável
+- Produtos genéricos sem especificações técnicas críticas
+- Itens onde qualquer marca serve (sem requisitos diferenciadores)
+
+COMPLEXIDADE "HIGH" (Produtos técnicos):
+- Eletrônicos: computadores, impressoras, sirenes, relógios programáveis
+- Equipamentos: instrumentos musicais, hospitalar, laboratório
+- Itens com especificações numéricas críticas (72 músicas, 500GB, 32 polegadas)
+- Produtos que exigem marca/modelo específico para atender ao edital
+
+=== TAREFA 2: EXTRAIR KILL-SPECS ===
+
+Kill-Specs são especificações ÚNICAS que diferenciam o produto.
+
+IGNORE especificações genéricas:
+- bivolt, 220V, 110V (99% dos produtos são bivolt)
+- plástico, metal, ABS (materiais comuns)
+- novo, original, lacrado (óbvio em licitação)
+- garantia 12 meses (padrão de mercado)
+
+FOQUE em especif...[TRUNCATED]
+
+--------------------------------------------------
+[2026-01-29T19:07:07.833Z] PERITO - AI RAW RESPONSE
+--------------------------------------------------
+```json
+{
+    "complexity": "HIGH",
+    "marketplace_search_term": "Sirene escolar digital programável",
+    "search_anchor": "\"72 músicas\"",
+    "max_price_estimate": 0,
+    "kill_specs": ["72 músicas pré gravadas", "18 espaços livres para personalização", "200 programações de horário", "10 níveis de volume ajustáveis", "bateria de contingência", "armazenamento entrada USB e cartão SD", "programação período de férias e horário de verão", "02 cornetas inclusas"],
+    "generic_specs": ["bivolt automático", "garantia de no mínimo 1 ano", "novo", "lacrado", "plástico", "uso contínuo"],
+    "negative_constraints": ["rotativa", "mecânica", "eletromecânica", "campainha", "despertador", "timer analógico", "simples", "básico", "manual"],
+    "critical_specs": [
+        {"spec": "72 músicas", "weight": 50},
+        {"spec": "bateria de contingência", "weight": 10},
+        {"spec": "entrada USB e cartão SD", "weight": 10},
+        {"spec": "200 programações de horário", "weight": 10},
+        {"spec": "18 espaços para personalização", "weight": 10},
+        {"spec": "10 níveis de volume", "weight": 10},
+        {"spec": "programação de férias e horário de verão", "weight": 5},
+        {"spec": "02 cornetas inclusas", "weight": 5},
+        {"spec": "display LED", "weight": 5},
+        {"spec": "caixa padrão 4x2", "weight": 5}
+    ],
+    "google_queries": [
+        "\"sirene escolar\" \"72 músicas\" fabricante site:.com.br",
+        "\"central musical escolar\" \"cartão SD\" ficha técnica",
+        "\"relógio musical programável\" \"bateria contingência\""
+    ],
+    "negative_terms": ["campainha residencial", "despertador pessoal", "timer de cozinha", "alarme simples"],
+    "reasoning": "Classificado como HIGH por ser um equipamento eletrônico complexo com especificações numéricas precisas e múltiplas funcionalidades técnicas (programação, biblioteca de sons, interfaces de armazenamento). A estratégia de busca foca na spec mais restritiva (\"72 músicas\") para filtrar produtos genéricos, enquanto negative_constraints eliminam tecnologias obsoletas (sirenes mecânicas) ou produtos de uso não-escolar."
+}
+```
+
+--------------------------------------------------
+[2026-01-29T19:07:07.834Z] PERITO - VALIDATION
+--------------------------------------------------
+✓ kill_spec: 72 músicas pré gravadas → OK
+✓ kill_spec: 18 espaços livres para personalização → OK
+✓ kill_spec: 200 programações de horário → OK
+✓ kill_spec: 10 níveis de volume ajustáveis → OK
+✓ kill_spec: bateria de contingência → OK
+✓ kill_spec: armazenamento entrada USB e cartão SD → OK
+✓ kill_spec: programação período de férias e horário de verão → OK
+✓ kill_spec: 02 cornetas inclusas → OK
+
+--------------------------------------------------
+[2026-01-29T19:07:07.835Z] PERITO - OUTPUT
+--------------------------------------------------
+{
+  "complexity": "HIGH",
+  "marketplaceSearchTerm": "Sirene escolar digital programável",
+  "searchAnchor": "\"72 músicas\"",
+  "searchAnchorRaw": "72 músicas",
+  "searchAnchorQuoted": "\"72 músicas\"",
+  "maxPriceEstimate": 0,
+  "killSpecs": [
+    "72 músicas pré gravadas",
+    "18 espaços livres para personalização",
+    "200 programações de horário",
+    "10 níveis de volume ajustáveis",
+    "bateria de contingência",
+    "armazenamento entrada USB e cartão SD",
+    "programação período de férias e horário de verão",
+    "02 cornetas inclusas"
+  ],
+  "queries": [
+    "\"sirene escolar\" \"72 músicas\" fabricante site:.com.br",
+    "\"central musical escolar\" \"cartão SD\" ficha técnica",
+    "\"relógio musical programável\" \"bateria contingência\""
+  ],
+  "negativeTerms": [
+    "campainha residencial",
+    "despertador pessoal",
+    "timer de cozinha",
+    "alarme simples"
+  ],
+  "genericSpecs": [
+    "bivolt automático",
+    "garantia de no mínimo 1 ano",
+    "novo",
+    "lacrado",
+    "plástico",
+    "uso contínuo"
+  ],
+  "negativeConstraints": [
+    "rotativa",
+    "mecânica",
+    "eletromecânica",
+    "campainha",
+    "despertador",
+    "timer analógico",
+    "simples",
+    "básico",
+    "manual"
+  ],
+  "criticalSpecs": [
+    {
+      "spec": "72 músicas",
+      "weight": 50
+    },
+    {
+      "spec": "bateria de contingência",
+      "weight": 10
+    },
+    {
+      "spec": "entrada USB e cartão SD",
+      "weight": 10
+    },
+    {
+      "spec": "200 programações de horário",
+      "weight": 10
+    },
+    {
+      "spec": "18 espaços para personalização",
+      "weight": 10
+    },
+    {
+      "spec": "10 níveis de volume",
+      "weight": 10
+    },
+    {
+      "spec": "programação de férias e horário de verão",
+      "weight": 5
+    },
+    {
+      "spec": "02 cornetas inclusas",
+      "weight": 5
+    },
+    {
+      "spec": "display LED",
+      "weight": 5
+    },
+    {
+      "spec": "caixa padrão 4x2",
+      "weight": 5
+    }
+  ],
+  "reasoning": "Classificado como HIGH por ser um equipamento eletrônico complexo com especificações numéricas precisas e múltiplas funcionalidades técnicas (programação, biblioteca de sons, interfaces de armazenamento). A estratégia de busca foca na spec mais restritiva (\"72 músicas\") para filtrar produtos genéricos, enquanto negative_constraints eliminam tecnologias obsoletas (sirenes mecânicas) ou produtos de uso não-escolar.",
+  "originalDescription": "Aquisição de relógios musicais eletrônicos programáveis modelo amplificado. Os equipamentos devem possuir, no mínimo: Central eletrônica programável  Configuração de volume e duração dos sinais  Biblioteca de sons/músicas adequadas ou possibilidade de inclusão  Programação automática de horários  Sistema de acionamento não manual  Capacidade compatível com o porte de cada unidade escolar. Bivolt automático (110v e 220v) Baixo consumo de energia (aprox. 2W para o controlador) Visor/Display LED Deve ter bateria de contingência (mantém a hora e programação em caso de queda de energia) Armazenamento entrada USB e para cartão SD (para músicas personalizadas) Conteúdo de no mínimo 72 músicas pré gravadas e no mínimo 18 espaços livres para personalização Deve ter aproximadamente 200 programações de horário Mínimo de 10 níveis de volume ajustáveis, com ajuste diurno e noturno Deve ter na programação o período de férias, função horário de verão, e acionamento manual Deve ser compatível com caixa de fixação padrão 4x2 Deve ter garantia de no mínimo 1 ano de fábrica Uso contínuo (IP20 não protegido contra chuva ou ambientes que pode molhar) Deverá estar incluso 02 cornetas Empresa deverá dar todo o suporte para configurar o aparelho."
+}
+
+--------------------------------------------------
+[2026-01-29T19:07:07.841Z] PERITO - INPUT
+--------------------------------------------------
+Aquisição de relógios musicais eletrônicos programáveis modelo amplificado. Os equipamentos devem possuir, no mínimo: Central eletrônica programável  Configuração de volume e duração dos sinais  Biblioteca de sons/músicas adequadas ou possibilidade de inclusão  Programação automática de horários  Sistema de acionamento não manual  Capacidade compatível com o porte de cada unidade escolar. Bivolt automático (110v e 220v) Baixo consumo de energia (aprox. 2W para o controlador) Visor/Display LED Deve ter bateria de contingência (mantém a hora e programação em caso de queda de energia) Armazenamento entrada USB e para cartão SD (para músicas personalizadas) Conteúdo de no mínimo 72 músicas pré gravadas e no mínimo 18 espaços livres para personalização Deve ter aproximadamente 200 programações de horário Mínimo de 10 níveis de volume ajustáveis, com ajuste diurno e noturno Deve ter na programação o período de férias, função horário de verão, e acionamento manual Deve ser compatível com caixa de fixação padrão 4x2 Deve ter garantia de no mínimo 1 ano de fábrica Uso contínuo (IP20 não protegido contra chuva ou ambientes que pode molhar) Deverá estar incluso 02 cornetas Empresa deverá dar todo o suporte para configurar o aparelho.
+
+--------------------------------------------------
+[2026-01-29T19:07:07.841Z] PERITO - AI PROMPT SENT
+--------------------------------------------------
+Você é um especialista em análise de editais de licitação.
+Sua missão: Analisar este item e extrair informações estruturadas para cotação inteligente.
+
+=== REGRA ANTI-ALUCINAÇÃO (CRÍTICO) ===
+
+VOCÊ NÃO PODE ABREVIAR UNIDADES OU PALAVRAS.
+Se o texto diz "72 músicas", você DEVE extrair "72 músicas" (NÃO "72 m").
+Se o texto diz "1000 litros", você DEVE extrair "1000 litros" (NÃO "1 l").
+Se o texto diz "16 polegadas", você DEVE extrair "16 polegadas" (NÃO "16 pol").
+
+EXEMPLOS DE ERRO FATAL (O PROCESSO FALHARÁ):
+❌ "72 m" → ERRADO (abreviou "músicas")
+❌ "1 a" → ERRADO (abreviou "ano")
+❌ "500 g" → ERRADO (abreviou "gramas")
+
+EXEMPLOS CORRETOS:
+✅ "72 músicas"
+✅ "1 ano"
+✅ "500 gramas"
+
+DESCRIÇÃO DO ITEM:
+Aquisição de relógios musicais eletrônicos programáveis modelo amplificado. Os equipamentos devem possuir, no mínimo: Central eletrônica programável  Configuração de volume e duração dos sinais  Biblioteca de sons/músicas adequadas ou possibilidade de inclusão  Programação automática de horários  Sistema de acionamento não manual  Capacidade compatível com o porte de cada unidade escolar. Bivolt automático (110v e 220v) Baixo consumo de energia (aprox. 2W para o controlador) Visor/Display LED Deve ter bateria de contingência (mantém a hora e programação em caso de queda de energia) Armazenamento entrada USB e para cartão SD (para músicas personalizadas) Conteúdo de no mínimo 72 músicas pré gravadas e no mínimo 18 espaços livres para personalização Deve ter aproximadamente 200 programações de horário Mínimo de 10 níveis de volume ajustáveis, com ajuste diurno e noturno Deve ter na programação o período de férias, função horário de verão, e acionamento manual Deve ser compatível com caixa de fixação padrão 4x2 Deve ter garantia de no mínimo 1 ano de fábrica Uso contínuo (IP20 não protegido contra chuva ou ambientes que pode molhar) Deverá estar incluso 02 cornetas Empresa deverá dar todo o suporte para configurar o aparelho.
+
+=== TAREFA 1: CLASSIFICAR COMPLEXIDADE ===
+
+Antes de tudo, classifique a COMPLEXIDADE do item:
+
+COMPLEXIDADE "LOW" (Commodities simples):
+- Itens de escritório: lápis, caneta, papel, borracha, grampo, clips
+- Materiais básicos: água, café, açúcar, copo descartável
+- Produtos genéricos sem especificações técnicas críticas
+- Itens onde qualquer marca serve (sem requisitos diferenciadores)
+
+COMPLEXIDADE "HIGH" (Produtos técnicos):
+- Eletrônicos: computadores, impressoras, sirenes, relógios programáveis
+- Equipamentos: instrumentos musicais, hospitalar, laboratório
+- Itens com especificações numéricas críticas (72 músicas, 500GB, 32 polegadas)
+- Produtos que exigem marca/modelo específico para atender ao edital
+
+=== TAREFA 2: EXTRAIR KILL-SPECS ===
+
+Kill-Specs são especificações ÚNICAS que diferenciam o produto.
+
+IGNORE especificações genéricas:
+- bivolt, 220V, 110V (99% dos produtos são bivolt)
+- plástico, metal, ABS (materiais comuns)
+- novo, original, lacrado (óbvio em licitação)
+- garantia 12 meses (padrão de mercado)
+
+FOQUE em especif...[TRUNCATED]
+
+--------------------------------------------------
+[2026-01-29T19:08:04.933Z] PERITO - AI RAW RESPONSE
+--------------------------------------------------
+```json
+{
+    "complexity": "HIGH",
+    "marketplace_search_term": "Sirene Escolar Digital Programável Cornetas",
+    "search_anchor": "\"72 músicas\"",
+    "max_price_estimate": 0,
+    "kill_specs": [
+        "72 músicas pré-gravadas",
+        "18 espaços livres para personalização",
+        "200 programações de horário",
+        "10 níveis de volume ajustáveis diurno e noturno",
+        "bateria de contingência",
+        "entrada USB e cartão SD",
+        "02 cornetas inclusas"
+    ],
+    "generic_specs": [
+        "bivolt",
+        "garantia 1 ano",
+        "novo",
+        "programável",
+        "visor LED"
+    ],
+    "negative_constraints": [
+        "rotativa",
+        "mecânica",
+        "eletromecânica",
+        "campainha",
+        "despertador",
+        "timer analógico",
+        "manual"
+    ],
+    "critical_specs": [
+        {"spec": "72 músicas pré-gravadas", "weight": 50},
+        {"spec": "bateria de contingência", "weight": 10},
+        {"spec": "entrada USB e cartão SD", "weight": 10},
+        {"spec": "02 cornetas inclusas", "weight": 10},
+        {"spec": "200 programações de horário", "weight": 10},
+        {"spec": "programação automática de horários", "weight": 10},
+        {"spec": "10 níveis de volume ajustáveis", "weight": 5},
+        {"spec": "programação de férias e horário de verão", "weight": 5},
+        {"spec": "baixo consumo 2W", "weight": 5}
+    ],
+    "google_queries": [
+        "'sirene escolar \"72 músicas\" site:.com.br'",
+        "'relógio musical programável 200 horários site:.com.br'",
+        "'central escolar USB cartão SD fabricante'"
+    ],
+    "negative_terms": [
+        "despertador",
+        "campainha residencial",
+        "timer de parede",
+        "alarme pessoal"
+    ],
+    "reasoning": "Item classificado como HIGH devido às especificações técnicas numéricas detalhadas (72 músicas, 200 programações, 10 níveis de volume, etc.) e requisitos funcionais complexos (bateria de contingência, entrada USB/SD, programação sazonal). A âncora \"72 músicas\" é a especificação mais restritiva e filtrável. Kill-words eliminam sistemas mecânicos ou produtos residenciais não compatíveis. O termo de busca foca no uso escolar e nas funcionalidades centrais para encontrar fornecedores especializados."
+}
+```
+
+--------------------------------------------------
+[2026-01-29T19:08:04.934Z] PERITO - VALIDATION
+--------------------------------------------------
+✓ kill_spec: 72 músicas pré-gravadas → OK
+✓ kill_spec: 18 espaços livres para personalização → OK
+✓ kill_spec: 200 programações de horário → OK
+✓ kill_spec: 10 níveis de volume ajustáveis diurno e noturno → OK
+✓ kill_spec: bateria de contingência → OK
+✓ kill_spec: entrada USB e cartão SD → OK
+✓ kill_spec: 02 cornetas inclusas → OK
+
+--------------------------------------------------
+[2026-01-29T19:08:04.934Z] PERITO - OUTPUT
+--------------------------------------------------
+{
+  "complexity": "HIGH",
+  "marketplaceSearchTerm": "Sirene Escolar Digital Programável Cornetas",
+  "searchAnchor": "\"72 músicas\"",
+  "searchAnchorRaw": "72 músicas",
+  "searchAnchorQuoted": "\"72 músicas\"",
+  "maxPriceEstimate": 0,
+  "killSpecs": [
+    "72 músicas pré-gravadas",
+    "18 espaços livres para personalização",
+    "200 programações de horário",
+    "10 níveis de volume ajustáveis diurno e noturno",
+    "bateria de contingência",
+    "entrada USB e cartão SD",
+    "02 cornetas inclusas"
+  ],
+  "queries": [
+    "'sirene escolar \"72 músicas\" site:.com.br'",
+    "'relógio musical programável 200 horários site:.com.br'",
+    "'central escolar USB cartão SD fabricante'"
+  ],
+  "negativeTerms": [
+    "despertador",
+    "campainha residencial",
+    "timer de parede",
+    "alarme pessoal"
+  ],
+  "genericSpecs": [
+    "bivolt",
+    "garantia 1 ano",
+    "novo",
+    "programável",
+    "visor LED"
+  ],
+  "negativeConstraints": [
+    "rotativa",
+    "mecânica",
+    "eletromecânica",
+    "campainha",
+    "despertador",
+    "timer analógico",
+    "manual"
+  ],
+  "criticalSpecs": [
+    {
+      "spec": "72 músicas pré-gravadas",
+      "weight": 50
+    },
+    {
+      "spec": "bateria de contingência",
+      "weight": 10
+    },
+    {
+      "spec": "entrada USB e cartão SD",
+      "weight": 10
+    },
+    {
+      "spec": "02 cornetas inclusas",
+      "weight": 10
+    },
+    {
+      "spec": "200 programações de horário",
+      "weight": 10
+    },
+    {
+      "spec": "programação automática de horários",
+      "weight": 10
+    },
+    {
+      "spec": "10 níveis de volume ajustáveis",
+      "weight": 5
+    },
+    {
+      "spec": "programação de férias e horário de verão",
+      "weight": 5
+    },
+    {
+      "spec": "baixo consumo 2W",
+      "weight": 5
+    }
+  ],
+  "reasoning": "Item classificado como HIGH devido às especificações técnicas numéricas detalhadas (72 músicas, 200 programações, 10 níveis de volume, etc.) e requisitos funcionais complexos (bateria de contingência, entrada USB/SD, programação sazonal). A âncora \"72 músicas\" é a especificação mais restritiva e filtrável. Kill-words eliminam sistemas mecânicos ou produtos residenciais não compatíveis. O termo de busca foca no uso escolar e nas funcionalidades centrais para encontrar fornecedores especializados.",
+  "originalDescription": "Aquisição de relógios musicais eletrônicos programáveis modelo amplificado. Os equipamentos devem possuir, no mínimo: Central eletrônica programável  Configuração de volume e duração dos sinais  Biblioteca de sons/músicas adequadas ou possibilidade de inclusão  Programação automática de horários  Sistema de acionamento não manual  Capacidade compatível com o porte de cada unidade escolar. Bivolt automático (110v e 220v) Baixo consumo de energia (aprox. 2W para o controlador) Visor/Display LED Deve ter bateria de contingência (mantém a hora e programação em caso de queda de energia) Armazenamento entrada USB e para cartão SD (para músicas personalizadas) Conteúdo de no mínimo 72 músicas pré gravadas e no mínimo 18 espaços livres para personalização Deve ter aproximadamente 200 programações de horário Mínimo de 10 níveis de volume ajustáveis, com ajuste diurno e noturno Deve ter na programação o período de férias, função horário de verão, e acionamento manual Deve ser compatível com caixa de fixação padrão 4x2 Deve ter garantia de no mínimo 1 ano de fábrica Uso contínuo (IP20 não protegido contra chuva ou ambientes que pode molhar) Deverá estar incluso 02 cornetas Empresa deverá dar todo o suporte para configurar o aparelho."
+}
+
+--------------------------------------------------
+[2026-01-29T19:09:33.779Z] JUIZ - THE SKEPTICAL JUDGE v10.0
+--------------------------------------------------
+
+--------------------------------------------------
+[2026-01-29T19:09:33.779Z] ORIGINAL TENDER DESCRIPTION
+--------------------------------------------------
+Aquisição de relógios musicais eletrônicos programáveis modelo amplificado. Os equipamentos devem possuir, no mínimo: Central eletrônica programável  Configuração de volume e duração dos sinais  Biblioteca de sons/músicas adequadas ou possibilidade de inclusão  Programação automática de horários  Sistema de acionamento não manual  Capacidade compatível com o porte de cada unidade escolar. Bivolt automático (110v e 220v) Baixo consumo de energia (aprox. 2W para o controlador) Visor/Display LED Deve ter bateria de contingência (mantém a hora e programação em caso de queda de energia) Armazenamento entrada USB e para cartão SD (para músicas personalizadas) Conteúdo de no mínimo 72 músicas pré gravadas e no mínimo 18 espaços livres para personalização Deve ter aproximadamente 200 programações de horário Mínimo de 10 níveis de volume ajustáveis, com ajuste diurno e noturno Deve ter na programação o período de férias, função horário de verão, e acionamento manual Deve ser compatível com caixa de fixação padrão 4x2 Deve ter garantia de no mínimo 1 ano de fábrica Uso contínuo (IP20 não protegido contra chuva ou ambientes que pode molhar) Deverá estar incluso 02 cornetas Empresa deverá dar todo o suporte para configurar o aparelho.
+
+--------------------------------------------------
+[2026-01-29T19:09:33.779Z] JUIZ - INPUT
+--------------------------------------------------
+{
+  "candidatesCount": 10,
+  "searchAnchor": "\"72 músicas\"",
+  "negativeConstraints": [
+    "rotativa",
+    "mecânica",
+    "eletromecânica",
+    "campainha",
+    "despertador",
+    "timer analógico",
+    "manual"
+  ],
+  "criticalSpecsCount": 9
+}
+
+--------------------------------------------------
+[2026-01-29T19:09:33.780Z] CANDIDATE 1: Sirene De Escola 2un Com Acionador Automático Cricri Sinal...
+--------------------------------------------------
+Title: Sirene De Escola 2un Com Acionador Automático Cricri Sinal
+Specs Text: Marca: Relógio Escolar com 2 Sirenes - Cricri | Linha: Sirene Escolar | Modelo: Acionador de Sirene Programável - Acionador AC01 e Sirene SC01+ | Cor: Preto | Quantidade de peças: 3 | Tipo de dispositivo: Alarme | Tipos de detectores: De temperatura | Tipo de alimentação: Corrente elétrica | Nível sonoro: 114 dB | Distância de cobertura: 500 m | É resistente às intempéries: Não | Com Wi-Fi: Não | É sem fio: Não | Inclui controle remoto: Não | Com discado automático: Sim | Com alarme sonoro: Sim
+Full Text Length: 3192 chars
+
+Full Text Sample (first 1000 chars):
+sirene de escola 2un com acionador automatico cricri sinal marca: relogio escolar com 2 sirenes - cricri | linha: sirene escolar | modelo: acionador de sirene programavel - acionador ac01 e sirene sc01+ | cor: preto | quantidade de pecas: 3 | tipo de dispositivo: alarme | tipos de detectores: de temperatura | tipo de alimentacao: corrente eletrica | nivel sonoro: 114 db | distancia de cobertura: 500 m | e resistente as intemperies: nao | com wi-fi: nao | e sem fio: nao | inclui controle remoto: nao | com discado automatico: sim | com alarme sonoro: sim | quantidade de alarmes: 2 | quantidade de sirenes: 2 sirene escolar com disparo automatico – ate 290 programacoes organize os horarios da sua escola, empresa ou refeitorio com essa solucao completa da cricri. as sirenes sao acionadas automaticamente nos dias e horarios programados, sem necessidade de operador. ideal para quem precisa manter pontualidade e sinalizacao sonora eficiente. destaques da solucao mais completa do mercado - disp
+  ⛔ KILL-WORD "mecânica" DETECTED → CANDIDATE REJECTED
+
+--------------------------------------------------
+[2026-01-29T19:09:33.781Z] CANDIDATE 1 - SCORING
+--------------------------------------------------
+  Status: REJECTED
+  Score: 0
+  Risk: 10.0
+  KILL-WORD "mecânica" encontrada
+
+--------------------------------------------------
+[2026-01-29T19:09:33.781Z] CANDIDATE 2: Sirene Musical Escolar Amplificada Par De Cornetas Plásticas...
+--------------------------------------------------
+Title: Sirene Musical Escolar Amplificada Par De Cornetas Plásticas
+Specs Text: Marca: Beatek Tok Escola | Modelo do produto: Tok Escola Amplificado + Par de Cornetas Plásticas Beatek | É kit: Sim
+Full Text Length: 4329 chars
+
+Full Text Sample (first 1000 chars):
+sirene musical escolar amplificada par de cornetas plasticas marca: beatek tok escola | modelo do produto: tok escola amplificado + par de cornetas plasticas beatek | e kit: sim torne sua escola mais inclusiva com a sirene musical escolar modelo amplificado - acompanha par de cornetas plasticas transforme o ambiente da sua escola em um espaco inclusivo, produtivo e acolhedor com a sirene musical. com esta sirene a troca de turnos sera feita com musicas, tornando as transicoes mais agradaveis e tranquilas, substituindo o som estridente de sirenes tradicionais, que muitas vezes e agressivo para pessoas com autismo, tdah ou deficiencias sensoriais. a importancia do sinal musical para uma escola inclusiva reconhecemos a importancia de oferecer produtos cuidadosamente desenvolvidos para atender as necessidades especificas de uma escola inclusiva. a sirene musical escolar foi projetada com sensibilidade e compaixao, especialmente pensando em alunos com necessidades especiais, como autismo, t
+  ⛔ KILL-WORD "manual" DETECTED → CANDIDATE REJECTED
+
+--------------------------------------------------
+[2026-01-29T19:09:33.782Z] CANDIDATE 2 - SCORING
+--------------------------------------------------
+  Status: REJECTED
+  Score: 0
+  Risk: 10.0
+  KILL-WORD "manual" encontrada
+
+--------------------------------------------------
+[2026-01-29T19:09:33.783Z] CANDIDATE 3: Sirene Musical Escolar Amplificada Par De Cornetas Plásticas...
+--------------------------------------------------
+Title: Sirene Musical Escolar Amplificada Par De Cornetas Plásticas
+Specs Text: Marca: Beatek Tok Escola | Modelo do produto: Tok Escola Amplificado + Par de Cornetas Plásticas Beatek | É kit: Sim
+Full Text Length: 4329 chars
+
+Full Text Sample (first 1000 chars):
+sirene musical escolar amplificada par de cornetas plasticas marca: beatek tok escola | modelo do produto: tok escola amplificado + par de cornetas plasticas beatek | e kit: sim torne sua escola mais inclusiva com a sirene musical escolar modelo amplificado - acompanha par de cornetas plasticas transforme o ambiente da sua escola em um espaco inclusivo, produtivo e acolhedor com a sirene musical. com esta sirene a troca de turnos sera feita com musicas, tornando as transicoes mais agradaveis e tranquilas, substituindo o som estridente de sirenes tradicionais, que muitas vezes e agressivo para pessoas com autismo, tdah ou deficiencias sensoriais. a importancia do sinal musical para uma escola inclusiva reconhecemos a importancia de oferecer produtos cuidadosamente desenvolvidos para atender as necessidades especificas de uma escola inclusiva. a sirene musical escolar foi projetada com sensibilidade e compaixao, especialmente pensando em alunos com necessidades especiais, como autismo, t
+  ⛔ KILL-WORD "manual" DETECTED → CANDIDATE REJECTED
+
+--------------------------------------------------
+[2026-01-29T19:09:33.783Z] CANDIDATE 3 - SCORING
+--------------------------------------------------
+  Status: REJECTED
+  Score: 0
+  Risk: 10.0
+  KILL-WORD "manual" encontrada
+
+--------------------------------------------------
+[2026-01-29T19:09:33.783Z] CANDIDATE 4: Sirene Musical Escolar Amplificada Par De Cornetas Plásticas...
+--------------------------------------------------
+Title: Sirene Musical Escolar Amplificada Par De Cornetas Plásticas
+Specs Text: Marca: Beatek Tok Escola | Modelo do produto: Tok Escola Amplificado + Par de Cornetas Plásticas Beatek | É kit: Sim
+Full Text Length: 4329 chars
+
+Full Text Sample (first 1000 chars):
+sirene musical escolar amplificada par de cornetas plasticas marca: beatek tok escola | modelo do produto: tok escola amplificado + par de cornetas plasticas beatek | e kit: sim torne sua escola mais inclusiva com a sirene musical escolar modelo amplificado - acompanha par de cornetas plasticas transforme o ambiente da sua escola em um espaco inclusivo, produtivo e acolhedor com a sirene musical. com esta sirene a troca de turnos sera feita com musicas, tornando as transicoes mais agradaveis e tranquilas, substituindo o som estridente de sirenes tradicionais, que muitas vezes e agressivo para pessoas com autismo, tdah ou deficiencias sensoriais. a importancia do sinal musical para uma escola inclusiva reconhecemos a importancia de oferecer produtos cuidadosamente desenvolvidos para atender as necessidades especificas de uma escola inclusiva. a sirene musical escolar foi projetada com sensibilidade e compaixao, especialmente pensando em alunos com necessidades especiais, como autismo, t
+  ⛔ KILL-WORD "manual" DETECTED → CANDIDATE REJECTED
+
+--------------------------------------------------
+[2026-01-29T19:09:33.784Z] CANDIDATE 4 - SCORING
+--------------------------------------------------
+  Status: REJECTED
+  Score: 0
+  Risk: 10.0
+  KILL-WORD "manual" encontrada
+
+--------------------------------------------------
+[2026-01-29T19:09:33.784Z] CANDIDATE 5: Sirene Musical Escolar Amplificada Par De Cornetas Plásticas...
+--------------------------------------------------
+Title: Sirene Musical Escolar Amplificada Par De Cornetas Plásticas
+Specs Text: Marca: Beatek Tok Escola | Modelo do produto: Tok Escola Amplificado + Par de Cornetas Plásticas Beatek | É kit: Sim
+Full Text Length: 4329 chars
+
+Full Text Sample (first 1000 chars):
+sirene musical escolar amplificada par de cornetas plasticas marca: beatek tok escola | modelo do produto: tok escola amplificado + par de cornetas plasticas beatek | e kit: sim torne sua escola mais inclusiva com a sirene musical escolar modelo amplificado - acompanha par de cornetas plasticas transforme o ambiente da sua escola em um espaco inclusivo, produtivo e acolhedor com a sirene musical. com esta sirene a troca de turnos sera feita com musicas, tornando as transicoes mais agradaveis e tranquilas, substituindo o som estridente de sirenes tradicionais, que muitas vezes e agressivo para pessoas com autismo, tdah ou deficiencias sensoriais. a importancia do sinal musical para uma escola inclusiva reconhecemos a importancia de oferecer produtos cuidadosamente desenvolvidos para atender as necessidades especificas de uma escola inclusiva. a sirene musical escolar foi projetada com sensibilidade e compaixao, especialmente pensando em alunos com necessidades especiais, como autismo, t
+  ⛔ KILL-WORD "manual" DETECTED → CANDIDATE REJECTED
+
+--------------------------------------------------
+[2026-01-29T19:09:33.785Z] CANDIDATE 5 - SCORING
+--------------------------------------------------
+  Status: REJECTED
+  Score: 0
+  Risk: 10.0
+  KILL-WORD "manual" encontrada
+
+--------------------------------------------------
+[2026-01-29T19:09:33.785Z] CANDIDATE 6: Sirene Tok Musical Plus Milponto 72 Musica + Par De Cornetas...
+--------------------------------------------------
+Title: Sirene Tok Musical Plus Milponto 72 Musica + Par De Cornetas Preto
+Specs Text: Marca: MILPONTO | Linha: Sirene | Modelo: Sirene Musical Escolar Autismo Tdah Down + Par De Cornetas | Cor: Preto | Altura: 15 cm | Largura: 20 cm | Comprimento: 30 cm | Quantidade de peças: 1 | Tipo de dispositivo: Alarme | Tipos de sensores: Sirene Tok Musical plus milponto 72 musica + Par De Cornetas | Tipos de detectores: Sirene Tok Musical plus milponto 72 musica + Par De Cornetas | Dispositivos compatíveis: Sirene Tok Musical plus milponto 72 musica + Par De Cornetas | Material: Plástico |
+Full Text Length: 1958 chars
+
+Full Text Sample (first 1000 chars):
+sirene tok musical plus milponto 72 musica + par de cornetas preto marca: milponto | linha: sirene | modelo: sirene musical escolar autismo tdah down + par de cornetas | cor: preto | altura: 15 cm | largura: 20 cm | comprimento: 30 cm | quantidade de pecas: 1 | tipo de dispositivo: alarme | tipos de sensores: sirene tok musical plus milponto 72 musica + par de cornetas | tipos de detectores: sirene tok musical plus milponto 72 musica + par de cornetas | dispositivos compativeis: sirene tok musical plus milponto 72 musica + par de cornetas | material: plastico | tipo de alimentacao: corrente eletrica | tipo de pilha: alcalina | com bateria de respaldo: nao | tipo da bateria de respaldo: 0 | capacidade da bateria de respaldo: 0 mah | nivel sonoro: 120 db | distancia de cobertura: 400 m | e imune a animais: nao | peso maximo do animal: 3 kg | e resistente as intemperies: nao | com wi-fi: nao | e sem fio: nao | inclui controle remoto: nao | com discado automatico: nao | com alarme sonoro:
+  ⛔ KILL-WORD "manual" DETECTED → CANDIDATE REJECTED
+
+--------------------------------------------------
+[2026-01-29T19:09:33.786Z] CANDIDATE 6 - SCORING
+--------------------------------------------------
+  Status: REJECTED
+  Score: 0
+  Risk: 10.0
+  KILL-WORD "manual" encontrada
+
+--------------------------------------------------
+[2026-01-29T19:09:33.786Z] CANDIDATE 7: Sirene Musical Escolar + De 9 Musicas Com Par De Cornetas Pr...
+--------------------------------------------------
+Title: Sirene Musical Escolar + De 9 Musicas Com Par De Cornetas Preto
+Specs Text: Marca: MILPONTO | Linha: Alarme | Modelo: Sirene Musical Escolar + De 9 Com Par De Cornetas | Cor: Preto | Altura: 10 cm | Largura: 20 cm | Comprimento: 30 cm | Quantidade de peças: 1 | Tipo de dispositivo: Alarme | Tipos de sensores: Sirene Musical Escolar + De 9 Com Par De Cornetas | Tipos de detectores: Sirene Musical Escolar + De 9 Com Par De Cornetas | Dispositivos compatíveis: Sirene Musical Escolar + De 9 Com Par De Cornetas | Material: Plástico | Tipo de alimentação: Corrente elétrica |
+Full Text Length: 3357 chars
+
+Full Text Sample (first 1000 chars):
+sirene musical escolar + de 9 musicas com par de cornetas preto marca: milponto | linha: alarme | modelo: sirene musical escolar + de 9 com par de cornetas | cor: preto | altura: 10 cm | largura: 20 cm | comprimento: 30 cm | quantidade de pecas: 1 | tipo de dispositivo: alarme | tipos de sensores: sirene musical escolar + de 9 com par de cornetas | tipos de detectores: sirene musical escolar + de 9 com par de cornetas | dispositivos compativeis: sirene musical escolar + de 9 com par de cornetas | material: plastico | tipo de alimentacao: corrente eletrica | tipo de pilha: nao precisa | com bateria de respaldo: nao | tipo da bateria de respaldo: nao utiliza bateria | capacidade da bateria de respaldo: 0 mah | nivel sonoro: 105 db | distancia de cobertura: 1.000 m | e imune a animais: nao | peso maximo do animal: 7 kg | e resistente as intemperies: nao | com wi-fi: nao | e sem fio: nao | inclui controle remoto: nao | com discado automatico: nao | com alarme sonoro: sim | com alarme discr
+  ✗ Searching "Âncora: 72 musicas" → NOT FOUND
+  ✗ Searching "72 músicas pré-gravadas" → NOT FOUND
+  ✗ Searching "bateria de contingência" → NOT FOUND
+  ✗ Searching "entrada USB e cartão SD" → NOT FOUND
+  ✗ Searching "02 cornetas inclusas" → NOT FOUND
+  ✗ Searching "200 programações de horário" → NOT FOUND
+  ✗ Searching "programação automática de horários" → NOT FOUND
+  ✗ Searching "10 níveis de volume ajustáveis" → NOT FOUND
+  ✗ Searching "programação de férias e horário de verão" → NOT FOUND
+  ✗ Searching "baixo consumo 2W" → NOT FOUND
+  ✗ Searching "GROUND-TRUTH: 72 músicas" → NOT FOUND
+  ✗ Searching "GROUND-TRUTH: 200 programações" → NOT FOUND
+  ✗ Searching "GROUND-TRUTH: 02 cornetas" → NOT FOUND
+  ✗ Searching "GROUND-TRUTH: 10 níveis" → NOT FOUND
+
+--------------------------------------------------
+[2026-01-29T19:09:33.789Z] CANDIDATE 7 - SCORING
+--------------------------------------------------
+  Status: REJECTED
+  Score: 0
+  Risk: 10.0
+  ✓ Nenhuma kill-word detectada
+  ⚠ Âncora "72 musicas" NÃO encontrada (+10pts - penalidade severa)
+  → Specs encontradas: 0/9
+  ⛔ Ground-truth fail: 0/4 specs (-30pts penalidade)
+
+--------------------------------------------------
+[2026-01-29T19:09:33.789Z] CANDIDATE 8: Sirene Musical Escolar Duplo Amplificado Com 4 Cornetas...
+--------------------------------------------------
+Title: Sirene Musical Escolar Duplo Amplificado Com 4 Cornetas
+Specs Text: Marca: Beatek Tok Escola Plus 200w | Modelo do produto: Tok Escola Plus Duplo Amplificado 200w + 2 Pares de Cornetas | Fabricante: Beatek | Modelo alfanumérico: Beatek Tok Escola Plus 200w + 2 Pares de Corneta
+Full Text Length: 2524 chars
+
+Full Text Sample (first 1000 chars):
+sirene musical escolar duplo amplificado com 4 cornetas marca: beatek tok escola plus 200w | modelo do produto: tok escola plus duplo amplificado 200w + 2 pares de cornetas | fabricante: beatek | modelo alfanumerico: beatek tok escola plus 200w + 2 pares de corneta sirene musical escolar 200w duplo amplificada + 4 cornetas potencia real para escolas que precisam de alcance de verdade. modelo profissional com dupla amplificacao integrada, garantindo som forte, limpo e estavel em toda a escola. ideal para troca de turnos com musica, tornando o ambiente mais calmo e inclusivo para todos os alunos. por que este modelo e superior (200w reais) - amplificacao dupla – potencia real de 200w - 4 cornetas de 50w cada (total 200w uteis) - cobertura para patios, quadras e blocos distantes - som claro mesmo em ambientes barulhentos - instalacao simples, com suporte completo este modelo foi projetado para fornecer potencia proporcional a quantidade de cornetas, garantindo desempenho profissional. amb
+  ⛔ KILL-WORD "manual" DETECTED → CANDIDATE REJECTED
+
+--------------------------------------------------
+[2026-01-29T19:09:33.790Z] CANDIDATE 8 - SCORING
+--------------------------------------------------
+  Status: REJECTED
+  Score: 0
+  Risk: 10.0
+  KILL-WORD "manual" encontrada
+
+--------------------------------------------------
+[2026-01-29T19:09:33.790Z] CANDIDATE 9: Sirene Multisom 4 Tons Programável Indústria Escola Pátio...
+--------------------------------------------------
+Title: Sirene Multisom 4 Tons Programável Indústria Escola Pátio
+Specs Text: Marca: Btk Solutions | Linha: Ideal para galpões logísticos, indústria metalmecânica, ma- deireiras, escolas e pátios de convívio comum. | Modelo: BTK-PLAY | Quantidade de peças: 1 | Tipo de dispositivo: Alarme | Material: Polímero ABS anti- corrosão | Tipo de alimentação: Corrente elétrica | Nível sonoro: 126 dB | Distância de cobertura: 700 m | É imune a animais: Não | É resistente às intempéries: Sim | Com Wi-Fi: Não | É sem fio: Não | Inclui controle remoto: Não | Com discado automático: Não
+Full Text Length: 828 chars
+
+Full Text Sample (first 1000 chars):
+sirene multisom 4 tons programavel industria escola patio marca: btk solutions | linha: ideal para galpoes logisticos, industria metalmecanica, ma- deireiras, escolas e patios de convivio comum. | modelo: btk-play | quantidade de pecas: 1 | tipo de dispositivo: alarme | material: polimero abs anti- corrosao | tipo de alimentacao: corrente eletrica | nivel sonoro: 126 db | distancia de cobertura: 700 m | e imune a animais: nao | e resistente as intemperies: sim | com wi-fi: nao | e sem fio: nao | inclui controle remoto: nao | com discado automatico: nao | com alarme sonoro: sim | com alarme discreto: nao | caracteristicas adicionais: 4 tons programaveis | quantidade de alarmes: 4 | quantidade de sirenes: 1 | fabricante: btk solutions | modelo alfanumerico: btk-4070 | altura: 12 cm | largura: 20 cm | comprimento: 23 cm
+  ⛔ KILL-WORD "mecânica" DETECTED → CANDIDATE REJECTED
+
+--------------------------------------------------
+[2026-01-29T19:09:33.791Z] CANDIDATE 9 - SCORING
+--------------------------------------------------
+  Status: REJECTED
+  Score: 0
+  Risk: 10.0
+  KILL-WORD "mecânica" encontrada
+
+--------------------------------------------------
+[2026-01-29T19:09:33.792Z] CANDIDATE 10: Sirene Musical Escolar Duplo Amplificado Com 4 Cornetas...
+--------------------------------------------------
+Title: Sirene Musical Escolar Duplo Amplificado Com 4 Cornetas
+Specs Text: Marca: Beatek Tok Escola Plus 200w | Modelo do produto: Tok Escola Plus Duplo Amplificado 200w + 2 Pares de Cornetas | Fabricante: Beatek | Modelo alfanumérico: Beatek Tok Escola Plus 200w + 2 Pares de Corneta
+Full Text Length: 2524 chars
+
+Full Text Sample (first 1000 chars):
+sirene musical escolar duplo amplificado com 4 cornetas marca: beatek tok escola plus 200w | modelo do produto: tok escola plus duplo amplificado 200w + 2 pares de cornetas | fabricante: beatek | modelo alfanumerico: beatek tok escola plus 200w + 2 pares de corneta sirene musical escolar 200w duplo amplificada + 4 cornetas potencia real para escolas que precisam de alcance de verdade. modelo profissional com dupla amplificacao integrada, garantindo som forte, limpo e estavel em toda a escola. ideal para troca de turnos com musica, tornando o ambiente mais calmo e inclusivo para todos os alunos. por que este modelo e superior (200w reais) - amplificacao dupla – potencia real de 200w - 4 cornetas de 50w cada (total 200w uteis) - cobertura para patios, quadras e blocos distantes - som claro mesmo em ambientes barulhentos - instalacao simples, com suporte completo este modelo foi projetado para fornecer potencia proporcional a quantidade de cornetas, garantindo desempenho profissional. amb
+  ⛔ KILL-WORD "manual" DETECTED → CANDIDATE REJECTED
+
+--------------------------------------------------
+[2026-01-29T19:09:33.792Z] CANDIDATE 10 - SCORING
+--------------------------------------------------
+  Status: REJECTED
+  Score: 0
+  Risk: 10.0
+  KILL-WORD "manual" encontrada
+
+--------------------------------------------------
+[2026-01-29T19:09:33.793Z] JUIZ - ERROR
+--------------------------------------------------
+Error: Nenhum candidato com risco <= 7
+
+============================================================
+END OF DEBUG LOG
+Finished: 2026-01-29T19:09:33.793Z
+Duration: 259.54 seconds
+Log File: /app/logs/hivemind/task_unknown_item_1_1769713514254.log
+============================================================
