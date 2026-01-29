@@ -775,4 +775,122 @@ function buildMethodologyText(goldEntity, killSpecs, specs = {}) {
 Ordenação: ORDER BY risk ASC, price ASC (técnica sobre preço)`;
 }
 
-module.exports = { executeJuiz };
+// ============================================
+// SMART CANDIDATE SELECTION - Phase 6B
+// Direct Evaluation with Simple Prompt
+// ============================================
+
+/**
+ * Evaluate a candidate with a simple, direct AI prompt
+ * No complex scoring - just ask "what's the risk?"
+ * 
+ * @param {object} candidate - The candidate to evaluate
+ * @param {string} originalDescription - Full tender description (NO TRUNCATION)
+ * @param {object} config - AI configuration
+ * @returns {object} { risk_score, reasoning }
+ */
+async function evaluateCandidateDirect(candidate, originalDescription, config) {
+    // Build the full ad text - NO TRUNCATION
+    const productDNA = candidate.productDNA || {};
+    const adText = productDNA.fullTextRaw ||
+        productDNA.descriptionText ||
+        candidate.description ||
+        candidate.title ||
+        'N/A';
+
+    const prompt = `Uma prefeitura está querendo comprar este item:
+
+--- DESCRIÇÃO DO EDITAL ---
+${originalDescription}
+
+--- ANÚNCIO ENCONTRADO ---
+Título: ${candidate.title}
+Preço: R$ ${candidate.price?.toFixed(2) || 'N/A'}
+
+Descrição completa do anúncio:
+${adText}
+
+---
+
+De 0 a 10, qual o RISCO de eu vender este item para a prefeitura e por quê?
+
+ESCALA DE RISCO:
+- 0-2: ✅ Baixíssimo risco, produto claramente compatível
+- 3-4: ⚠️ Baixo risco, pequenas diferenças aceitáveis
+- 5-6: 🔶 Médio risco, algumas especificações podem não atender
+- 7-8: 🔴 Alto risco, diferenças significativas que podem causar problemas
+- 9-10: ❌ Altíssimo risco, produto provavelmente incompatível
+
+IMPORTANTE:
+- Use emojis para destacar pontos chaves
+- Seja específico sobre O QUE pode dar errado
+- Mencione as especificações que batem e as que NÃO batem
+- Se o anúncio não menciona algo importante, diga que isso aumenta o risco
+
+Responda em JSON:
+{
+    "risk_score": 0-10,
+    "reasoning": "Explicação detalhada com emojis"
+}`;
+
+    console.log(`[JUIZ] 🎯 Avaliação DIRETA: "${candidate.title?.substring(0, 40)}..."`);
+
+    try {
+        // Get AI configuration
+        let provider = config.provider || await getSetting('juiz_provider') || PROVIDERS.DEEPSEEK;
+        let model = config.model || await getSetting('juiz_model') || 'deepseek-chat';
+        let apiKey = getApiKeyFromEnv(provider);
+
+        if (!apiKey) {
+            console.warn(`[JUIZ] ⚠️ No API key for "${provider}", using DeepSeek`);
+            provider = PROVIDERS.DEEPSEEK;
+            model = 'deepseek-chat';
+            apiKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
+        }
+
+        const response = await generateText({
+            provider,
+            model,
+            apiKey,
+            messages: [{ role: 'user', content: prompt }]
+        });
+
+        console.log(`[JUIZ] 🤖 IA respondeu: "${response.substring(0, 80)}..."`);
+
+        // Parse JSON response
+        const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/) ||
+            response.match(/\{[\s\S]*\}/);
+
+        if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+            return {
+                risk_score: parseFloat(parsed.risk_score) || 5.0,
+                reasoning: parsed.reasoning || 'Avaliação sem detalhes'
+            };
+        }
+
+        // Fallback: try to extract numbers from response
+        const numberMatch = response.match(/\b(\d+(?:\.\d+)?)\s*(?:\/\s*10|de\s*risco)/i);
+        if (numberMatch) {
+            return {
+                risk_score: parseFloat(numberMatch[1]),
+                reasoning: response.replace(/```json[\s\S]*?```/g, '').trim() || 'Risco avaliado'
+            };
+        }
+
+        console.warn(`[JUIZ] ⚠️ Não conseguiu parsear resposta da IA`);
+        return {
+            risk_score: 5.0,
+            reasoning: '🔶 Avaliação inconclusiva - resposta da IA não estruturada'
+        };
+
+    } catch (err) {
+        console.error(`[JUIZ] ❌ Erro na avaliação direta: ${err.message}`);
+        return {
+            risk_score: 6.0,
+            reasoning: `⚠️ Erro na avaliação automática: ${err.message}`
+        };
+    }
+}
+
+module.exports = { executeJuiz, evaluateCandidateDirect };

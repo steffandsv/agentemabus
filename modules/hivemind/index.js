@@ -15,8 +15,10 @@ const { initBrowser, setCEP, searchAndScrape, getProductDetails } = require('./s
 const { executePerito } = require('./agents/perito');
 const { executeDetetive } = require('./agents/detetive');
 const { executeAuditor } = require('./agents/auditor');
-const { executeSniper } = require('./agents/sniper');
-const { executeJuiz } = require('./agents/juiz');
+// Smart Candidate Selection: Import new functions
+const { executeSniper, collectAllTitles, aiSelectCandidates, getDetailsForSelected } = require('./agents/sniper');
+// Smart Candidate Selection: Import direct evaluation
+const { executeJuiz, evaluateCandidateDirect } = require('./agents/juiz');
 const { getCachedEntity, cacheEntity } = require('./services/entityCache');
 const { DebugLogger } = require('./services/debug_logger');
 const { askPerplexity } = require('../perplexity/client'); // GOLDEN PATH: Enrichment via Perplexity
@@ -389,134 +391,111 @@ async function runAuditor(state, page, config, logger, itemId) {
 }
 
 async function runSniper(state, page, cep, config, logger, itemId) {
-    logger.log(`🎯 [Item ${itemId}] SNIPER: Busca cirúrgica no marketplace...`);
+    logger.log(`🎯 [Item ${itemId}] SNIPER: Smart Candidate Selection v2.0...`);
 
-    // GOLDEN PATH v11.0: Strategy Fallback Loop
+    // SMART CANDIDATE SELECTION: 3-Phase Approach
     const strategies = state.searchStrategies || [];
-    const MIN_ACCEPTABLE_CANDIDATES = 3;
-    let allCandidates = [];
-    let successfulStrategy = null;
 
-    // Log available strategies
-    if (strategies.length > 0) {
-        logger.log(`📋 [Item ${itemId}] SNIPER: ${strategies.length} estratégias disponíveis`);
-        if (state.debugLogger) {
-            state.debugLogger.section('SEARCH STRATEGIES');
-            strategies.forEach((s, i) => {
-                state.debugLogger._write(`  [${i + 1}] ${s.type}: "${s.query}" - ${s.description || ''}`);
-            });
-        }
+    if (strategies.length === 0) {
+        // Fallback: Create basic strategies from available data
+        const fallbackQuery = state.marketplaceSearchTerm || state.goldEntity?.name || state.item.description.substring(0, 50);
+        strategies.push({
+            type: 'fallback',
+            query: fallbackQuery,
+            priority: 1,
+            description: 'Fallback query'
+        });
+    }
+
+    logger.log(`📋 [Item ${itemId}] SNIPER: ${strategies.length} estratégias disponíveis`);
+
+    if (state.debugLogger) {
+        state.debugLogger.section('SMART CANDIDATE SELECTION');
+        state.debugLogger._write(`Strategies: ${strategies.length}`);
+        strategies.forEach((s, i) => {
+            state.debugLogger._write(`  [${i + 1}] ${s.type}: "${s.query}"`);
+        });
     }
 
     try {
-        // Try each strategy until we get enough candidates
-        for (let i = 0; i < strategies.length; i++) {
-            const strategy = strategies[i];
-            logger.log(`🔄 [Item ${itemId}] SNIPER: Tentativa ${i + 1}/${strategies.length} - ${strategy.type}: "${strategy.query}"`);
+        // =============================================
+        // PHASE 1: Collect ALL titles from ALL strategies
+        // =============================================
+        logger.log(`🔍 [Item ${itemId}] FASE 1: Coletando títulos de todas as estratégias...`);
+        const allTitles = await collectAllTitles(strategies, page, cep);
 
-            // Build a temporary entity for this strategy
-            const strategyEntity = {
-                ...state.goldEntity,
-                name: strategy.query,
-                searchQueries: [strategy.query],
-                strategyType: strategy.type
-            };
-
-            const result = await executeSniper(
-                strategyEntity,
-                state.kitComponents,
-                state.item.maxPrice,
-                state.item.quantity,
-                page,
-                cep,
-                config,
-                strategy.type === 'functional' ? state.searchAnchor : null
-            );
-
-            const candidateCount = result.candidates?.length || 0;
-            logger.log(`   → Retornou ${candidateCount} candidatos`);
-
-            if (candidateCount > 0) {
-                // Tag candidates with their source strategy
-                result.candidates.forEach(c => {
-                    c.sourceStrategy = strategy.type;
-                    c.sourceQuery = strategy.query;
-                });
-                allCandidates.push(...result.candidates);
-            }
-
-            // Check if we have enough candidates
-            if (allCandidates.length >= MIN_ACCEPTABLE_CANDIDATES) {
-                successfulStrategy = strategy;
-                logger.log(`✅ [Item ${itemId}] SNIPER: Estratégia "${strategy.type}" atingiu mínimo de ${MIN_ACCEPTABLE_CANDIDATES} candidatos`);
-                break;
-            }
-
-            // Log continuation
-            if (i < strategies.length - 1) {
-                logger.log(`⚠️ [Item ${itemId}] SNIPER: Apenas ${allCandidates.length} candidatos, tentando próxima estratégia...`);
-            }
-        }
-
-        // Fallback: If no strategies or all failed, try legacy approach
-        if (allCandidates.length === 0 && state.goldEntity) {
-            logger.log(`🔙 [Item ${itemId}] SNIPER: Fallback - usando goldEntity original`);
-            const entity = state.goldEntity;
-            const result = await executeSniper(
-                entity,
-                state.kitComponents,
-                state.item.maxPrice,
-                state.item.quantity,
-                page,
-                cep,
-                config,
-                state.searchAnchor
-            );
-            allCandidates = result.candidates || [];
-        }
-
-        // Deduplicate by link
-        const seenLinks = new Set();
-        allCandidates = allCandidates.filter(c => {
-            if (seenLinks.has(c.link)) return false;
-            seenLinks.add(c.link);
-            return true;
-        });
-
-        if (allCandidates.length === 0) {
-            logger.log(`⚠️ [Item ${itemId}] SNIPER: Nenhum candidato encontrado após ${strategies.length} estratégias.`);
+        if (allTitles.length === 0) {
+            logger.log(`⚠️ [Item ${itemId}] SNIPER: Nenhum produto encontrado em ${strategies.length} estratégias.`);
             state.candidates = [];
             state.current = STATES.COMPLETE;
             return state;
         }
 
-        state.candidates = allCandidates;
-        state.successfulStrategy = successfulStrategy;
-        state.kitPricing = null; // Will be calculated per-candidate if needed
+        logger.log(`📦 [Item ${itemId}] FASE 1 concluída: ${allTitles.length} títulos únicos`);
 
-        logger.log(`📦 [Item ${itemId}] SNIPER: ${allCandidates.length} candidatos totais (${successfulStrategy ? successfulStrategy.type : 'fallback'})`);
+        // =============================================
+        // PHASE 2: AI pre-filter - which are worth investigating?
+        // =============================================
+        logger.log(`🤖 [Item ${itemId}] FASE 2: IA pré-filtrando candidatos...`);
+        const selectedIndices = await aiSelectCandidates(
+            allTitles,
+            state.originalDescription || state.item.description,
+            config
+        );
 
-        // Log strategy progression in debug
+        if (selectedIndices.length === 0) {
+            logger.log(`⚠️ [Item ${itemId}] SNIPER: IA não selecionou nenhum candidato relevante.`);
+            // Fallback: take first 10 by price
+            const fallbackSelection = allTitles
+                .sort((a, b) => a.price - b.price)
+                .slice(0, 10)
+                .map((_, i) => i);
+            selectedIndices.push(...fallbackSelection);
+            logger.log(`🔙 [Item ${itemId}] SNIPER: Fallback - usando os 10 mais baratos`);
+        }
+
+        logger.log(`🎯 [Item ${itemId}] FASE 2 concluída: ${selectedIndices.length} candidatos selecionados para investigação`);
+
+        // =============================================
+        // PHASE 3: Get detailed info for selected candidates only
+        // =============================================
+        logger.log(`📝 [Item ${itemId}] FASE 3: Buscando detalhes dos candidatos selecionados...`);
+        const detailedCandidates = await getDetailsForSelected(selectedIndices, allTitles, page, cep);
+
+        // Apply price anomaly filter
+        const filteredCandidates = filterPriceAnomaliesLocal(detailedCandidates);
+
+        state.candidates = filteredCandidates;
+        state.allTitlesCount = allTitles.length;
+        state.selectedCount = selectedIndices.length;
+        state.kitPricing = null;
+
+        logger.log(`✅ [Item ${itemId}] SNIPER concluído: ${filteredCandidates.length} candidatos prontos para avaliação`);
+        logger.log(`   → ${allTitles.length} títulos coletados → ${selectedIndices.length} selecionados pela IA → ${filteredCandidates.length} detalhados`);
+
         if (state.debugLogger) {
-            state.debugLogger.section('STRATEGY RESULTS');
-            state.debugLogger._write(`Total candidates: ${allCandidates.length}`);
-            state.debugLogger._write(`Successful strategy: ${successfulStrategy ? successfulStrategy.type : 'fallback'}`);
+            state.debugLogger.section('SMART CANDIDATE SELECTION RESULTS');
+            state.debugLogger._write(`Total titles collected: ${allTitles.length}`);
+            state.debugLogger._write(`AI selected: ${selectedIndices.length}`);
+            state.debugLogger._write(`Detailed candidates: ${filteredCandidates.length}`);
+
+            // Log by strategy
             const byStrategy = {};
-            allCandidates.forEach(c => {
-                byStrategy[c.sourceStrategy || 'legacy'] = (byStrategy[c.sourceStrategy || 'legacy'] || 0) + 1;
+            detailedCandidates.forEach(c => {
+                byStrategy[c.sourceStrategy || 'unknown'] = (byStrategy[c.sourceStrategy || 'unknown'] || 0) + 1;
             });
             Object.entries(byStrategy).forEach(([strat, count]) => {
                 state.debugLogger._write(`  - ${strat}: ${count} candidates`);
             });
         }
 
-        logState(state, `SNIPER encontrou ${allCandidates.length} candidatos (${strategies.length} estratégias tentadas)`, logger, itemId);
+        logState(state, `SNIPER Smart Selection: ${allTitles.length}→${selectedIndices.length}→${filteredCandidates.length}`, logger, itemId);
 
-        // LEI 2: Go to AVALIACAO for strategic sufficiency check
         state.current = STATES.AVALIACAO;
 
     } catch (err) {
         logger.log(`❌ [Item ${itemId}] SNIPER Error: ${err.message}`);
+        console.error(err);
         state.candidates = [];
         state.current = STATES.COMPLETE;
     }
@@ -524,57 +503,110 @@ async function runSniper(state, page, cep, config, logger, itemId) {
     return state;
 }
 
+/**
+ * Local price anomaly filter (copy from sniper.js)
+ */
+function filterPriceAnomaliesLocal(candidates) {
+    if (candidates.length < 3) return candidates;
+
+    const prices = candidates.map(c => c.price).sort((a, b) => a - b);
+    const median = prices[Math.floor(prices.length / 2)];
+    const threshold = median * 0.30;
+
+    return candidates.map(c => {
+        if (c.price < threshold) {
+            c.priceAnomaly = true;
+            c.anomalyReason = `Preço ${Math.round((c.price / median) * 100)}% da mediana. Possível peça/sucata.`;
+        }
+        return c;
+    });
+}
+
 async function runJuiz(state, config, logger, itemId) {
-    logger.log(`⚖️ [Item ${itemId}] JUIZ (CODEX OMNI v10.0): Validação com Risco Decimal...`);
+    logger.log(`⚖️ [Item ${itemId}] JUIZ v2.0: Avaliação Direta de Risco...`);
 
     try {
-        // Build specs object for SKEPTICAL JUDGE (CODEX OMNI v10.3 FLEXÍVEL & IMPLACÁVEL)
-        const specs = {
-            searchAnchor: state.searchAnchor || null,
-            searchAnchorRaw: state.searchAnchorRaw || null, // Without quotes
-            // v10.3: negativeConstraints REMOVED - no more kill-word rejection
-            criticalSpecs: state.criticalSpecs || [],
-            minViablePrice: state.minViablePrice || 0, // THE GUILLOTINE (20% of budget)
-            originalDescription: state.originalDescription || state.item.description // CRITICAL: For ground-truth matching
-        };
+        const originalDescription = state.originalDescription || state.item.description;
+        const candidates = state.candidates || [];
 
-        const result = await executeJuiz(
-            state.candidates,
-            state.goldEntity,
-            state.killSpecs,
-            state.item,
-            config,
-            specs,                         // NEW: PERITO specs for scoring
-            state.detectedModel || null,   // NEW: DETETIVE model for bonus
-            state.debugLogger              // NEW: Debug logger for detailed tracing
-        );
-
-        // Update candidates with JUIZ validation
-        state.candidates = result.validatedCandidates;
-        state.winner = result.winnerIndex;
-        state.defenseReport = result.defenseReport;
-
-        if (state.winner !== null && state.winner >= 0) {
-            const winner = state.candidates[state.winner];
-            logger.log(`🏆 [Item ${itemId}] JUIZ: Vencedor: ${winner.title.substring(0, 60)}...`);
-            logger.log(`📊 [Item ${itemId}] Risco: ${winner.risk_score} | Score: ${winner.adherenceScore || 'N/A'}`);
-            logger.log(`💰 [Item ${itemId}] Preço Final: R$ ${winner.totalPrice || winner.price}`);
-        } else {
-            logger.log(`⚠️ [Item ${itemId}] JUIZ: Nenhum candidato com risco aceitável encontrado.`);
+        if (candidates.length === 0) {
+            logger.log(`⚠️ [Item ${itemId}] JUIZ: Nenhum candidato para avaliar.`);
+            state.winner = -1;
+            state.current = STATES.COMPLETE;
+            return state;
         }
 
-        logState(state, `JUIZ concluiu validação com Risco Decimal`, logger, itemId);
+        logger.log(`📋 [Item ${itemId}] JUIZ: Avaliando ${candidates.length} candidatos...`);
 
-        // Finalize debug log and report file path
+        // SMART CANDIDATE SELECTION: Direct evaluation for each candidate
+        // Uses simple prompt: "De 0 a 10 qual o risco?"
+        for (let i = 0; i < candidates.length; i++) {
+            const candidate = candidates[i];
+            logger.log(`   [${i + 1}/${candidates.length}] "${candidate.title?.substring(0, 40)}..."`);
+
+            // SEQUENTIAL: Wait for each AI evaluation
+            const evaluation = await evaluateCandidateDirect(candidate, originalDescription, config);
+
+            // Apply evaluation results to candidate
+            candidate.risk_score = evaluation.risk_score;
+            candidate.aiReasoning = evaluation.reasoning;
+            candidate.aiMatch = evaluation.risk_score <= 5;
+
+            logger.log(`      → Risco: ${evaluation.risk_score}/10`);
+
+            // Debug logging
+            if (state.debugLogger) {
+                state.debugLogger.section(`CANDIDATE ${i + 1} - DIRECT EVALUATION`);
+                state.debugLogger._write(`Title: ${candidate.title?.substring(0, 60)}...`);
+                state.debugLogger._write(`Price: R$ ${candidate.price}`);
+                state.debugLogger._write(`Risk Score: ${evaluation.risk_score}/10`);
+                state.debugLogger._write(`Reasoning: ${evaluation.reasoning?.substring(0, 200)}...`);
+            }
+        }
+
+        // Sort by risk (lowest first), then by price
+        candidates.sort((a, b) => {
+            const riskDiff = (a.risk_score || 10) - (b.risk_score || 10);
+            if (riskDiff !== 0) return riskDiff;
+            return (a.totalPrice || a.price || 0) - (b.totalPrice || b.price || 0);
+        });
+
+        // Find winner: lowest risk that is acceptable (risk <= 7)
+        const MAX_ACCEPTABLE_RISK = 7.0;
+        const winnerIndex = candidates.findIndex(c => (c.risk_score || 10) <= MAX_ACCEPTABLE_RISK);
+
+        state.candidates = candidates;
+        state.winner = winnerIndex;
+
+        if (winnerIndex >= 0) {
+            const winner = candidates[winnerIndex];
+            logger.log(`🏆 [Item ${itemId}] JUIZ: Vencedor: "${winner.title?.substring(0, 50)}..."`);
+            logger.log(`📊 [Item ${itemId}] Risco: ${winner.risk_score}/10`);
+            logger.log(`💰 [Item ${itemId}] Preço: R$ ${winner.totalPrice || winner.price}`);
+        } else {
+            logger.log(`⚠️ [Item ${itemId}] JUIZ: Nenhum candidato com risco ≤ ${MAX_ACCEPTABLE_RISK}`);
+        }
+
+        // Debug summary
         if (state.debugLogger) {
+            state.debugLogger.section('JUIZ EVALUATION SUMMARY');
+            state.debugLogger._write(`Candidates evaluated: ${candidates.length}`);
+            state.debugLogger._write(`Winner index: ${winnerIndex}`);
+            candidates.slice(0, 5).forEach((c, i) => {
+                state.debugLogger._write(`  [${i + 1}] Risk ${c.risk_score}/10 - R$ ${c.totalPrice || c.price} - "${c.title?.substring(0, 40)}..."`);
+            });
+
             const logFilePath = state.debugLogger.finalize();
             logger.log(`📝 [Item ${itemId}] Debug log salvo: ${logFilePath}`);
         }
+
+        logState(state, `JUIZ avaliou ${candidates.length} candidatos, vencedor idx ${winnerIndex}`, logger, itemId);
 
         state.current = STATES.COMPLETE;
 
     } catch (err) {
         logger.log(`❌ [Item ${itemId}] JUIZ Error: ${err.message}`);
+        console.error(err);
         if (state.debugLogger) {
             state.debugLogger.error('JUIZ', err.message, err.stack);
             state.debugLogger.finalize();
