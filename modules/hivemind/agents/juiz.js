@@ -1,8 +1,12 @@
 /**
- * JUIZ Agent - THE SKEPTICAL JUDGE v8.0
+ * JUIZ Agent - THE SKEPTICAL JUDGE v10.3 "FLEXÍVEL & IMPLACÁVEL"
  * 
  * Mission: Calculate Adherence Score using ProductDNA and weighted specs.
- * Uses KILL-WORDS elimination, anchor verification, and decimal risk scoring.
+ * Philosophy: Flexible search, IMPLACABLE judgment on POSITIVE specs.
+ * 
+ * v10.3 CHANGES:
+ * - REMOVED: Kill-words elimination (caused false positives like "manual")
+ * - FOCUS: Verify specs the product MUST HAVE, not words it shouldn't have
  * 
  * Protocol: "Se não está escrito, não existe"
  * 
@@ -51,26 +55,19 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
     }
     
     // ============================================
-    // PHASE 1: KILL-WORDS CHECK (Morte Súbita)
+    // v10.3 "FLEXÍVEL & IMPLACÁVEL": KILL-WORDS REMOVIDAS
     // ============================================
-    const negativeConstraints = specs.negativeConstraints || [];
-    for (const killWord of negativeConstraints) {
-        const normalized = killWord.toLowerCase()
-            .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        
-        if (fullText.includes(normalized)) {
-            if (debugLogger) {
-                debugLogger.killWordCheck(specs._candidateIndex || 0, killWord, true);
-            }
-            return {
-                score: 0,
-                risk: '10.0',
-                reason: `⛔ KILL-WORD: "${killWord}" detectada. Incompatibilidade tecnológica.`,
-                breakdown: [`KILL-WORD "${killWord}" encontrada`]
-            };
-        }
-    }
-    breakdown.push('✓ Nenhuma kill-word detectada');
+    // A verificação de kill-words foi REMOVIDA porque causava falsos positivos.
+    // Exemplo: A palavra "manual" rejeitava candidatos que tinham "acionamento manual"
+    // como uma FEATURE do produto (exigida pelo edital).
+    // 
+    // NOVA FILOSOFIA:
+    // - Busca FLEXÍVEL (encontrar muitos candidatos)
+    // - Julgamento IMPLACÁVEL (baseado em specs POSITIVAS que o produto DEVE ter)
+    // 
+    // O JUIZ agora foca em verificar se o produto TEM as specs exigidas,
+    // não em verificar se ele NÃO TEM certas palavras.
+    breakdown.push('✓ v10.3: Análise sem kill-words (busca flexível)');
     
     // ============================================
     // PHASE 2: ANCHOR VERIFICATION (Prova Real)

@@ -1,13 +1,14 @@
 /**
- * PERITO Agent (The Extractor)
+ * PERITO Agent (The Extractor) - HIVE-MIND v10.3 "FLEXÍVEL & IMPLACÁVEL"
  * 
- * Mission: Read tender descriptions and extract the "Kill-Specs" 
- * - unique specifications that differentiate the product from generic items.
+ * Mission: Read tender descriptions and extract structured information for marketplace search.
+ * Philosophy: FLEXIBLE search (find many candidates), IMPLACABLE judgment (JUIZ validates)
  * 
  * Output:
- * - killSpecs: Array of unique requirements
- * - queries: Google Hacking queries for web investigation
- * - negativeTerms: Terms to ignore in searches
+ * - marketplaceSearchTerm: Natural search term for Mercado Livre
+ * - searchAnchor: Most distinctive spec for filtering
+ * - criticalSpecs: Specs with weights for adherence scoring
+ * - searchVariations: Alternative search terms
  */
 
 const path = require('path');
@@ -59,12 +60,24 @@ async function executePerito(description, config, debugLogger = null) {
         { role: 'user', content: prompt }
     ];
     
-    // DEBUG: Log prompt sent to AI
+    // DEBUG: Log prompt sent to AI with PROVIDER/MODEL/ENDPOINT info
+    const providerEndpoints = {
+        'deepseek': 'https://api.deepseek.com/v1/chat/completions',
+        'gemini': 'https://generativelanguage.googleapis.com/v1beta',
+        'qwen': 'https://dashscope.aliyuncs.com/api/v1',
+        'perplexity': 'https://api.perplexity.ai/chat/completions'
+    };
+    const endpoint = providerEndpoints[provider] || 'unknown';
+    
+    console.log(`[PERITO] 🤖 AI Provider: ${provider}`);
+    console.log(`[PERITO] 📦 Model: ${model || 'default'}`);
+    console.log(`[PERITO] 🔗 Endpoint: ${endpoint}`);
+    
     if (debugLogger) {
         debugLogger.agentInput('PERITO', description);
         debugLogger.aiPrompt('PERITO', prompt);
+        debugLogger.log('PERITO', `AI Config: provider=${provider}, model=${model}, endpoint=${endpoint}`);
     }
-    console.log(`[PERITO] Sending prompt to ${provider}/${model || 'default'}...`);
     
     try {
         // LEI 1: Use safety net function that falls back to DeepSeek on 401
@@ -210,8 +223,8 @@ function parseResponse(response, originalDescription, debugLogger = null) {
             // Extract max price estimate
             const maxPriceEstimate = json.max_price_estimate || json.maxPriceEstimate || 0;
             
-            // NEW: Extract negative constraints (KILL-WORDS for SKEPTICAL JUDGE)
-            const negativeConstraints = json.negative_constraints || json.negativeConstraints || [];
+            // v10.3: Extract search_variations for alternative marketplace queries
+            const searchVariations = json.search_variations || json.searchVariations || [];
             
             // NEW: Extract critical specs with weights
             let criticalSpecs = json.critical_specs || json.criticalSpecs || [];
@@ -271,12 +284,10 @@ function parseResponse(response, originalDescription, debugLogger = null) {
                 searchAnchorRaw,                        // NEW: Without quotes
                 searchAnchorQuoted,                     // NEW: With quotes for ML search
                 maxPriceEstimate,                       // Price estimate for floor calculation
-                killSpecs: validatedKillSpecs,          // VALIDATED kill-specs
-                queries: json.google_queries || json.queries || [],
-                negativeTerms: json.negative_terms || json.negativeTerms || [],
-                genericSpecs: json.generic_specs || json.genericSpecs || [],
-                // SKEPTICAL JUDGE fields
-                negativeConstraints,  // Kill-words that disqualify candidates
+                killSpecs: validatedKillSpecs,          // VALIDATED kill-specs (for display only)
+                // v10.3 "FLEXÍVEL & IMPLACÁVEL": Removed negativeTerms, genericSpecs, negativeConstraints
+                // Philosophy: FLEXIBLE search (find many), IMPLACABLE judgment (JUIZ validates)
+                searchVariations,                       // Alternative marketplace search terms
                 criticalSpecs: validatedCriticalSpecs,  // VALIDATED critical specs with weights
                 reasoning: json.reasoning || '',
                 // Store original description for JUIZ reference

@@ -185,15 +185,14 @@ async function runPerito(state, config, logger, itemId) {
         
         state.maxPriceEstimate = result.maxPriceEstimate || state.item.maxPrice;
         state.killSpecs = result.killSpecs;
-        state.googleQueries = result.queries;
-        state.negativeTerms = result.negativeTerms || [];
+        // v10.3 FLEXÍVEL & IMPLACÁVEL: Removed googleQueries, negativeTerms, negativeConstraints
+        state.searchVariations = result.searchVariations || []; // Alternative search terms
         
         // CODEX OMNI v10.0: Calculate min viable price (THE GUILLOTINE - 20% of budget)
         const budget = state.item.maxPrice || state.maxPriceEstimate || 0;
         state.minViablePrice = budget > 0 ? budget * 0.20 : 0;
         
-        // SKEPTICAL JUDGE fields from PERITO
-        state.negativeConstraints = result.negativeConstraints || []; // Kill-words
+        // SKEPTICAL JUDGE fields from PERITO (v10.3: negativeConstraints removed)
         state.criticalSpecs = result.criticalSpecs || [];             // Specs with weights
         
         // CRITICAL: Store original description for JUIZ ground-truth matching
@@ -207,8 +206,9 @@ async function runPerito(state, config, logger, itemId) {
         if (state.minViablePrice > 0) {
             logger.log(`💰 [Item ${itemId}] Preço Mínimo Viável: R$ ${state.minViablePrice.toFixed(2)} (Guilhotina 20%)`);
         }
-        if (state.negativeConstraints.length > 0) {
-            logger.log(`⛔ [Item ${itemId}] Kill-Words: ${state.negativeConstraints.join(', ')}`);
+        // v10.3: Kill-words log removed (feature was removed)
+        if (state.searchVariations.length > 0) {
+            logger.log(`🔄 [Item ${itemId}] Variações de busca: ${state.searchVariations.slice(0, 2).join(' | ')}`);
         }
         logger.log(`📋 [Item ${itemId}] Kill-Specs: ${state.killSpecs.join(', ')}`);
         
@@ -429,11 +429,11 @@ async function runJuiz(state, config, logger, itemId) {
     logger.log(`⚖️ [Item ${itemId}] JUIZ (CODEX OMNI v10.0): Validação com Risco Decimal...`);
     
     try {
-        // Build specs object for SKEPTICAL JUDGE (CODEX OMNI v10.0)
+        // Build specs object for SKEPTICAL JUDGE (CODEX OMNI v10.3 FLEXÍVEL & IMPLACÁVEL)
         const specs = {
             searchAnchor: state.searchAnchor || null,
             searchAnchorRaw: state.searchAnchorRaw || null, // Without quotes
-            negativeConstraints: state.negativeConstraints || [],
+            // v10.3: negativeConstraints REMOVED - no more kill-word rejection
             criticalSpecs: state.criticalSpecs || [],
             minViablePrice: state.minViablePrice || 0, // THE GUILLOTINE (20% of budget)
             originalDescription: state.originalDescription || state.item.description // CRITICAL: For ground-truth matching
