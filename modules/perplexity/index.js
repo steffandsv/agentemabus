@@ -12,11 +12,11 @@ function extractJson(text) {
     const start = text.indexOf('[');
     const end = text.lastIndexOf(']');
     if (start !== -1 && end !== -1) {
-         try {
-             return JSON.parse(text.substring(start, end + 1));
-         } catch (e) {
-             return [];
-         }
+        try {
+            return JSON.parse(text.substring(start, end + 1));
+        } catch (e) {
+            return [];
+        }
     }
     return [];
 }
@@ -50,9 +50,13 @@ Certifique-se que o link leva diretamente ao produto.
             logger.log(`🤖 [Item ${id}] Perplexity: Tentativa ${attempts}/${maxAttempts}...`);
             logger.thought(id, 'discovery', `Perplexity Search Attempt ${attempts}`);
 
-            const perplexityRaw = await askPerplexity(messages);
+            const perplexityResult = await askPerplexity(messages);
+            const perplexityRaw = perplexityResult?.content;
             if (!perplexityRaw) {
                 logger.log(`⚠️ [Item ${id}] Perplexity não retornou nada.`);
+                if (perplexityResult?.debug?.error) {
+                    logger.log(`   ❌ Erro: ${perplexityResult.debug.error}`);
+                }
                 break;
             }
 
@@ -71,8 +75,8 @@ Certifique-se que o link leva diretamente ao produto.
             if (candidates.length === 0) {
                 // If no candidates, ask why or retry with softer constraints?
                 // For now, break or simple retry.
-                 messages.push({ role: 'user', content: "Você não retornou nenhum candidato válido no formato JSON. Tente novamente, encontrando produtos similares." });
-                 continue;
+                messages.push({ role: 'user', content: "Você não retornou nenhum candidato válido no formato JSON. Tente novamente, encontrando produtos similares." });
+                continue;
             }
 
             // Scrape & Validate
@@ -152,25 +156,25 @@ Tente outras lojas se necessário.
         // If loop finished without success, bestCandidates is empty.
 
         if (bestCandidates.length === 0) {
-             logger.log(`😞 [Item ${id}] Nenhum candidato válido encontrado após ${attempts} tentativas.`);
-             return { id, description, valor_venda: maxPrice, quantidade: quantity, offers: [], winnerIndex: -1 };
+            logger.log(`😞 [Item ${id}] Nenhum candidato válido encontrado após ${attempts} tentativas.`);
+            return { id, description, valor_venda: maxPrice, quantidade: quantity, offers: [], winnerIndex: -1 };
         }
 
         const viable = bestCandidates.filter(c => c.risk_score < 10);
         let winnerIndex = -1;
         if (viable.length > 0) {
-             const selectionResult = await selectBestCandidate(description, viable, maxPrice, quantity);
-             logger.thought(id, 'selection', selectionResult);
+            const selectionResult = await selectBestCandidate(description, viable, maxPrice, quantity);
+            logger.thought(id, 'selection', selectionResult);
 
-             // Map back to original index in the final list
-             // Note: viable is a subset. We need to find the winner in bestCandidates.
-             const winnerObj = viable[selectionResult.winner_index];
-             // selectBestCandidate returns index relative to 'viable' array passed to it.
+            // Map back to original index in the final list
+            // Note: viable is a subset. We need to find the winner in bestCandidates.
+            const winnerObj = viable[selectionResult.winner_index];
+            // selectBestCandidate returns index relative to 'viable' array passed to it.
 
-             if (winnerObj) {
-                 winnerIndex = bestCandidates.indexOf(winnerObj);
-                 logger.log(`🏆 [Item ${id}] VENCEDOR: ${winnerObj.title}`);
-             }
+            if (winnerObj) {
+                winnerIndex = bestCandidates.indexOf(winnerObj);
+                logger.log(`🏆 [Item ${id}] VENCEDOR: ${winnerObj.title}`);
+            }
         }
 
         return { id, description, valor_venda: maxPrice, quantidade: quantity, offers: bestCandidates, winnerIndex };

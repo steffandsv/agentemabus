@@ -17,8 +17,8 @@ const { executeDetetive } = require('./agents/detetive');
 const { executeAuditor } = require('./agents/auditor');
 // Smart Candidate Selection: Import new functions
 const { executeSniper, collectAllTitles, aiSelectCandidates, getDetailsForSelected } = require('./agents/sniper');
-// Smart Candidate Selection: Import direct evaluation
-const { executeJuiz, evaluateCandidateDirect } = require('./agents/juiz');
+// Smart Candidate Selection: Import direct evaluation + batch functions
+const { executeJuiz, evaluateCandidateDirect, evaluateBatchCandidates, deduplicateCandidates } = require('./agents/juiz');
 const { getCachedEntity, cacheEntity } = require('./services/entityCache');
 const { DebugLogger } = require('./services/debug_logger');
 const { askPerplexity } = require('../perplexity/client'); // GOLDEN PATH: Enrichment via Perplexity
@@ -523,11 +523,11 @@ function filterPriceAnomaliesLocal(candidates) {
 }
 
 async function runJuiz(state, config, logger, itemId) {
-    logger.log(`⚖️ [Item ${itemId}] JUIZ v2.0: Avaliação Direta de Risco...`);
+    logger.log(`⚖️ [Item ${itemId}] JUIZ v3.0: Avaliação em Lotes com Deduplicação...`);
 
     try {
         const originalDescription = state.originalDescription || state.item.description;
-        const candidates = state.candidates || [];
+        let candidates = state.candidates || [];
 
         if (candidates.length === 0) {
             logger.log(`⚠️ [Item ${itemId}] JUIZ: Nenhum candidato para avaliar.`);
@@ -536,73 +536,91 @@ async function runJuiz(state, config, logger, itemId) {
             return state;
         }
 
-        logger.log(`📋 [Item ${itemId}] JUIZ: Avaliando ${candidates.length} candidatos...`);
+        // PHASE 0: Deduplicate similar titles, keeping cheapest
+        logger.log(`🔗 [Item ${itemId}] JUIZ: Deduplicando ${candidates.length} candidatos...`);
+        const originalCount = candidates.length;
+        candidates = deduplicateCandidates(candidates);
+        const deduplicatedCount = candidates.length;
+        logger.log(`🔗 [Item ${itemId}] JUIZ: ${originalCount} → ${deduplicatedCount} candidatos (${originalCount - deduplicatedCount} duplicatas removidas)`);
 
-        // Track candidates that need Perplexity validation
-        const candidatesNeedingPerplexity = [];
+        // PHASE 1: Split into batches of 5
+        const BATCH_SIZE = 5;
+        const MAX_PERPLEXITY_PER_BATCH = 2;
+        const batches = [];
+        for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+            batches.push(candidates.slice(i, i + BATCH_SIZE));
+        }
 
-        // PHASE 1: Initial AI evaluation
-        for (let i = 0; i < candidates.length; i++) {
-            const candidate = candidates[i];
-            logger.log(`   [${i + 1}/${candidates.length}] "${candidate.title?.substring(0, 40)}..."`);
+        logger.log(`📦 [Item ${itemId}] JUIZ: ${batches.length} lotes para avaliar`);
 
-            // SEQUENTIAL: Wait for each AI evaluation
-            const evaluation = await evaluateCandidateDirect(candidate, originalDescription, config);
+        // Track Perplexity validations needed
+        const perplexityQueue = [];
 
-            // Apply evaluation results to candidate
-            candidate.risk_score = evaluation.risk_score;
-            candidate.aiReasoning = evaluation.reasoning;
-            candidate.aiMatch = evaluation.risk_score <= 5;
-            candidate.validar_perplexity = evaluation.validar_perplexity;
-            candidate.oq_perguntar = evaluation.oq_perguntar;
+        // PHASE 2: Evaluate each batch
+        for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+            const batch = batches[batchIdx];
+            logger.log(`📦 [Item ${itemId}] Lote ${batchIdx + 1}/${batches.length}: ${batch.length} candidatos`);
 
-            logger.log(`      → Risco: ${evaluation.risk_score}/10`);
+            const batchResult = await evaluateBatchCandidates(batch, originalDescription, config, MAX_PERPLEXITY_PER_BATCH);
 
-            // Check if AI wants Perplexity validation
-            if (evaluation.validar_perplexity && evaluation.oq_perguntar) {
-                logger.log(`      → 🔍 IA quer validar via Perplexity`);
-                candidatesNeedingPerplexity.push({ index: i, candidate, questions: evaluation.oq_perguntar });
+            // Apply evaluations to candidates
+            for (const evaluation of batchResult.evaluations) {
+                const candidateIdx = evaluation.index - 1; // Convert 1-indexed to 0-indexed
+                if (candidateIdx >= 0 && candidateIdx < batch.length) {
+                    const candidate = batch[candidateIdx];
+                    candidate.risk_score = parseFloat(evaluation.risk_score) || 5.0;
+                    candidate.aiReasoning = evaluation.reasoning || '';
+                    candidate.aiMatch = candidate.risk_score <= 5;
+                    logger.log(`   [${evaluation.index}] Risco: ${candidate.risk_score}/10`);
+                }
+            }
+
+            // Queue Perplexity validations (limited per batch)
+            for (const pCandidate of batchResult.perplexityCandidates) {
+                const candidateIdx = pCandidate.index - 1;
+                if (candidateIdx >= 0 && candidateIdx < batch.length) {
+                    perplexityQueue.push({
+                        candidate: batch[candidateIdx],
+                        questions: pCandidate.questions,
+                        batchIdx: batchIdx
+                    });
+                    logger.log(`   🔍 [${pCandidate.index}] Marcado para Perplexity`);
+                }
             }
 
             // Debug logging
             if (state.debugLogger) {
-                state.debugLogger.section(`CANDIDATE ${i + 1} - DIRECT EVALUATION`);
-                state.debugLogger._write(`Title: ${candidate.title?.substring(0, 60)}...`);
-                state.debugLogger._write(`Price: R$ ${candidate.price}`);
-                state.debugLogger._write(`Risk Score: ${evaluation.risk_score}/10`);
-                state.debugLogger._write(`Validar Perplexity: ${evaluation.validar_perplexity ? 'SIM' : 'NAO'}`);
-                if (evaluation.oq_perguntar) {
-                    state.debugLogger._write(`Perguntas: ${evaluation.oq_perguntar.substring(0, 100)}...`);
-                }
+                state.debugLogger.section(`BATCH ${batchIdx + 1} EVALUATION`);
+                state.debugLogger._write(`Provider: ${batchResult.provider || 'unknown'}`);
+                state.debugLogger._write(`Candidates: ${batch.length}`);
+                state.debugLogger._write(`Perplexity requests: ${batchResult.perplexityCandidates?.length || 0}`);
             }
         }
 
-        // PHASE 2: Perplexity validation for candidates that need it
-        if (candidatesNeedingPerplexity.length > 0) {
-            logger.log(`🔬 [Item ${itemId}] JUIZ: ${candidatesNeedingPerplexity.length} candidatos precisam de validação Perplexity`);
+        // PHASE 3: Execute Perplexity validations
+        if (perplexityQueue.length > 0) {
+            logger.log(`🔬 [Item ${itemId}] JUIZ: ${perplexityQueue.length} candidatos para validação Perplexity`);
 
-            const MAX_PERPLEXITY_VALIDATIONS = 3; // Limit API calls
-            const toValidate = candidatesNeedingPerplexity.slice(0, MAX_PERPLEXITY_VALIDATIONS);
-
-            for (const { index, candidate, questions } of toValidate) {
+            for (const { candidate, questions } of perplexityQueue) {
                 logger.log(`   📡 Validando: "${candidate.title?.substring(0, 40)}..."`);
                 logger.log(`   ❓ Perguntas: ${questions.substring(0, 80)}...`);
 
                 try {
-                    // Query Perplexity with AI-generated questions
-                    const perplexityResponse = await askPerplexity(questions);
+                    // Query Perplexity with AI-generated questions (new format returns { content, debug })
+                    const perplexityResult = await askPerplexity(questions, { logger, itemId });
 
-                    if (perplexityResponse) {
+                    if (perplexityResult?.content) {
                         logger.log(`   ✅ Perplexity respondeu`);
 
-                        // Enrich candidate with Perplexity data
-                        candidate.perplexityEnrichment = perplexityResponse;
+                        // Store full debug info
+                        candidate.perplexityDebug = perplexityResult.debug;
+                        candidate.perplexityEnrichment = perplexityResult.content;
                         candidate.enrichmentSource = 'perplexity';
 
                         // Update ProductDNA with enriched info
                         if (candidate.productDNA) {
-                            candidate.productDNA.fullText += `\n\n[PERPLEXITY ENRICHMENT]\n${perplexityResponse}`;
-                            candidate.productDNA.fullTextRaw = (candidate.productDNA.fullTextRaw || '') + `\n\n[INFO EXTERNA]\n${perplexityResponse}`;
+                            candidate.productDNA.fullText += `\n\n[PERPLEXITY ENRICHMENT]\n${perplexityResult.content}`;
+                            candidate.productDNA.fullTextRaw = (candidate.productDNA.fullTextRaw || '') + `\n\n[INFO EXTERNA]\n${perplexityResult.content}`;
                         }
 
                         // RE-EVALUATE with enriched data
@@ -617,13 +635,19 @@ async function runJuiz(state, config, logger, itemId) {
 
                         logger.log(`   → Novo risco: ${reEvaluation.risk_score}/10`);
 
+                        // Log full Perplexity details
                         if (state.debugLogger) {
-                            state.debugLogger.section(`CANDIDATE ${index + 1} - RE-EVALUATION AFTER PERPLEXITY`);
+                            state.debugLogger.section(`PERPLEXITY VALIDATION - ${candidate.title?.substring(0, 30)}...`);
+                            state.debugLogger._write(`URL: ${perplexityResult.debug?.url || 'N/A'}`);
+                            state.debugLogger._write(`Input: ${questions.substring(0, 200)}...`);
+                            state.debugLogger._write(`Raw Response (first 500 chars): ${perplexityResult.debug?.rawResponse?.substring(0, 500) || 'N/A'}...`);
                             state.debugLogger._write(`New Risk Score: ${reEvaluation.risk_score}/10`);
-                            state.debugLogger._write(`Perplexity Response: ${perplexityResponse.substring(0, 200)}...`);
                         }
                     } else {
-                        logger.log(`   ⚠️ Perplexity não respondeu`);
+                        logger.log(`   ⚠️ Perplexity não respondeu ou erro`);
+                        if (perplexityResult?.debug?.error) {
+                            logger.log(`   ❌ Erro: ${perplexityResult.debug.error}`);
+                        }
                     }
                 } catch (perplexityErr) {
                     logger.log(`   ❌ Erro Perplexity: ${perplexityErr.message}`);
@@ -656,9 +680,11 @@ async function runJuiz(state, config, logger, itemId) {
 
         // Debug summary
         if (state.debugLogger) {
-            state.debugLogger.section('JUIZ EVALUATION SUMMARY');
-            state.debugLogger._write(`Candidates evaluated: ${candidates.length}`);
-            state.debugLogger._write(`Perplexity validations: ${candidatesNeedingPerplexity.length}`);
+            state.debugLogger.section('JUIZ v3.0 EVALUATION SUMMARY');
+            state.debugLogger._write(`Original candidates: ${originalCount}`);
+            state.debugLogger._write(`After deduplication: ${deduplicatedCount}`);
+            state.debugLogger._write(`Batches processed: ${batches.length}`);
+            state.debugLogger._write(`Perplexity validations: ${perplexityQueue.length}`);
             state.debugLogger._write(`Winner index: ${winnerIndex}`);
             candidates.slice(0, 5).forEach((c, i) => {
                 const enrichedIcon = c.wasEnriched ? '📡' : '';
@@ -669,7 +695,7 @@ async function runJuiz(state, config, logger, itemId) {
             logger.log(`📝 [Item ${itemId}] Debug log salvo: ${logFilePath}`);
         }
 
-        logState(state, `JUIZ avaliou ${candidates.length} candidatos, ${candidatesNeedingPerplexity.length} enriquecidos, vencedor idx ${winnerIndex}`, logger, itemId);
+        logState(state, `JUIZ v3.0: ${originalCount}→${deduplicatedCount} candidatos, ${batches.length} lotes, ${perplexityQueue.length} Perplexity, vencedor idx ${winnerIndex}`, logger, itemId);
 
         state.current = STATES.COMPLETE;
 
@@ -1007,10 +1033,11 @@ async function enrichCandidateViaPerplexity(candidate, missingSpecs, config, log
 
         logger.log(`   📡 [Item ${itemId}] Consultando Perplexity com ${missingSpecs.length} perguntas...`);
 
-        const response = await askPerplexity(query);
+        const result = await askPerplexity(query, { logger, itemId });
+        const response = result?.content;
 
         if (!response) {
-            return { success: false, reason: 'No response from Perplexity' };
+            return { success: false, reason: result?.debug?.error || 'No response from Perplexity', debug: result?.debug };
         }
 
         // Parse response
@@ -1051,14 +1078,16 @@ async function enrichCandidateViaPerplexity(candidate, missingSpecs, config, log
                 answers: json.answers || {},
                 source: json.source || 'perplexity',
                 confidence: parseFloat(json.confidence) || 0.7,
-                raw: response
+                raw: response,
+                debug: result?.debug
             };
         } catch (parseErr) {
             logger.log(`   ⚠️ [Item ${itemId}] Falha ao parsear resposta do Perplexity`);
             return {
                 success: false,
                 reason: 'Parse error',
-                raw: response
+                raw: response,
+                debug: result?.debug
             };
         }
     } catch (err) {

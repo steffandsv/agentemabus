@@ -907,4 +907,191 @@ Responda em JSON:
     }
 }
 
-module.exports = { executeJuiz, evaluateCandidateDirect };
+// ============================================
+// BATCH EVALUATION - Smart Candidate Selection
+// ============================================
+
+/**
+ * Deduplicate candidates by identifying similar product titles and keeping the cheapest.
+ * 
+ * @param {Array} candidates - Array of candidate objects
+ * @returns {Array} Deduplicated candidates array
+ */
+function deduplicateCandidates(candidates) {
+    // Normalize title for comparison
+    const normalizeTitle = (title) => {
+        return (title || '')
+            .toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+            .replace(/[^a-z0-9\s]/g, '') // Remove special chars
+            .replace(/\s+/g, ' ')
+            .trim();
+    };
+
+    // Extract core product name (brand + model)
+    const extractCore = (title) => {
+        const normalized = normalizeTitle(title);
+        // Common patterns: brand model variant (color, capacity, etc)
+        const words = normalized.split(' ').slice(0, 4).join(' ');
+        return words;
+    };
+
+    // Group by core product
+    const groups = {};
+    for (const candidate of candidates) {
+        const core = extractCore(candidate.title);
+        if (!groups[core]) {
+            groups[core] = [];
+        }
+        groups[core].push(candidate);
+    }
+
+    // Keep cheapest from each group
+    const deduplicated = [];
+    for (const core of Object.keys(groups)) {
+        const group = groups[core];
+        if (group.length === 1) {
+            deduplicated.push(group[0]);
+        } else {
+            // Sort by price ascending
+            group.sort((a, b) => (a.price || Infinity) - (b.price || Infinity));
+            const cheapest = group[0];
+            cheapest._duplicatesRemoved = group.length - 1;
+            cheapest._allPrices = group.map(g => g.price);
+            deduplicated.push(cheapest);
+            console.log(`[JUIZ] 🔗 Duplicatas removidas: "${core.substring(0, 30)}..." (${group.length} → 1, R$ ${cheapest.price})`);
+        }
+    }
+
+    return deduplicated;
+}
+
+/**
+ * Evaluate a batch of candidates with a single AI call.
+ * AI will select up to 2 candidates per batch for Perplexity validation.
+ * 
+ * @param {Array} candidates - Array of candidate objects (max 5 recommended)
+ * @param {string} originalDescription - Full tender description
+ * @param {object} config - AI configuration
+ * @param {number} maxPerplexity - Max candidates to flag for Perplexity (default 2)
+ * @returns {object} { evaluations: [], perplexityCandidates: [] }
+ */
+async function evaluateBatchCandidates(candidates, originalDescription, config, maxPerplexity = 2) {
+    console.log(`[JUIZ] 📦 Avaliação em lote: ${candidates.length} candidatos (máx ${maxPerplexity} para Perplexity)`);
+
+    const candidatesList = candidates.map((c, i) => {
+        const productDNA = c.productDNA || {};
+        const adText = productDNA.fullTextRaw || productDNA.descriptionText || c.description || 'N/A';
+        return `
+--- CANDIDATO ${i + 1} ---
+Título: ${c.title}
+Preço: R$ ${c.price?.toFixed(2) || 'N/A'}
+Descrição: ${adText.substring(0, 500)}${adText.length > 500 ? '...' : ''}
+`;
+    }).join('\n');
+
+    const prompt = `Uma prefeitura está comprando este item:
+
+--- DESCRIÇÃO DO EDITAL ---
+${originalDescription}
+
+--- CANDIDATOS ENCONTRADOS ---
+${candidatesList}
+
+---
+
+Avalie TODOS os candidatos de 0 a 10 (risco de vender e dar errado).
+
+ESCALA DE RISCO:
+- 0-2: ✅ Baixíssimo risco
+- 3-4: ⚠️ Baixo risco
+- 5-6: 🔶 Médio risco  
+- 7-8: 🔴 Alto risco
+- 9-10: ❌ Altíssimo risco
+
+VALIDAÇÃO PERPLEXITY:
+- Você pode pedir validação externa para até ${maxPerplexity} candidatos
+- Use APENAS se: o produto PARECE bom, o preço é viável, mas FALTAM especificações importantes
+- Formule perguntas ESPECÍFICAS incluindo marca/modelo do produto
+
+Responda em JSON:
+{
+    "evaluations": [
+        {
+            "index": 1,
+            "risk_score": 0-10,
+            "reasoning": "Explicação com emojis"
+        },
+        ...
+    ],
+    "perplexity_candidates": [
+        {
+            "index": 1,
+            "questions": "Perguntas específicas sobre o produto X marca Y modelo Z"
+        }
+    ]
+}
+
+IMPORTANTE: perplexity_candidates deve ter no máximo ${maxPerplexity} itens!`;
+
+    try {
+        // Get AI configuration - respect user-configured provider
+        let provider = config.provider || await getSetting('juiz_provider') || PROVIDERS.DEEPSEEK;
+        let model = config.model || await getSetting('juiz_model') || 'deepseek-chat';
+        let apiKey = getApiKeyFromEnv(provider);
+
+        console.log(`[JUIZ] 🤖 Usando provider configurado: ${provider} / ${model}`);
+
+        if (!apiKey) {
+            console.warn(`[JUIZ] ⚠️ No API key for "${provider}", trying DeepSeek`);
+            provider = PROVIDERS.DEEPSEEK;
+            model = 'deepseek-chat';
+            apiKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
+        }
+
+        if (!apiKey) {
+            throw new Error('No API key available for any provider');
+        }
+
+        const response = await generateText({
+            provider,
+            model,
+            apiKey,
+            messages: [{ role: 'user', content: prompt }]
+        });
+
+        console.log(`[JUIZ] 📥 Resposta do lote (${response.length} chars)`);
+
+        // Parse JSON response
+        const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/) ||
+            response.match(/\{[\s\S]*\}/);
+
+        if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+            return {
+                evaluations: parsed.evaluations || [],
+                perplexityCandidates: (parsed.perplexity_candidates || []).slice(0, maxPerplexity),
+                rawResponse: response,
+                provider: provider
+            };
+        }
+
+        console.warn(`[JUIZ] ⚠️ Não conseguiu parsear resposta do lote`);
+        return {
+            evaluations: [],
+            perplexityCandidates: [],
+            rawResponse: response,
+            error: 'Parse error'
+        };
+
+    } catch (err) {
+        console.error(`[JUIZ] ❌ Erro na avaliação em lote: ${err.message}`);
+        return {
+            evaluations: [],
+            perplexityCandidates: [],
+            error: err.message
+        };
+    }
+}
+
+module.exports = { executeJuiz, evaluateCandidateDirect, evaluateBatchCandidates, deduplicateCandidates };
