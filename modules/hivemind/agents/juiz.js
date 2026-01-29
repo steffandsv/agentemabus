@@ -79,7 +79,11 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
         .toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     
-    if (anchor && anchor.length > 0) {
+    // CODEX OMNI v10.1: ANCHOR SANITY CHECK (Anti-Hallucination Defense)
+    // Rejects anchors that are too short or match hallucination patterns like "72 m"
+    const isAnchorSane = anchor.length >= 5 && !/^\d+\s*[a-záéíóú]{1,2}$/i.test(anchor);
+    
+    if (anchor && anchor.length > 0 && isAnchorSane) {
         const found = fullText.includes(anchor);
         
         if (debugLogger) {
@@ -97,6 +101,18 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
         } else {
             score += 10;
             breakdown.push(`⚠ Âncora "${anchor}" NÃO encontrada (+10pts - penalidade severa)`);
+        }
+    } else if (anchor && anchor.length > 0) {
+        // INSANE ANCHOR: Give neutral score instead of penalty
+        score += 35;
+        breakdown.push(`⚠ Âncora "${anchor}" ignorada (suspeita de alucinação, +35pts neutro)`);
+        if (debugLogger) {
+            debugLogger.specMatching(
+                specs._candidateIndex || 0, 
+                `Âncora INSANA: ${anchor}`,
+                false,
+                'Ignorada por validação de sanidade'
+            );
         }
     } else {
         // No anchor defined - treat as medium base

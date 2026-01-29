@@ -115,11 +115,17 @@ async function fetchModels(provider, apiKey) {
  * @param {object} callbacks { onThought, onChunk, onDone, onError }
  */
 async function generateStream(config, callbacks) {
-    const { provider, model, apiKey, messages } = config;
+    let { provider, model, apiKey, messages } = config;
     const { onThought, onChunk, onDone, onError } = callbacks;
 
+    // ROBUST FALLBACK: If API key not provided, try database
+    if (!apiKey || apiKey.trim() === '') {
+        console.log(`[AI Manager] API key não fornecida para ${provider}, buscando no banco...`);
+        apiKey = await getSetting(`${provider}_api_key`);
+    }
+
     if (!apiKey) {
-        if (onError) onError(new Error("Missing API Key"));
+        if (onError) onError(new Error(`Missing API Key for provider: ${provider}`));
         return;
     }
 
@@ -149,8 +155,15 @@ async function generateStream(config, callbacks) {
  * @returns {Promise<string>}
  */
 async function generateText(config) {
-    const { provider, model, apiKey, messages } = config;
-    if (!apiKey) throw new Error("Missing API Key");
+    let { provider, model, apiKey, messages } = config;
+    
+    // ROBUST FALLBACK: If API key not provided, try database
+    if (!apiKey || apiKey.trim() === '') {
+        console.log(`[AI Manager] API key não fornecida para ${provider}, buscando no banco...`);
+        apiKey = await getSetting(`${provider}_api_key`);
+    }
+    
+    if (!apiKey) throw new Error(`Missing API Key for provider: ${provider}`);
 
     if (provider === PROVIDERS.GEMINI) {
         try {

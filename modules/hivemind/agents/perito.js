@@ -31,10 +31,13 @@ async function executePerito(description, config, debugLogger = null) {
     
     const prompt = promptTemplate.replace('{{DESCRIPTION}}', description);
     
-    // Get AI configuration
-    const provider = config.provider || await getSetting('sniper_provider') || PROVIDERS.DEEPSEEK;
-    const model = config.model || await getSetting('sniper_model');
-    const apiKey = config.apiKey || await getSetting('sniper_api_key') || getApiKeyForProvider(provider);
+    // Get AI configuration - FIXED: Read PERITO config, not SNIPER
+    const provider = config.provider || await getSetting('perito_provider') || PROVIDERS.DEEPSEEK;
+    const model = config.model || await getSetting('perito_model') || 'deepseek-chat';
+    // ROBUST API KEY FALLBACK: Try agent key → global provider key → env variable
+    const apiKey = config.apiKey 
+        || await getSetting(`${provider}_api_key`)        // Global provider key from admin panel
+        || getApiKeyForProvider(provider);                // Fallback to process.env
     
     const messages = [
         { role: 'user', content: prompt }
@@ -388,7 +391,9 @@ function fallbackExtraction(description) {
     const killSpecs = [];
     
     // Look for numbers with units (likely specific specs)
-    const numberSpecs = description.match(/\d+\s*(gb|mb|tb|mah|w|watts|kg|g|ml|l|cm|mm|m|pol|"|v|a|hz)/gi);
+    // FIXED: Word boundary \b prevents "72 músicas" → "72 m" hallucination
+    // Added audio units: músicas, sons, toques, programações
+    const numberSpecs = description.match(/\d+\s*(gb|mb|tb|mah|watts?|kg|gramas?|ml|litros?|cm|mm|metros?|polegadas?|pol|volts?|amperes?|hz|músicas?|sons?|toques?|programaç(?:ão|ões)|cornetas?|níveis?)\b/gi);
     if (numberSpecs) {
         killSpecs.push(...numberSpecs.map(s => s.trim()));
     }
