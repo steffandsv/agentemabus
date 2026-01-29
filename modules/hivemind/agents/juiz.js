@@ -40,11 +40,11 @@ const MAX_ACCEPTABLE_RISK = 7.0;
 function calculateAdherenceScore(productDNA, specs, detectedModel = null, originalDescription = null, debugLogger = null) {
     const breakdown = [];
     let score = 0;
-    
+
     // Normalize text for matching
     const fullText = (productDNA?.fullText || '').toLowerCase();
     const title = (productDNA?.title || '').toLowerCase();
-    
+
     if (!fullText) {
         return {
             score: 0,
@@ -53,7 +53,7 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
             breakdown: ['Sem ProductDNA']
         };
     }
-    
+
     // ============================================
     // v10.3 "FLEXÍVEL & IMPLACÁVEL": KILL-WORDS REMOVIDAS
     // ============================================
@@ -68,7 +68,7 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
     // O JUIZ agora foca em verificar se o produto TEM as specs exigidas,
     // não em verificar se ele NÃO TEM certas palavras.
     breakdown.push('✓ v10.3: Análise sem kill-words (busca flexível)');
-    
+
     // ============================================
     // PHASE 2: ANCHOR VERIFICATION (Prova Real)
     // ============================================
@@ -76,23 +76,23 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
         .replace(/"/g, '')
         .toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    
+
     // CODEX OMNI v10.1: ANCHOR SANITY CHECK (Anti-Hallucination Defense)
     // Rejects anchors that are too short or match hallucination patterns like "72 m"
     const isAnchorSane = anchor.length >= 5 && !/^\d+\s*[a-záéíóú]{1,2}$/i.test(anchor);
-    
+
     if (anchor && anchor.length > 0 && isAnchorSane) {
         const found = fullText.includes(anchor);
-        
+
         if (debugLogger) {
             debugLogger.specMatching(
-                specs._candidateIndex || 0, 
+                specs._candidateIndex || 0,
                 `Âncora: ${anchor}`,
                 found,
                 found ? fullText.substring(fullText.indexOf(anchor), fullText.indexOf(anchor) + 100) : null
             );
         }
-        
+
         if (found) {
             score += 60;
             breakdown.push(`✓ Âncora "${anchor}" encontrada (+60pts)`);
@@ -106,7 +106,7 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
         breakdown.push(`⚠ Âncora "${anchor}" ignorada (suspeita de alucinação, +35pts neutro)`);
         if (debugLogger) {
             debugLogger.specMatching(
-                specs._candidateIndex || 0, 
+                specs._candidateIndex || 0,
                 `Âncora INSANA: ${anchor}`,
                 false,
                 'Ignorada por validação de sanidade'
@@ -117,41 +117,41 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
         score += 30;
         breakdown.push('~ Sem âncora definida (+30pts base)');
     }
-    
+
     // ============================================
     // PHASE 3: CRITICAL SPECS (Somatória de Evidências)
     // ============================================
     const criticalSpecs = specs.criticalSpecs || [];
     let specsFound = 0;
     let specsTotal = criticalSpecs.length;
-    
+
     for (const specObj of criticalSpecs) {
         const specText = (typeof specObj === 'string' ? specObj : specObj.spec || '')
             .toLowerCase()
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         const weight = typeof specObj === 'object' ? (specObj.weight || 10) : 10;
-        
+
         const found = specText && fullText.includes(specText);
-        
+
         if (debugLogger) {
             debugLogger.specMatching(
-                specs._candidateIndex || 0, 
+                specs._candidateIndex || 0,
                 specObj.spec || specObj,
                 found
             );
         }
-        
+
         if (found) {
             score += weight;
             specsFound++;
             breakdown.push(`✓ Spec "${specObj.spec || specObj}" (+${weight}pts)`);
         }
     }
-    
+
     if (specsTotal > 0) {
         breakdown.push(`→ Specs encontradas: ${specsFound}/${specsTotal}`);
     }
-    
+
     // ============================================
     // PHASE 3.5: GROUND-TRUTH CHECK FROM ORIGINAL DESCRIPTION
     // ============================================
@@ -164,10 +164,10 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
             { regex: /(\d+)\s*cornetas?/gi, spec: (m) => `${m[1]} cornetas` },
             { regex: /(\d+)\s*níveis?/gi, spec: (m) => `${m[1]} níveis` }
         ];
-        
+
         let originalSpecsFound = 0;
         let originalSpecsTotal = 0;
-        
+
         for (const pattern of numericPatterns) {
             const regex = new RegExp(pattern.regex);
             let match;
@@ -175,22 +175,22 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
                 originalSpecsTotal++;
                 const specToFind = pattern.spec(match).toLowerCase();
                 const found = fullText.includes(specToFind);
-                
+
                 if (found) {
                     originalSpecsFound++;
                     breakdown.push(`✓ Ground-Truth "${specToFind}" verificada`);
                 }
-                
+
                 if (debugLogger) {
                     debugLogger.specMatching(
-                        specs._candidateIndex || 0, 
+                        specs._candidateIndex || 0,
                         `GROUND-TRUTH: ${specToFind}`,
                         found
                     );
                 }
             }
         }
-        
+
         if (originalSpecsTotal > 0) {
             const ratio = originalSpecsFound / originalSpecsTotal;
             if (ratio >= 0.7) {
@@ -202,7 +202,7 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
             }
         }
     }
-    
+
     // ============================================
     // PHASE 4: GOLDEN MODEL BONUS
     // ============================================
@@ -210,7 +210,60 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
         score += 30;
         breakdown.push(`✓ Modelo detectado "${detectedModel}" no título (+30pts bônus)`);
     }
-    
+
+    // ============================================
+    // PHASE 4.5: ENRICHMENT BONUS (GOLDEN PATH)
+    // ============================================
+    // If the ProductDNA was enriched with external data, use that info
+    if (productDNA.enrichedSpecs || productDNA.enrichmentSource) {
+        const enrichedSpecs = productDNA.enrichedSpecs || {};
+        const enrichmentSource = productDNA.enrichmentSource || 'external';
+        const enrichmentConfidence = parseFloat(productDNA.enrichmentConfidence) || 0.7;
+
+        let enrichedConfirmed = 0;
+        let enrichedDenied = 0;
+        let enrichedUnknown = 0;
+
+        for (const [specName, value] of Object.entries(enrichedSpecs)) {
+            if (value === true) {
+                enrichedConfirmed++;
+            } else if (value === false) {
+                enrichedDenied++;
+            } else {
+                enrichedUnknown++;
+            }
+        }
+
+        // Apply enrichment scoring
+        if (enrichedConfirmed > 0) {
+            // Bonus is scaled by confidence (higher confidence = higher bonus)
+            const enrichmentBonus = Math.round(enrichedConfirmed * 10 * enrichmentConfidence);
+            score += enrichmentBonus;
+            breakdown.push(`📡 ${enrichedConfirmed} specs confirmadas via ${enrichmentSource} (+${enrichmentBonus}pts, confiança ${(enrichmentConfidence * 100).toFixed(0)}%)`);
+        }
+
+        if (enrichedDenied > 0) {
+            // External source confirms product DOESN'T have the spec - this is worse than "not found"
+            const penalty = enrichedDenied * 15;
+            score = Math.max(0, score - penalty);
+            breakdown.push(`⛔ ${enrichedDenied} specs NEGADAS via ${enrichmentSource} (-${penalty}pts)`);
+        }
+
+        if (enrichedUnknown > 0) {
+            // Unknown means even external sources couldn't confirm - mild penalty
+            const uncertaintyPenalty = enrichedUnknown * 3;
+            score = Math.max(0, score - uncertaintyPenalty);
+            breakdown.push(`❓ ${enrichedUnknown} specs incertas via ${enrichmentSource} (-${uncertaintyPenalty}pts)`);
+        }
+
+        if (debugLogger) {
+            debugLogger.section('ENRICHMENT SCORING');
+            debugLogger._write(`Source: ${enrichmentSource}`);
+            debugLogger._write(`Confidence: ${enrichmentConfidence}`);
+            debugLogger._write(`Confirmed: ${enrichedConfirmed}, Denied: ${enrichedDenied}, Unknown: ${enrichedUnknown}`);
+        }
+    }
+
     // ============================================
     // CALCULATE DECIMAL RISK
     // ============================================
@@ -219,7 +272,7 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
     // Score 10 = Risk 9.0
     // Score 0 = Risk 10.0
     const risk = Math.max(0, Math.min(10, 10.0 - (score / 10.0)));
-    
+
     // Generate reason summary
     let reason;
     if (risk <= 2.0) {
@@ -231,7 +284,7 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
     } else {
         reason = `❌ REJEITADO (Risco ${risk.toFixed(1)}). Aderência Insuficiente. Não recomendado.`;
     }
-    
+
     return {
         score,
         risk: risk.toFixed(1),
@@ -254,7 +307,7 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null, origin
  */
 async function executeJuiz(candidates, goldEntity, killSpecs, item, config, specs = {}, detectedModel = null, debugLogger = null) {
     console.log(`[JUIZ] CODEX OMNI v10.0 (THE SKEPTICAL JUDGE) - Analyzing ${candidates.length} candidates`);
-    
+
     // DEBUG: Log original description being used
     const originalDescription = specs.originalDescription || item.description || '';
     if (debugLogger) {
@@ -267,7 +320,7 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
             criticalSpecsCount: (specs.criticalSpecs || []).length
         });
     }
-    
+
     if (!candidates || candidates.length === 0) {
         if (debugLogger) {
             debugLogger.error('JUIZ', 'No candidates to analyze');
@@ -278,14 +331,14 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
             defenseReport: null
         };
     }
-    
+
     // ============================================
     // PHASE 1: PRICE FLOOR - THE GUILLOTINE (CODEX OMNI v10.0)
     // ============================================
     const maxPrice = item.maxPrice || 0;
     // CODEX OMNI v10.0: Use minViablePrice from PERITO if available
     const minViablePrice = specs.minViablePrice || (maxPrice > 0 ? maxPrice * PRICE_FLOOR_PERCENTAGE : 0);
-    
+
     if (minViablePrice > 0) {
         candidates = applyPriceFloorWithMinViable(candidates, minViablePrice, maxPrice);
         const rejected = candidates.filter(c => c.priceFloorRejection).length;
@@ -298,33 +351,33 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
             }
         }
     }
-    
+
     // Separate viable from rejected
     const priceFloorRejected = candidates.filter(c => c.priceFloorRejection);
     const viableCandidates = candidates.filter(c => !c.priceFloorRejection);
-    
+
     console.log(`[JUIZ] 📊 ${viableCandidates.length} candidatos viáveis para análise`);
-    
+
     // ============================================
     // PHASE 2: ADHERENCE SCORING (THE SKEPTICAL JUDGE)
     // ============================================
     const validatedCandidates = [...priceFloorRejected]; // Keep rejected ones
-    
+
     // Build specs object from available data
     const specsForScoring = {
         searchAnchor: specs.searchAnchor || null,
         negativeConstraints: specs.negativeConstraints || [],
         criticalSpecs: specs.criticalSpecs || killSpecs.map(s => ({ spec: s, weight: 10 }))
     };
-    
+
     for (let i = 0; i < viableCandidates.length; i++) {
         const candidate = viableCandidates[i];
-        
+
         // DEBUG: Log ProductDNA for this candidate
         if (debugLogger) {
             debugLogger.candidateDNA(i + 1, candidate.title || 'Unknown', candidate.productDNA);
         }
-        
+
         // Price anomaly check (quick rejection)
         if (candidate.priceAnomaly) {
             candidate.aiMatch = 'UNCERTAIN';
@@ -335,27 +388,27 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
             validatedCandidates.push(candidate);
             continue;
         }
-        
+
         // ============================================
         // SKEPTICAL JUDGE: Use ProductDNA if available
         // ============================================
         if (candidate.productDNA && (specsForScoring.searchAnchor || specsForScoring.criticalSpecs.length > 0)) {
             // Add candidate index for debug logging
             specsForScoring._candidateIndex = i + 1;
-            
+
             const adherence = calculateAdherenceScore(
-                candidate.productDNA, 
-                specsForScoring, 
+                candidate.productDNA,
+                specsForScoring,
                 detectedModel,
                 originalDescription,  // CRITICAL: Pass original description for ground-truth matching
                 debugLogger
             );
-            
+
             candidate.adherenceScore = adherence.score;
             candidate.risk_score = parseFloat(adherence.risk);
             candidate.aiReasoning = adherence.reason;
             candidate.scoreBreakdown = adherence.breakdown;
-            
+
             // Determine status based on risk
             if (parseFloat(adherence.risk) <= 2.0) {
                 candidate.aiMatch = 'APPROVED';
@@ -366,9 +419,9 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
             } else {
                 candidate.aiMatch = 'REJECTED';
             }
-            
+
             console.log(`[JUIZ] ${candidate.title.substring(0, 40)}... → Score: ${adherence.score}, Risco: ${adherence.risk}`);
-            
+
             // DEBUG: Log scoring breakdown
             if (debugLogger) {
                 debugLogger.scoringBreakdown(i + 1, [
@@ -384,7 +437,7 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
         // ============================================
         else if (goldEntity && !goldEntity.isGeneric) {
             const entityMatch = await matchToGoldEntity(candidate, goldEntity, killSpecs, config);
-            
+
             candidate.aiMatch = entityMatch.matches ? 'APPROVED' : (entityMatch.status || 'UNCERTAIN');
             candidate.aiReasoning = entityMatch.reasoning;
             candidate.risk_score = entityMatch.risk_score || 5;
@@ -401,46 +454,46 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
             candidate.risk_score = 5.0;
             candidate.adherenceScore = 50;
         }
-        
+
         // Calculate technical score (inverse of risk)
         candidate.technical_score = Math.max(0, 10 - candidate.risk_score);
-        
+
         validatedCandidates.push(candidate);
     }
-    
+
     // ============================================
     // PHASE 3: HIERARCHICAL ORDERING (THE CRUCIAL CHANGE)
     // ORDER BY risk ASC, price ASC
     // ============================================
-    
+
     // Filter candidates within acceptable risk
-    const acceptableCandidates = validatedCandidates.filter(c => 
-        !c.priceFloorRejection && 
+    const acceptableCandidates = validatedCandidates.filter(c =>
+        !c.priceFloorRejection &&
         c.risk_score !== undefined &&
         parseFloat(c.risk_score) <= MAX_ACCEPTABLE_RISK
     );
-    
+
     // Sort: Risk first, then price
     acceptableCandidates.sort((a, b) => {
         const riskA = parseFloat(a.risk_score) || 10;
         const riskB = parseFloat(b.risk_score) || 10;
-        
+
         // Primary: Risk (lower is better)
         if (Math.abs(riskA - riskB) > 0.5) {
             return riskA - riskB;
         }
-        
+
         // Secondary: Total price (lower is better)
         return (a.totalPrice || a.price) - (b.totalPrice || b.price);
     });
-    
+
     // Determine winner
     let winnerIndex = -1;
     if (acceptableCandidates.length > 0) {
         const winner = acceptableCandidates[0];
         winnerIndex = validatedCandidates.indexOf(winner);
         console.log(`[JUIZ] 🏆 Vencedor: "${winner.title.substring(0, 50)}..." (Risco: ${winner.risk_score}, Preço: R$ ${winner.price})`);
-        
+
         // DEBUG: Log final ranking and winner
         if (debugLogger) {
             debugLogger.finalRanking(acceptableCandidates.slice(0, 10));
@@ -452,7 +505,7 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
             debugLogger.error('JUIZ', `Nenhum candidato com risco <= ${MAX_ACCEPTABLE_RISK}`);
         }
     }
-    
+
     // ============================================
     // PHASE 4: GENERATE DEFENSE REPORT
     // ============================================
@@ -465,7 +518,7 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
         config,
         specs
     );
-    
+
     return {
         validatedCandidates,
         winnerIndex,
@@ -484,17 +537,17 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
  */
 function applyPriceFloor(candidates, maxPrice) {
     const minViablePrice = maxPrice * PRICE_FLOOR_PERCENTAGE;
-    
+
     return candidates.map(candidate => {
         const candidatePrice = candidate.price || 0;
-        
+
         if (candidatePrice < minViablePrice && candidatePrice > 0) {
             return {
                 ...candidate,
                 aiMatch: 'REJECTED',
                 aiReasoning: `⛔ PREÇO VIL (R$ ${candidatePrice.toFixed(2)}). ` +
-                             `Piso mínimo: R$ ${minViablePrice.toFixed(2)} (15% de R$ ${maxPrice.toFixed(2)}). ` +
-                             `Suspeita de acessório, peça de reposição ou sucata.`,
+                    `Piso mínimo: R$ ${minViablePrice.toFixed(2)} (15% de R$ ${maxPrice.toFixed(2)}). ` +
+                    `Suspeita de acessório, peça de reposição ou sucata.`,
                 risk_score: 10,
                 technical_score: 0,
                 priceFloorRejection: true
@@ -516,15 +569,15 @@ function applyPriceFloor(candidates, maxPrice) {
 function applyPriceFloorWithMinViable(candidates, minViablePrice, maxPrice) {
     return candidates.map(candidate => {
         const candidatePrice = candidate.price || 0;
-        
+
         if (candidatePrice < minViablePrice && candidatePrice > 0) {
             const percentage = maxPrice > 0 ? ((candidatePrice / maxPrice) * 100).toFixed(1) : 'N/A';
             return {
                 ...candidate,
                 aiMatch: 'REJECTED',
                 aiReasoning: `⛔ THE GUILLOTINE: PREÇO VIL (R$ ${candidatePrice.toFixed(2)} = ${percentage}% do orçamento). ` +
-                             `Piso mínimo: R$ ${minViablePrice.toFixed(2)} (20% do budget). ` +
-                             `Provável acessório, peça de reposição ou sucata.`,
+                    `Piso mínimo: R$ ${minViablePrice.toFixed(2)} (20% do budget). ` +
+                    `Provável acessório, peça de reposição ou sucata.`,
                 risk_score: 10,
                 technical_score: 0,
                 priceFloorRejection: true
@@ -576,7 +629,7 @@ RESPONDA EM JSON:
     let provider = config.provider || await getSetting('juiz_provider') || PROVIDERS.DEEPSEEK;
     let model = config.model || await getSetting('juiz_model') || 'deepseek-chat';
     let apiKey = getApiKeyFromEnv(provider);
-    
+
     // Fallback to DeepSeek if provider's key not found
     if (!apiKey) {
         console.warn(`[JUIZ] ⚠️ No API key in .env for "${provider}". Falling back to DeepSeek.`);
@@ -584,7 +637,7 @@ RESPONDA EM JSON:
         model = 'deepseek-chat';
         apiKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
     }
-    
+
     try {
         const response = await generateText({
             provider,
@@ -592,17 +645,17 @@ RESPONDA EM JSON:
             apiKey,
             messages: [{ role: 'user', content: prompt }]
         });
-        
-        const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/) || 
-                          response.match(/\{[\s\S]*\}/);
-        
+
+        const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/) ||
+            response.match(/\{[\s\S]*\}/);
+
         if (jsonMatch) {
             return JSON.parse(jsonMatch[1] || jsonMatch[0]);
         }
     } catch (err) {
         console.warn(`[JUIZ] Entity matching failed: ${err.message}`);
     }
-    
+
     // Fallback: simple name matching
     return fallbackEntityMatch(candidate, goldEntity);
 }
@@ -613,12 +666,12 @@ RESPONDA EM JSON:
 function fallbackEntityMatch(candidate, goldEntity) {
     const titleLower = candidate.title.toLowerCase();
     const entityNameLower = goldEntity.name.toLowerCase();
-    
+
     // Check for model name in title
     const entityWords = entityNameLower.split(/\s+/).filter(w => w.length > 2);
     const matchedWords = entityWords.filter(w => titleLower.includes(w));
     const matchRatio = matchedWords.length / entityWords.length;
-    
+
     if (matchRatio > 0.7) {
         return {
             matches: true,
@@ -636,7 +689,7 @@ function fallbackEntityMatch(candidate, goldEntity) {
             reasoning: 'Correspondência parcial - requer verificação'
         };
     }
-    
+
     return {
         matches: false,
         confidence: matchRatio,
@@ -653,9 +706,9 @@ async function generateDefenseReport(candidates, winnerIndex, goldEntity, killSp
     if (winnerIndex < 0 || !candidates[winnerIndex]) {
         return null;
     }
-    
+
     const winner = candidates[winnerIndex];
-    
+
     const report = {
         timestamp: new Date().toISOString(),
         item: {
@@ -694,7 +747,7 @@ async function generateDefenseReport(candidates, winnerIndex, goldEntity, killSp
         methodology: buildMethodologyText(goldEntity, killSpecs, specs),
         candidates: candidates.length
     };
-    
+
     return report;
 }
 
@@ -703,14 +756,14 @@ async function generateDefenseReport(candidates, winnerIndex, goldEntity, killSp
  */
 function buildMethodologyText(goldEntity, killSpecs, specs = {}) {
     const hasSkepticalJudge = specs.negativeConstraints?.length > 0 || specs.criticalSpecs?.length > 0;
-    
+
     if (!goldEntity || goldEntity.isGeneric) {
         if (hasSkepticalJudge) {
             return `SKEPTICAL JUDGE v8.0: Validação por ProductDNA com ${specs.negativeConstraints?.length || 0} Kill-Words e ${specs.criticalSpecs?.length || 0} Critical Specs ponderadas.`;
         }
         return 'Busca direta no marketplace com validação por IA.';
     }
-    
+
     return `Metodologia HIVE-MIND + SKEPTICAL JUDGE v8.0:
 1. PERITO extraiu Kill-Specs: ${killSpecs.slice(0, 3).join(', ')}
    ${specs.negativeConstraints?.length > 0 ? `   → Kill-Words: ${specs.negativeConstraints.join(', ')}` : ''}
