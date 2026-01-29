@@ -76,7 +76,14 @@ async function executePerito(description, config, debugLogger = null) {
     if (debugLogger) {
         debugLogger.agentInput('PERITO', description);
         debugLogger.aiPrompt('PERITO', prompt);
-        debugLogger.log('PERITO', `AI Config: provider=${provider}, model=${model}, endpoint=${endpoint}`);
+        // GOLDEN PATH: Use aiCallDetails for full tracing with complete API URL
+        debugLogger.aiCallDetails('PERITO', {
+            provider: provider,
+            model: model || 'default',
+            endpoint: endpoint,
+            apiKeyLast4: apiKey ? apiKey.slice(-4) : 'N/A',
+            estimatedTokens: Math.ceil(prompt.length / 4)
+        });
     }
 
     try {

@@ -47,8 +47,8 @@ async function fetchModels(provider, apiKey) {
             const data = await response.json();
             // Filter to generative models only and map to our format
             const generativeModels = (data.models || [])
-                .filter(m => m.name && m.supportedGenerationMethods && 
-                        m.supportedGenerationMethods.includes('generateContent'))
+                .filter(m => m.name && m.supportedGenerationMethods &&
+                    m.supportedGenerationMethods.includes('generateContent'))
                 .map(m => ({
                     id: m.name.replace('models/', ''),
                     name: m.displayName || m.name.replace('models/', ''),
@@ -67,10 +67,10 @@ async function fetchModels(provider, apiKey) {
                 throw new Error(`DeepSeek API Error: ${response.status} - ${errorText}`);
             }
             const data = await response.json();
-            const models = (data.data || []).map(m => ({ 
-                id: m.id, 
-                name: m.id, 
-                description: 'DeepSeek Model' 
+            const models = (data.data || []).map(m => ({
+                id: m.id,
+                name: m.id,
+                description: 'DeepSeek Model'
             }));
             console.log(`[AI Manager] DeepSeek: ${models.length} models found`);
             return models;
@@ -137,10 +137,10 @@ async function generateStream(config, callbacks) {
         } else if (provider === PROVIDERS.GEMINI) {
             await streamGemini(apiKey, model, messages, onThought, onChunk, onDone, onError);
         } else if (provider === PROVIDERS.PERPLEXITY) {
-             // Fallback for Perplexity non-stream
-             const text = await generateText(config);
-             if (onChunk) onChunk(text);
-             if (onDone) onDone();
+            // Fallback for Perplexity non-stream
+            const text = await generateText(config);
+            if (onChunk) onChunk(text);
+            if (onDone) onDone();
         } else {
             if (onError) onError(new Error(`Provider ${provider} streaming not fully implemented yet.`));
         }
@@ -156,14 +156,32 @@ async function generateStream(config, callbacks) {
  */
 async function generateText(config) {
     let { provider, model, apiKey, messages } = config;
-    
+
     // ROBUST FALLBACK: If API key not provided, try database
     if (!apiKey || apiKey.trim() === '') {
         console.log(`[AI Manager] API key não fornecida para ${provider}, buscando no banco...`);
         apiKey = await getSetting(`${provider}_api_key`);
     }
-    
+
     if (!apiKey) throw new Error(`Missing API Key for provider: ${provider}`);
+
+    // GOLDEN PATH: Log FULL API URLs for ALL providers
+    const API_ENDPOINTS = {
+        [PROVIDERS.DEEPSEEK]: 'https://api.deepseek.com/chat/completions',
+        [PROVIDERS.QWEN]: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
+        [PROVIDERS.GEMINI]: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        [PROVIDERS.PERPLEXITY]: 'https://api.perplexity.ai/chat/completions'
+    };
+    const apiUrl = API_ENDPOINTS[provider] || 'UNKNOWN';
+
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`[AI Manager] 🤖 API CALL - ${new Date().toISOString()}`);
+    console.log(`  Provider: ${provider}`);
+    console.log(`  Model: ${model || 'default'}`);
+    console.log(`  Endpoint URL: ${apiUrl}`);
+    console.log(`  API Key: ...${apiKey.slice(-4)}`);
+    console.log(`  Messages: ${messages.length} messages, ${JSON.stringify(messages).length} chars`);
+    console.log(`${'='.repeat(60)}\n`);
 
     if (provider === PROVIDERS.GEMINI) {
         try {
@@ -203,7 +221,7 @@ async function generateText(config) {
             const data = await response.json();
             if (data.error) throw new Error(JSON.stringify(data.error));
             return data.choices[0].message.content;
-        } catch(e) {
+        } catch (e) {
             throw new Error(`Perplexity Error: ${e.message}`);
         }
     }
@@ -226,6 +244,9 @@ async function generateText(config) {
 async function streamQwen(apiKey, model, messages, onThought, onChunk, onDone, onError) {
     // DashScope OpenAI Compatible Endpoint
     const url = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
+
+    // GOLDEN PATH: Log full API URL
+    console.log(`[AI Manager] 🔗 STREAM API CALL: ${url} (model: ${model})`);
 
     const body = {
         model: model,
@@ -291,6 +312,9 @@ async function streamQwen(apiKey, model, messages, onThought, onChunk, onDone, o
 async function streamDeepSeek(apiKey, model, messages, onThought, onChunk, onDone, onError) {
     const url = 'https://api.deepseek.com/chat/completions';
 
+    // GOLDEN PATH: Log full API URL
+    console.log(`[AI Manager] 🔗 STREAM API CALL: ${url} (model: ${model})`);
+
     try {
         const response = await fetch(url, {
             method: 'POST',
@@ -322,7 +346,7 @@ async function streamDeepSeek(apiKey, model, messages, onThought, onChunk, onDon
                         const delta = json.choices[0].delta;
                         if (delta.reasoning_content && onThought) onThought(delta.reasoning_content);
                         if (delta.content && onChunk) onChunk(delta.content);
-                    } catch (e) {}
+                    } catch (e) { }
                 }
             }
         });
@@ -401,24 +425,24 @@ function getApiKeyFromEnv(provider) {
  */
 async function generateTextWithFallback(config) {
     const originalProvider = config.provider;
-    
+
     try {
         return await generateText(config);
     } catch (err) {
         const is401 = err.message?.includes('401') || err.message?.includes('Unauthorized');
         const isNotDeepSeek = originalProvider !== PROVIDERS.DEEPSEEK;
-        
+
         // SAFETY NET: If failed with 401 and wasn't already DeepSeek, try DeepSeek
         if (is401 && isNotDeepSeek) {
             console.warn(`[AI Manager] ⚠️ ${originalProvider} failed with 401, activating DeepSeek safety net...`);
-            
+
             const deepseekKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
             if (!deepseekKey) {
                 throw new Error('CRITICAL: DEEPSEEK_API_KEY not found in .env - No safety net available');
             }
-            
+
             console.log(`[AI Manager] 🔄 Retrying with DeepSeek (key: ...${deepseekKey.slice(-4)})`);
-            
+
             return await generateText({
                 ...config,
                 provider: PROVIDERS.DEEPSEEK,
@@ -426,7 +450,7 @@ async function generateTextWithFallback(config) {
                 apiKey: deepseekKey
             });
         }
-        
+
         // Re-throw if already DeepSeek or different error type
         throw err;
     }
@@ -442,25 +466,25 @@ async function generateTextWithFallback(config) {
 async function generateStreamWithFallback(config, callbacks) {
     const originalProvider = config.provider;
     const { onError } = callbacks;
-    
+
     // Wrap original onError to catch 401 and retry
     const wrappedCallbacks = {
         ...callbacks,
         onError: async (err) => {
             const is401 = err.message?.includes('401') || err.message?.includes('Unauthorized');
             const isNotDeepSeek = originalProvider !== PROVIDERS.DEEPSEEK;
-            
+
             if (is401 && isNotDeepSeek) {
                 console.warn(`[AI Manager] ⚠️ ${originalProvider} stream failed with 401, activating DeepSeek safety net...`);
-                
+
                 const deepseekKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
                 if (!deepseekKey) {
                     if (onError) onError(new Error('CRITICAL: DEEPSEEK_API_KEY not found in .env'));
                     return;
                 }
-                
+
                 console.log(`[AI Manager] 🔄 Retrying stream with DeepSeek`);
-                
+
                 await generateStream({
                     ...config,
                     provider: PROVIDERS.DEEPSEEK,
@@ -472,14 +496,14 @@ async function generateStreamWithFallback(config, callbacks) {
             }
         }
     };
-    
+
     await generateStream(config, wrappedCallbacks);
 }
 
-module.exports = { 
-    PROVIDERS, 
-    fetchModels, 
-    generateStream, 
+module.exports = {
+    PROVIDERS,
+    fetchModels,
+    generateStream,
     generateText,
     // LEI 1: New safety net functions
     generateTextWithFallback,

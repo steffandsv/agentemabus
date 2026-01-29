@@ -63,28 +63,26 @@ class DebugLogger {
     }
 
     /**
-     * Log agent input (description, specs, etc.)
+     * Log agent input (description, specs, etc.) - FULL content, no truncation
      */
     agentInput(agentName, data) {
         this.section(`${agentName} - INPUT`);
 
         if (typeof data === 'string') {
-            // Truncate very long strings
-            const truncated = data.length > 2000 ? data.substring(0, 2000) + '...[TRUNCATED]' : data;
-            this._write(truncated);
+            // GOLDEN PATH: Log FULL input, no truncation (user requested)
+            this._write(data);
         } else {
             this._write(JSON.stringify(data, null, 2));
         }
     }
 
     /**
-     * Log AI prompt sent
+     * Log AI prompt sent - FULL content, no truncation
      */
     aiPrompt(agentName, prompt) {
         this.section(`${agentName} - AI PROMPT SENT`);
-        // Truncate prompt if too long
-        const truncated = prompt.length > 3000 ? prompt.substring(0, 3000) + '...[TRUNCATED]' : prompt;
-        this._write(truncated);
+        // GOLDEN PATH: Log FULL prompt, no truncation (user requested)
+        this._write(prompt);
     }
 
     /**
