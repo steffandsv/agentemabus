@@ -161,7 +161,7 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null) {
  * @param {string} detectedModel - Model name from DETETIVE (optional)
  */
 async function executeJuiz(candidates, goldEntity, killSpecs, item, config, specs = {}, detectedModel = null) {
-    console.log(`[JUIZ] THE SKEPTICAL JUDGE v8.0 - Analyzing ${candidates.length} candidates`);
+    console.log(`[JUIZ] CODEX OMNI v10.0 (THE SKEPTICAL JUDGE) - Analyzing ${candidates.length} candidates`);
     
     if (!candidates || candidates.length === 0) {
         return {
@@ -172,14 +172,17 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
     }
     
     // ============================================
-    // PHASE 1: PRICE FLOOR - Primeira Linha de Defesa
+    // PHASE 1: PRICE FLOOR - THE GUILLOTINE (CODEX OMNI v10.0)
     // ============================================
     const maxPrice = item.maxPrice || 0;
-    if (maxPrice > 0) {
-        candidates = applyPriceFloor(candidates, maxPrice);
+    // CODEX OMNI v10.0: Use minViablePrice from PERITO if available
+    const minViablePrice = specs.minViablePrice || (maxPrice > 0 ? maxPrice * PRICE_FLOOR_PERCENTAGE : 0);
+    
+    if (minViablePrice > 0) {
+        candidates = applyPriceFloorWithMinViable(candidates, minViablePrice, maxPrice);
         const rejected = candidates.filter(c => c.priceFloorRejection).length;
         if (rejected > 0) {
-            console.log(`[JUIZ] 🚫 Price Floor: ${rejected} candidatos rejeitados (preço < R$ ${(maxPrice * PRICE_FLOOR_PERCENTAGE).toFixed(2)})`);
+            console.log(`[JUIZ] 🚫 THE GUILLOTINE: ${rejected} candidatos rejeitados (preço < R$ ${minViablePrice.toFixed(2)})`);
         }
     }
     
@@ -348,6 +351,36 @@ function applyPriceFloor(candidates, maxPrice) {
                 aiReasoning: `⛔ PREÇO VIL (R$ ${candidatePrice.toFixed(2)}). ` +
                              `Piso mínimo: R$ ${minViablePrice.toFixed(2)} (15% de R$ ${maxPrice.toFixed(2)}). ` +
                              `Suspeita de acessório, peça de reposição ou sucata.`,
+                risk_score: 10,
+                technical_score: 0,
+                priceFloorRejection: true
+            };
+        }
+        return candidate;
+    });
+}
+
+/**
+ * CODEX OMNI v10.0: THE GUILLOTINE - Apply Price Floor with pre-calculated minViablePrice
+ * Uses minViablePrice from PERITO (20% of budget) instead of internal calculation
+ * 
+ * @param {object[]} candidates - Candidates from SNIPER
+ * @param {number} minViablePrice - Minimum viable price from PERITO
+ * @param {number} maxPrice - Maximum tender price (for reporting only)
+ * @returns {object[]} Candidates with price floor rejections marked
+ */
+function applyPriceFloorWithMinViable(candidates, minViablePrice, maxPrice) {
+    return candidates.map(candidate => {
+        const candidatePrice = candidate.price || 0;
+        
+        if (candidatePrice < minViablePrice && candidatePrice > 0) {
+            const percentage = maxPrice > 0 ? ((candidatePrice / maxPrice) * 100).toFixed(1) : 'N/A';
+            return {
+                ...candidate,
+                aiMatch: 'REJECTED',
+                aiReasoning: `⛔ THE GUILLOTINE: PREÇO VIL (R$ ${candidatePrice.toFixed(2)} = ${percentage}% do orçamento). ` +
+                             `Piso mínimo: R$ ${minViablePrice.toFixed(2)} (20% do budget). ` +
+                             `Provável acessório, peça de reposição ou sucata.`,
                 risk_score: 10,
                 technical_score: 0,
                 priceFloorRejection: true

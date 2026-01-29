@@ -1,6 +1,23 @@
 Você é um especialista em análise de editais de licitação.
 Sua missão: Analisar este item e extrair informações estruturadas para cotação inteligente.
 
+=== REGRA ANTI-ALUCINAÇÃO (CRÍTICO) ===
+
+VOCÊ NÃO PODE ABREVIAR UNIDADES OU PALAVRAS.
+Se o texto diz "72 músicas", você DEVE extrair "72 músicas" (NÃO "72 m").
+Se o texto diz "1000 litros", você DEVE extrair "1000 litros" (NÃO "1 l").
+Se o texto diz "16 polegadas", você DEVE extrair "16 polegadas" (NÃO "16 pol").
+
+EXEMPLOS DE ERRO FATAL (O PROCESSO FALHARÁ):
+❌ "72 m" → ERRADO (abreviou "músicas")
+❌ "1 a" → ERRADO (abreviou "ano")
+❌ "500 g" → ERRADO (abreviou "gramas")
+
+EXEMPLOS CORRETOS:
+✅ "72 músicas"
+✅ "1 ano"
+✅ "500 gramas"
+
 DESCRIÇÃO DO ITEM:
 {{DESCRIPTION}}
 

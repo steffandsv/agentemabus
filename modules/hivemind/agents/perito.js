@@ -51,6 +51,29 @@ async function executePerito(description, config) {
 }
 
 /**
+ * CODEX OMNI v10.0: Validate anchor to prevent hallucination
+ * Rejects abbreviated anchors like "72 m" (should be "72 músicas")
+ */
+function validateAnchor(anchor) {
+    if (!anchor) return { valid: false, reason: 'Anchor is null' };
+    
+    // Remove quotes for validation
+    const clean = anchor.replace(/"/g, '').trim();
+    
+    // Reject if too short (< 5 characters)
+    if (clean.length < 5) {
+        return { valid: false, reason: `Anchor too short: "${clean}" (< 5 chars)` };
+    }
+    
+    // ANTI-HALLUCINATION: Reject pattern "number + 1-2 letters" (e.g., "72 m", "1 a", "500 g")
+    if (/^\d+\s*[a-záéíóú]{1,2}$/i.test(clean)) {
+        return { valid: false, reason: `HALLUCINATION DETECTED: "${clean}" looks abbreviated` };
+    }
+    
+    return { valid: true, clean };
+}
+
+/**
  * Parse AI response into structured output
  */
 function parseResponse(response, originalDescription) {
@@ -74,12 +97,28 @@ function parseResponse(response, originalDescription) {
                 marketplaceSearchTerm = generateMarketplaceTerm(originalDescription);
             }
             
-            // Extract search anchor (ANCHOR & LOCK doctrine)
-            let searchAnchor = json.search_anchor || json.searchAnchor || null;
+            // Extract and VALIDATE search anchor (CODEX OMNI v10.0)
+            let rawAnchor = json.search_anchor || json.searchAnchor || null;
+            let searchAnchorRaw = null;  // Without quotes
+            let searchAnchorQuoted = null;  // With quotes for exact search
             
-            // Ensure anchor has quotes if provided without them
-            if (searchAnchor && !searchAnchor.includes('"')) {
-                searchAnchor = `"${searchAnchor}"`;
+            if (rawAnchor) {
+                const validation = validateAnchor(rawAnchor);
+                
+                if (validation.valid) {
+                    searchAnchorRaw = validation.clean;
+                    searchAnchorQuoted = `"${validation.clean}"`;
+                    console.log(`[PERITO] ✓ Anchor validated: "${searchAnchorRaw}"`);
+                } else {
+                    console.warn(`[PERITO] ⚠ ${validation.reason} - Attempting extraction from description`);
+                    // Try to extract anchor from original description
+                    const extracted = extractAnchorFromDescription(originalDescription);
+                    if (extracted) {
+                        searchAnchorRaw = extracted;
+                        searchAnchorQuoted = `"${extracted}"`;
+                        console.log(`[PERITO] ✓ Anchor extracted from description: "${searchAnchorRaw}"`);
+                    }
+                }
             }
             
             // Extract max price estimate
@@ -98,13 +137,16 @@ function parseResponse(response, originalDescription) {
             return {
                 complexity: json.complexity || 'HIGH', // Default to HIGH for safety
                 marketplaceSearchTerm,
-                searchAnchor,         // Anchor for fallback searches
-                maxPriceEstimate,     // Price estimate for floor calculation
+                // CODEX OMNI v10.0: Separated anchor fields
+                searchAnchor: searchAnchorQuoted,      // Legacy (with quotes)
+                searchAnchorRaw,                        // NEW: Without quotes
+                searchAnchorQuoted,                     // NEW: With quotes for ML search
+                maxPriceEstimate,                       // Price estimate for floor calculation
                 killSpecs: json.kill_specs || json.killSpecs || [],
                 queries: json.google_queries || json.queries || [],
                 negativeTerms: json.negative_terms || json.negativeTerms || [],
                 genericSpecs: json.generic_specs || json.genericSpecs || [],
-                // NEW: SKEPTICAL JUDGE fields
+                // SKEPTICAL JUDGE fields
                 negativeConstraints,  // Kill-words that disqualify candidates
                 criticalSpecs,        // Specs with weights for scoring
                 reasoning: json.reasoning || ''
@@ -115,6 +157,32 @@ function parseResponse(response, originalDescription) {
     }
     
     return fallbackExtraction(originalDescription);
+}
+
+/**
+ * Extract anchor from description when LLM fails (anti-hallucination fallback)
+ */
+function extractAnchorFromDescription(description) {
+    // Look for patterns like "72 músicas", "500 litros", "16 polegadas"
+    const patterns = [
+        /(\d+\s*músicas)/i,
+        /(\d+\s*litros?)/i,
+        /(\d+\s*polegadas?)/i,
+        /(\d+\s*lumens?)/i,
+        /(\d+\s*gb)/i,
+        /(\d+\s*mb)/i,
+        /(\d+\s*watts?)/i,
+        /(\d+\s*volts?)/i,
+    ];
+    
+    for (const pattern of patterns) {
+        const match = description.match(pattern);
+        if (match && match[1].length >= 5) {
+            return match[1].trim().toLowerCase();
+        }
+    }
+    
+    return null;
 }
 
 /**

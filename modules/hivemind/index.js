@@ -152,27 +152,39 @@ async function execute(job, config) {
 // --- STATE HANDLERS ---
 
 async function runPerito(state, config, logger, itemId) {
-    logger.log(`🔬 [Item ${itemId}] PERITO: Extraindo especificações únicas...`);
+    logger.log(`🔬 [Item ${itemId}] PERITO (CODEX OMNI v10.0): Extraindo especificações...`);
     
     try {
         const result = await executePerito(state.item.description, config);
         
         state.complexity = result.complexity || 'HIGH';
         state.marketplaceSearchTerm = result.marketplaceSearchTerm || state.item.description.substring(0, 50);
-        state.searchAnchor = result.searchAnchor || null;  // Anchor for fallback searches
+        
+        // CODEX OMNI v10.0: Separated anchor fields (anti-hallucination)
+        state.searchAnchor = result.searchAnchor || null;           // Legacy with quotes
+        state.searchAnchorRaw = result.searchAnchorRaw || null;     // Without quotes
+        state.searchAnchorQuoted = result.searchAnchorQuoted || null; // With quotes for ML search
+        
         state.maxPriceEstimate = result.maxPriceEstimate || state.item.maxPrice;
         state.killSpecs = result.killSpecs;
         state.googleQueries = result.queries;
         state.negativeTerms = result.negativeTerms || [];
         
-        // NEW: SKEPTICAL JUDGE fields from PERITO
+        // CODEX OMNI v10.0: Calculate min viable price (THE GUILLOTINE - 20% of budget)
+        const budget = state.item.maxPrice || state.maxPriceEstimate || 0;
+        state.minViablePrice = budget > 0 ? budget * 0.20 : 0;
+        
+        // SKEPTICAL JUDGE fields from PERITO
         state.negativeConstraints = result.negativeConstraints || []; // Kill-words
         state.criticalSpecs = result.criticalSpecs || [];             // Specs with weights
         
         logger.log(`📊 [Item ${itemId}] Complexidade: ${state.complexity}`);
         logger.log(`🏷️ [Item ${itemId}] Termo de Busca: "${state.marketplaceSearchTerm}"`);
-        if (state.searchAnchor) {
-            logger.log(`⚓ [Item ${itemId}] Âncora de Busca: ${state.searchAnchor}`);
+        if (state.searchAnchorRaw) {
+            logger.log(`⚓ [Item ${itemId}] Âncora VALIDADA: "${state.searchAnchorRaw}"`);
+        }
+        if (state.minViablePrice > 0) {
+            logger.log(`💰 [Item ${itemId}] Preço Mínimo Viável: R$ ${state.minViablePrice.toFixed(2)} (Guilhotina 20%)`);
         }
         if (state.negativeConstraints.length > 0) {
             logger.log(`⛔ [Item ${itemId}] Kill-Words: ${state.negativeConstraints.join(', ')}`);
@@ -233,6 +245,8 @@ async function runDetetive(state, config, logger, itemId) {
         
         if (!result.entities || result.entities.length === 0) {
             logger.log(`⚠️ [Item ${itemId}] DETETIVE: Nenhuma entidade descoberta.`);
+            // CODEX OMNI v10.0: Set investigation status for SNIPER Anchor-Lock
+            state.investigationStatus = "FAILED"; // Enables paranoid mode in SNIPER
             // Fallback to direct marketplace search with clean query
             state.goldEntity = {
                 name: state.marketplaceSearchTerm || state.item.description.substring(0, 50),
@@ -245,6 +259,7 @@ async function runDetetive(state, config, logger, itemId) {
         }
         
         state.discoveredEntities = result.entities;
+        state.investigationStatus = "SUCCESS"; // CODEX OMNI v10.0: Enables model-based search
         logger.log(`🎯 [Item ${itemId}] DETETIVE: ${result.entities.length} entidades descobertas`);
         for (const entity of result.entities.slice(0, 3)) {
             logger.log(`   → ${entity.name} (${entity.manufacturer || 'desconhecido'})`);
@@ -389,14 +404,16 @@ async function runSniper(state, page, cep, config, logger, itemId) {
 }
 
 async function runJuiz(state, config, logger, itemId) {
-    logger.log(`⚖️ [Item ${itemId}] JUIZ (THE SKEPTICAL JUDGE v8.0): Validação com Risco Decimal...`);
+    logger.log(`⚖️ [Item ${itemId}] JUIZ (CODEX OMNI v10.0): Validação com Risco Decimal...`);
     
     try {
-        // Build specs object for SKEPTICAL JUDGE
+        // Build specs object for SKEPTICAL JUDGE (CODEX OMNI v10.0)
         const specs = {
             searchAnchor: state.searchAnchor || null,
+            searchAnchorRaw: state.searchAnchorRaw || null, // Without quotes
             negativeConstraints: state.negativeConstraints || [],
-            criticalSpecs: state.criticalSpecs || []
+            criticalSpecs: state.criticalSpecs || [],
+            minViablePrice: state.minViablePrice || 0 // THE GUILLOTINE (20% of budget)
         };
         
         const result = await executeJuiz(
