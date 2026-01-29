@@ -56,24 +56,50 @@ async function executeSniper(entity, kitComponents, maxPrice, quantity, page, ce
     const filteredCandidates = filterPriceAnomalies(mainCandidates);
     console.log(`[SNIPER] ${filteredCandidates.length} candidates after price filter`);
     
-    // 3. Get detailed info for top candidates
+    // 3. Get detailed info for top candidates (with ProductDNA for SKEPTICAL JUDGE)
     const detailedCandidates = [];
     for (const candidate of filteredCandidates.slice(0, 10)) {
         try {
             const details = await getProductDetails(page, candidate.link, cep);
+            
+            // CRITICAL FIX: Propagate ProductDNA from scraper to candidate
+            // This enables the JUIZ to perform accurate spec matching
+            const productDNA = details.productDNA || {
+                title: candidate.title || '',
+                specsText: '',
+                descriptionText: details.description || '',
+                fullText: `${candidate.title || ''} ${details.description || ''}`.toLowerCase(),
+                fullTextRaw: `${candidate.title || ''} ${details.description || ''}`
+            };
+            
+            console.log(`[SNIPER] ProductDNA extracted for "${candidate.title?.substring(0, 40)}..." (${productDNA.fullText?.length || 0} chars)`);
+            
             detailedCandidates.push({
                 ...candidate,
+                productDNA,  // CRITICAL: Now propagating ProductDNA!
                 shippingCost: details.shippingCost || 0,
                 attributes: details.attributes || [],
                 description: details.description || '',
                 totalPrice: candidate.price + (details.shippingCost || 0),
                 seller: details.seller || {},
+                gtin: details.gtin || null,
+                mpn: details.mpn || null,
+                brand: details.brand || null,
+                model: details.model || null,
                 isGoldEntity: !entity.isGeneric
             });
         } catch (err) {
             console.warn(`[SNIPER] Error getting details for ${candidate.link}: ${err.message}`);
+            // Fallback: Create minimal ProductDNA from title
             detailedCandidates.push({
                 ...candidate,
+                productDNA: {
+                    title: candidate.title || '',
+                    specsText: '',
+                    descriptionText: '',
+                    fullText: (candidate.title || '').toLowerCase(),
+                    fullTextRaw: candidate.title || ''
+                },
                 shippingCost: 0,
                 totalPrice: candidate.price,
                 isGoldEntity: !entity.isGeneric

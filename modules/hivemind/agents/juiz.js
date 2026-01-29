@@ -28,9 +28,11 @@ const MAX_ACCEPTABLE_RISK = 7.0;
  * @param {object} productDNA - ProductDNA from deep scraping
  * @param {object} specs - Specs from PERITO (searchAnchor, negativeConstraints, criticalSpecs)
  * @param {string} detectedModel - Model name from DETETIVE (optional)
+ * @param {string} originalDescription - Original tender description for ground-truth matching
+ * @param {object} debugLogger - Optional debug logger
  * @returns {object} { score, risk, reason, breakdown }
  */
-function calculateAdherenceScore(productDNA, specs, detectedModel = null) {
+function calculateAdherenceScore(productDNA, specs, detectedModel = null, originalDescription = null, debugLogger = null) {
     const breakdown = [];
     let score = 0;
     
@@ -56,6 +58,9 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null) {
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         
         if (fullText.includes(normalized)) {
+            if (debugLogger) {
+                debugLogger.killWordCheck(specs._candidateIndex || 0, killWord, true);
+            }
             return {
                 score: 0,
                 risk: '10.0',
@@ -75,7 +80,18 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null) {
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     
     if (anchor && anchor.length > 0) {
-        if (fullText.includes(anchor)) {
+        const found = fullText.includes(anchor);
+        
+        if (debugLogger) {
+            debugLogger.specMatching(
+                specs._candidateIndex || 0, 
+                `Âncora: ${anchor}`,
+                found,
+                found ? fullText.substring(fullText.indexOf(anchor), fullText.indexOf(anchor) + 100) : null
+            );
+        }
+        
+        if (found) {
             score += 60;
             breakdown.push(`✓ Âncora "${anchor}" encontrada (+60pts)`);
         } else {
@@ -101,7 +117,17 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null) {
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         const weight = typeof specObj === 'object' ? (specObj.weight || 10) : 10;
         
-        if (specText && fullText.includes(specText)) {
+        const found = specText && fullText.includes(specText);
+        
+        if (debugLogger) {
+            debugLogger.specMatching(
+                specs._candidateIndex || 0, 
+                specObj.spec || specObj,
+                found
+            );
+        }
+        
+        if (found) {
             score += weight;
             specsFound++;
             breakdown.push(`✓ Spec "${specObj.spec || specObj}" (+${weight}pts)`);
@@ -110,6 +136,57 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null) {
     
     if (specsTotal > 0) {
         breakdown.push(`→ Specs encontradas: ${specsFound}/${specsTotal}`);
+    }
+    
+    // ============================================
+    // PHASE 3.5: GROUND-TRUTH CHECK FROM ORIGINAL DESCRIPTION
+    // ============================================
+    if (originalDescription) {
+        // Extract key numeric specs from original description for verification
+        const numericPatterns = [
+            { regex: /(\d+)\s*músicas?/gi, spec: (m) => `${m[1]} músicas` },
+            { regex: /(\d+)\s*programaç(?:ão|ões)/gi, spec: (m) => `${m[1]} programações` },
+            { regex: /(\d+)\s*anos?\s+(?:de\s+)?garantia/gi, spec: (m) => `${m[1]} ano garantia` },
+            { regex: /(\d+)\s*cornetas?/gi, spec: (m) => `${m[1]} cornetas` },
+            { regex: /(\d+)\s*níveis?/gi, spec: (m) => `${m[1]} níveis` }
+        ];
+        
+        let originalSpecsFound = 0;
+        let originalSpecsTotal = 0;
+        
+        for (const pattern of numericPatterns) {
+            const regex = new RegExp(pattern.regex);
+            let match;
+            while ((match = regex.exec(originalDescription)) !== null) {
+                originalSpecsTotal++;
+                const specToFind = pattern.spec(match).toLowerCase();
+                const found = fullText.includes(specToFind);
+                
+                if (found) {
+                    originalSpecsFound++;
+                    breakdown.push(`✓ Ground-Truth "${specToFind}" verificada`);
+                }
+                
+                if (debugLogger) {
+                    debugLogger.specMatching(
+                        specs._candidateIndex || 0, 
+                        `GROUND-TRUTH: ${specToFind}`,
+                        found
+                    );
+                }
+            }
+        }
+        
+        if (originalSpecsTotal > 0) {
+            const ratio = originalSpecsFound / originalSpecsTotal;
+            if (ratio >= 0.7) {
+                score += 20;
+                breakdown.push(`✓ Ground-truth pass: ${originalSpecsFound}/${originalSpecsTotal} specs (+20pts bônus)`);
+            } else if (ratio < 0.3) {
+                score = Math.max(0, score - 30);
+                breakdown.push(`⛔ Ground-truth fail: ${originalSpecsFound}/${originalSpecsTotal} specs (-30pts penalidade)`);
+            }
+        }
     }
     
     // ============================================
@@ -157,13 +234,30 @@ function calculateAdherenceScore(productDNA, specs, detectedModel = null) {
  * @param {string[]} killSpecs - Original Kill-Specs (legacy)
  * @param {object} item - Original tender item
  * @param {object} config - AI configuration
- * @param {object} specs - PERITO output (searchAnchor, negativeConstraints, criticalSpecs)
+ * @param {object} specs - PERITO output (searchAnchor, negativeConstraints, criticalSpecs, originalDescription)
  * @param {string} detectedModel - Model name from DETETIVE (optional)
+ * @param {object} debugLogger - Optional debug logger for detailed tracing
  */
-async function executeJuiz(candidates, goldEntity, killSpecs, item, config, specs = {}, detectedModel = null) {
+async function executeJuiz(candidates, goldEntity, killSpecs, item, config, specs = {}, detectedModel = null, debugLogger = null) {
     console.log(`[JUIZ] CODEX OMNI v10.0 (THE SKEPTICAL JUDGE) - Analyzing ${candidates.length} candidates`);
     
+    // DEBUG: Log original description being used
+    const originalDescription = specs.originalDescription || item.description || '';
+    if (debugLogger) {
+        debugLogger.section('JUIZ - THE SKEPTICAL JUDGE v10.0');
+        debugLogger.originalDescription(originalDescription);
+        debugLogger.agentInput('JUIZ', {
+            candidatesCount: candidates.length,
+            searchAnchor: specs.searchAnchor,
+            negativeConstraints: specs.negativeConstraints,
+            criticalSpecsCount: (specs.criticalSpecs || []).length
+        });
+    }
+    
     if (!candidates || candidates.length === 0) {
+        if (debugLogger) {
+            debugLogger.error('JUIZ', 'No candidates to analyze');
+        }
         return {
             validatedCandidates: [],
             winnerIndex: -1,
@@ -183,6 +277,11 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
         const rejected = candidates.filter(c => c.priceFloorRejection).length;
         if (rejected > 0) {
             console.log(`[JUIZ] 🚫 THE GUILLOTINE: ${rejected} candidatos rejeitados (preço < R$ ${minViablePrice.toFixed(2)})`);
+            if (debugLogger) {
+                debugLogger.section('PRICE FLOOR (THE GUILLOTINE)');
+                debugLogger._write(`Preço mínimo viável: R$ ${minViablePrice.toFixed(2)}`);
+                debugLogger._write(`Candidatos rejeitados: ${rejected}`);
+            }
         }
     }
     
@@ -204,7 +303,14 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
         criticalSpecs: specs.criticalSpecs || killSpecs.map(s => ({ spec: s, weight: 10 }))
     };
     
-    for (const candidate of viableCandidates) {
+    for (let i = 0; i < viableCandidates.length; i++) {
+        const candidate = viableCandidates[i];
+        
+        // DEBUG: Log ProductDNA for this candidate
+        if (debugLogger) {
+            debugLogger.candidateDNA(i + 1, candidate.title || 'Unknown', candidate.productDNA);
+        }
+        
         // Price anomaly check (quick rejection)
         if (candidate.priceAnomaly) {
             candidate.aiMatch = 'UNCERTAIN';
@@ -220,10 +326,15 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
         // SKEPTICAL JUDGE: Use ProductDNA if available
         // ============================================
         if (candidate.productDNA && (specsForScoring.searchAnchor || specsForScoring.criticalSpecs.length > 0)) {
+            // Add candidate index for debug logging
+            specsForScoring._candidateIndex = i + 1;
+            
             const adherence = calculateAdherenceScore(
                 candidate.productDNA, 
                 specsForScoring, 
-                detectedModel
+                detectedModel,
+                originalDescription,  // CRITICAL: Pass original description for ground-truth matching
+                debugLogger
             );
             
             candidate.adherenceScore = adherence.score;
@@ -243,6 +354,16 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
             }
             
             console.log(`[JUIZ] ${candidate.title.substring(0, 40)}... → Score: ${adherence.score}, Risco: ${adherence.risk}`);
+            
+            // DEBUG: Log scoring breakdown
+            if (debugLogger) {
+                debugLogger.scoringBreakdown(i + 1, [
+                    `Status: ${candidate.aiMatch}`,
+                    `Score: ${adherence.score}`,
+                    `Risk: ${adherence.risk}`,
+                    ...adherence.breakdown
+                ]);
+            }
         }
         // ============================================
         // FALLBACK: Old Gold Entity matching (backward compat)
@@ -305,8 +426,17 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config, spec
         const winner = acceptableCandidates[0];
         winnerIndex = validatedCandidates.indexOf(winner);
         console.log(`[JUIZ] 🏆 Vencedor: "${winner.title.substring(0, 50)}..." (Risco: ${winner.risk_score}, Preço: R$ ${winner.price})`);
+        
+        // DEBUG: Log final ranking and winner
+        if (debugLogger) {
+            debugLogger.finalRanking(acceptableCandidates.slice(0, 10));
+            debugLogger.winner(winner, `Selecionado por menor risco (${winner.risk_score}) e preço (R$ ${winner.price})`);
+        }
     } else {
         console.log(`[JUIZ] ⚠ Nenhum candidato com risco aceitável (<= ${MAX_ACCEPTABLE_RISK})`);
+        if (debugLogger) {
+            debugLogger.error('JUIZ', `Nenhum candidato com risco <= ${MAX_ACCEPTABLE_RISK}`);
+        }
     }
     
     // ============================================

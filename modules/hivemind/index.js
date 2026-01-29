@@ -18,6 +18,7 @@ const { executeAuditor } = require('./agents/auditor');
 const { executeSniper } = require('./agents/sniper');
 const { executeJuiz } = require('./agents/juiz');
 const { getCachedEntity, cacheEntity } = require('./services/entityCache');
+const { DebugLogger } = require('./services/debug_logger');
 
 // State Machine States
 const STATES = {
@@ -67,6 +68,13 @@ async function execute(job, config) {
     
     try {
         page = await browser.newPage();
+        
+        // Initialize Debug Logger for comprehensive tracing
+        const taskId = job.taskId || 'unknown';
+        const debugLogger = new DebugLogger(taskId, id);
+        
+        // Store debugLogger in state for passing to agents
+        state.debugLogger = debugLogger;
         
         // Log start
         logger.log(`🧠 [Item ${id}] HIVE-MIND Ativado`);
@@ -155,7 +163,8 @@ async function runPerito(state, config, logger, itemId) {
     logger.log(`🔬 [Item ${itemId}] PERITO (CODEX OMNI v10.0): Extraindo especificações...`);
     
     try {
-        const result = await executePerito(state.item.description, config);
+        // Pass debugLogger to PERITO for tracing
+        const result = await executePerito(state.item.description, config, state.debugLogger);
         
         state.complexity = result.complexity || 'HIGH';
         state.marketplaceSearchTerm = result.marketplaceSearchTerm || state.item.description.substring(0, 50);
@@ -177,6 +186,9 @@ async function runPerito(state, config, logger, itemId) {
         // SKEPTICAL JUDGE fields from PERITO
         state.negativeConstraints = result.negativeConstraints || []; // Kill-words
         state.criticalSpecs = result.criticalSpecs || [];             // Specs with weights
+        
+        // CRITICAL: Store original description for JUIZ ground-truth matching
+        state.originalDescription = result.originalDescription || state.item.description;
         
         logger.log(`📊 [Item ${itemId}] Complexidade: ${state.complexity}`);
         logger.log(`🏷️ [Item ${itemId}] Termo de Busca: "${state.marketplaceSearchTerm}"`);
@@ -413,7 +425,8 @@ async function runJuiz(state, config, logger, itemId) {
             searchAnchorRaw: state.searchAnchorRaw || null, // Without quotes
             negativeConstraints: state.negativeConstraints || [],
             criticalSpecs: state.criticalSpecs || [],
-            minViablePrice: state.minViablePrice || 0 // THE GUILLOTINE (20% of budget)
+            minViablePrice: state.minViablePrice || 0, // THE GUILLOTINE (20% of budget)
+            originalDescription: state.originalDescription || state.item.description // CRITICAL: For ground-truth matching
         };
         
         const result = await executeJuiz(
@@ -423,7 +436,8 @@ async function runJuiz(state, config, logger, itemId) {
             state.item,
             config,
             specs,                         // NEW: PERITO specs for scoring
-            state.detectedModel || null    // NEW: DETETIVE model for bonus
+            state.detectedModel || null,   // NEW: DETETIVE model for bonus
+            state.debugLogger              // NEW: Debug logger for detailed tracing
         );
         
         // Update candidates with JUIZ validation
@@ -442,10 +456,20 @@ async function runJuiz(state, config, logger, itemId) {
         
         logState(state, `JUIZ concluiu validação com Risco Decimal`, logger, itemId);
         
+        // Finalize debug log and report file path
+        if (state.debugLogger) {
+            const logFilePath = state.debugLogger.finalize();
+            logger.log(`📝 [Item ${itemId}] Debug log salvo: ${logFilePath}`);
+        }
+        
         state.current = STATES.COMPLETE;
         
     } catch (err) {
         logger.log(`❌ [Item ${itemId}] JUIZ Error: ${err.message}`);
+        if (state.debugLogger) {
+            state.debugLogger.error('JUIZ', err.message, err.stack);
+            state.debugLogger.finalize();
+        }
         state.current = STATES.COMPLETE;
     }
     

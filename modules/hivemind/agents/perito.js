@@ -24,7 +24,7 @@ const promptPath = path.join(__dirname, '../prompts/extract_killspecs.txt');
  * @param {object} config - AI configuration
  * @returns {object} { killSpecs, queries, negativeTerms }
  */
-async function executePerito(description, config) {
+async function executePerito(description, config, debugLogger = null) {
     const promptTemplate = fs.existsSync(promptPath) 
         ? fs.readFileSync(promptPath, 'utf-8')
         : getDefaultPrompt();
@@ -40,12 +40,35 @@ async function executePerito(description, config) {
         { role: 'user', content: prompt }
     ];
     
+    // DEBUG: Log prompt sent to AI
+    if (debugLogger) {
+        debugLogger.agentInput('PERITO', description);
+        debugLogger.aiPrompt('PERITO', prompt);
+    }
+    console.log(`[PERITO] Sending prompt to ${provider}/${model || 'default'}...`);
+    
     try {
         const response = await generateText({ provider, model, apiKey, messages });
-        const parsed = parseResponse(response, description);
+        
+        // DEBUG: Log raw AI response
+        if (debugLogger) {
+            debugLogger.aiResponse('PERITO', response);
+        }
+        console.log(`[PERITO] AI Response received (${response.length} chars)`);
+        
+        const parsed = parseResponse(response, description, debugLogger);
+        
+        // DEBUG: Log parsed output
+        if (debugLogger) {
+            debugLogger.agentOutput('PERITO', parsed);
+        }
+        
         return parsed;
     } catch (err) {
         console.error('[PERITO] AI Error:', err.message);
+        if (debugLogger) {
+            debugLogger.error('PERITO', err.message, err.stack);
+        }
         return fallbackExtraction(description);
     }
 }
@@ -74,9 +97,51 @@ function validateAnchor(anchor) {
 }
 
 /**
+ * CODEX OMNI v10.0: Validate a kill-spec is not abbreviated
+ * Returns { valid, reason, corrected }
+ */
+function validateKillSpec(spec, originalDescription) {
+    if (!spec || typeof spec !== 'string') {
+        return { valid: false, reason: 'Empty or invalid spec' };
+    }
+    
+    const clean = spec.trim();
+    
+    // Check for abbreviated patterns like "72 m", "1 a", "500 g"
+    if (/^\d+\s*[a-záéíóú]{1,2}$/i.test(clean)) {
+        // Try to find the full version in the original description
+        const numberMatch = clean.match(/(\d+)/);
+        if (numberMatch) {
+            const number = numberMatch[1];
+            // Look for this number followed by a full word in the description
+            const fullPattern = new RegExp(`${number}\\s*([a-záéíóúàâãêô]{3,})`, 'gi');
+            const fullMatch = fullPattern.exec(originalDescription);
+            
+            if (fullMatch) {
+                const corrected = `${number} ${fullMatch[1].toLowerCase()}`;
+                return { 
+                    valid: false, 
+                    reason: `Abbreviated spec detected: "${clean}"`,
+                    corrected 
+                };
+            }
+        }
+        
+        return { valid: false, reason: `Abbreviated spec: "${clean}" (too short)` };
+    }
+    
+    // Check minimum length
+    if (clean.length < 3) {
+        return { valid: false, reason: `Spec too short: "${clean}"` };
+    }
+    
+    return { valid: true };
+}
+
+/**
  * Parse AI response into structured output
  */
-function parseResponse(response, originalDescription) {
+function parseResponse(response, originalDescription, debugLogger = null) {
     try {
         // Try to extract JSON from response
         const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/) || 
@@ -134,6 +199,49 @@ function parseResponse(response, originalDescription) {
                 criticalSpecs = criticalSpecs.map(spec => ({ spec, weight: 10 }));
             }
             
+            // CODEX OMNI v10.0: VALIDATE AND CORRECT KILL-SPECS (ANTI-HALLUCINATION)
+            let rawKillSpecs = json.kill_specs || json.killSpecs || [];
+            const validatedKillSpecs = [];
+            const validationLog = [];
+            
+            for (const spec of rawKillSpecs) {
+                const specText = typeof spec === 'string' ? spec : spec.spec || '';
+                const validation = validateKillSpec(specText, originalDescription);
+                
+                if (validation.valid) {
+                    validatedKillSpecs.push(specText);
+                    validationLog.push({ field: 'kill_spec', value: specText, valid: true });
+                    console.log(`[PERITO] ✓ Kill-spec validated: "${specText}"`);
+                } else if (validation.corrected) {
+                    validatedKillSpecs.push(validation.corrected);
+                    validationLog.push({ field: 'kill_spec', value: specText, valid: false, result: `Corrected to: "${validation.corrected}"`, reason: validation.reason });
+                    console.warn(`[PERITO] ⚠ Kill-spec corrected: "${specText}" → "${validation.corrected}"`);
+                } else {
+                    validationLog.push({ field: 'kill_spec', value: specText, valid: false, reason: validation.reason });
+                    console.warn(`[PERITO] ✗ Kill-spec rejected: "${specText}" - ${validation.reason}`);
+                }
+            }
+            
+            // Also validate critical specs
+            const validatedCriticalSpecs = [];
+            for (const specObj of criticalSpecs) {
+                const specText = typeof specObj === 'string' ? specObj : specObj.spec || '';
+                const weight = typeof specObj === 'object' ? (specObj.weight || 10) : 10;
+                const validation = validateKillSpec(specText, originalDescription);
+                
+                if (validation.valid) {
+                    validatedCriticalSpecs.push({ spec: specText, weight });
+                } else if (validation.corrected) {
+                    validatedCriticalSpecs.push({ spec: validation.corrected, weight });
+                }
+                // Skip invalid specs that can't be corrected
+            }
+            
+            // DEBUG: Log validation results
+            if (debugLogger && validationLog.length > 0) {
+                debugLogger.validation('PERITO', validationLog);
+            }
+            
             return {
                 complexity: json.complexity || 'HIGH', // Default to HIGH for safety
                 marketplaceSearchTerm,
@@ -142,18 +250,20 @@ function parseResponse(response, originalDescription) {
                 searchAnchorRaw,                        // NEW: Without quotes
                 searchAnchorQuoted,                     // NEW: With quotes for ML search
                 maxPriceEstimate,                       // Price estimate for floor calculation
-                killSpecs: json.kill_specs || json.killSpecs || [],
+                killSpecs: validatedKillSpecs,          // VALIDATED kill-specs
                 queries: json.google_queries || json.queries || [],
                 negativeTerms: json.negative_terms || json.negativeTerms || [],
                 genericSpecs: json.generic_specs || json.genericSpecs || [],
                 // SKEPTICAL JUDGE fields
                 negativeConstraints,  // Kill-words that disqualify candidates
-                criticalSpecs,        // Specs with weights for scoring
-                reasoning: json.reasoning || ''
+                criticalSpecs: validatedCriticalSpecs,  // VALIDATED critical specs with weights
+                reasoning: json.reasoning || '',
+                // Store original description for JUIZ reference
+                originalDescription
             };
         }
     } catch (e) {
-        console.warn('[PERITO] JSON parse failed, using fallback extraction');
+        console.warn('[PERITO] JSON parse failed, using fallback extraction:', e.message);
     }
     
     return fallbackExtraction(originalDescription);
