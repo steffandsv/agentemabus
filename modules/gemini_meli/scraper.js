@@ -402,14 +402,28 @@ async function getProductDetails(page, url) {
             }
         }
 
-        // Attributes & Description & JSON-LD
+        // Attributes & Description & JSON-LD -> ProductDNA
         const data = await page.evaluate(() => {
+            // Helper: Normalize text for keyword matching
+            const normalizeText = (text) => {
+                if (!text) return '';
+                return text
+                    .toLowerCase()
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            };
+            
+            // LAYER 1: Title
+            const titleEl = document.querySelector('h1.ui-pdp-title');
+            const title = titleEl ? titleEl.innerText.trim() : '';
+            
+            // LAYER 2: JSON-LD (Structured Data)
             const getJsonLd = () => {
                 const scripts = document.querySelectorAll('script[type="application/ld+json"]');
                 for (const script of scripts) {
                     try {
                         const json = JSON.parse(script.innerText);
-                        // Look for Product type
                         if (json['@type'] === 'Product') {
                             return {
                                 gtin: json.gtin || json.gtin13 || json.gtin14 || null,
@@ -417,72 +431,119 @@ async function getProductDetails(page, url) {
                                 brand: json.brand?.name || null,
                                 model: json.model || null,
                                 condition: json.offers?.itemCondition || null,
-                                price_ld: json.offers?.price || null
+                                price_ld: json.offers?.price || null,
+                                description_ld: json.description || null
                             };
                         }
                     } catch (e) { continue; }
                 }
                 return {};
             };
+            const jsonLd = getJsonLd();
 
+            // LAYER 3: Specs Tables (Multiple Strategies for Deep Extraction)
             const attrs = {};
-            // Strategy 1: Highlighted specs (often hidden in stripes)
+            const specsTextParts = [];
+            
+            // Strategy 1: Highlighted specs (striped rows)
             document.querySelectorAll('.ui-vpp-highlighted-specs__striped-specs .ui-vpp-highlighted-specs__striped-specs__row').forEach(row => {
                 const key = row.querySelector('.ui-vpp-highlighted-specs__striped-specs__row__key')?.innerText.trim();
                 const value = row.querySelector('.ui-vpp-highlighted-specs__striped-specs__row__value')?.innerText.trim();
-                if (key && value) attrs[key] = value;
+                if (key && value) {
+                    attrs[key] = value;
+                    specsTextParts.push(`${key}: ${value}`);
+                }
             });
 
-            // Strategy 2: Table specs
+            // Strategy 2: Standard specs table (.ui-pdp-specs__table)
             document.querySelectorAll('.ui-pdp-specs__table tr').forEach(row => {
                 const key = row.querySelector('th')?.innerText.trim();
                 const value = row.querySelector('td')?.innerText.trim();
-                if (key && value) attrs[key] = value;
+                if (key && value) {
+                    attrs[key] = value;
+                    specsTextParts.push(`${key}: ${value}`);
+                }
             });
 
-            const jsonLd = getJsonLd();
-            // Merge JSON-LD into specs
+            // Strategy 3: Andes Table (newer ML format)
+            document.querySelectorAll('.andes-table__row, table.andes-table tbody tr').forEach(row => {
+                const cells = row.querySelectorAll('td, th');
+                if (cells.length >= 2) {
+                    const key = cells[0]?.innerText.trim();
+                    const value = cells[1]?.innerText.trim();
+                    if (key && value && !attrs[key]) {
+                        attrs[key] = value;
+                        specsTextParts.push(`${key}: ${value}`);
+                    }
+                }
+            });
+            
+            // Strategy 4: Compact specs list
+            document.querySelectorAll('.ui-pdp-container__row--attributes .ui-pdp-list li').forEach(li => {
+                const text = li.innerText.trim();
+                if (text && !specsTextParts.includes(text)) {
+                    specsTextParts.push(text);
+                }
+            });
+
+            // Merge JSON-LD into attrs
             if (jsonLd.gtin) attrs['GTIN'] = jsonLd.gtin;
             if (jsonLd.mpn) attrs['MPN'] = jsonLd.mpn;
-            if (jsonLd.brand) attrs['Brand'] = jsonLd.brand;
-            if (jsonLd.model) attrs['Model'] = jsonLd.model;
+            if (jsonLd.brand) { attrs['Brand'] = jsonLd.brand; specsTextParts.push(`Marca: ${jsonLd.brand}`); }
+            if (jsonLd.model) { attrs['Model'] = jsonLd.model; specsTextParts.push(`Modelo: ${jsonLd.model}`); }
             if (jsonLd.condition) attrs['Condition'] = jsonLd.condition;
 
+            const specsText = specsTextParts.join(' | ');
+
+            // LAYER 4: Full Description (handle collapsed text)
+            let description = '';
             const descEl = document.querySelector('.ui-pdp-description__content');
-            const description = descEl ? descEl.innerText.trim() : "";
+            if (descEl) {
+                // Try to get full text even if collapsed
+                description = descEl.innerText.trim();
+            }
+            // Fallback to JSON-LD description if page description is empty
+            if (!description && jsonLd.description_ld) {
+                description = jsonLd.description_ld;
+            }
 
             // Seller Reputation Extraction
             const getSellerReputation = () => {
                 const sellerHeader = document.querySelector('.ui-pdp-seller__header__title');
                 if (sellerHeader && sellerHeader.innerText.includes('Loja oficial')) {
-                    return 'platinum'; // Official Store is high trust
+                    return 'platinum';
                 }
-
                 const medals = document.querySelectorAll('.ui-seller-info .ui-pdp-seller__reputation-info [class*="ui-pdp-seller__medal"]');
                 for (const m of medals) {
                     const cl = m.className;
                     if (cl.includes('platinum')) return 'platinum';
                     if (cl.includes('gold')) return 'gold';
-                    if (cl.includes('silver')) return 'silver'; // Does Silver exist on ML? Usually Platinum/Gold/Leader.
+                    if (cl.includes('silver')) return 'silver';
                 }
-
-                // If no medal, check thermometer level
                 const thermometer = document.querySelectorAll('.ui-seller-info .ui-thermometer li');
-                // The levels are 1 to 5. The active one has a class or style.
-                // ML often puts 'ui-thermometer__level--active'
                 let level = 0;
                 thermometer.forEach((li, index) => {
-                    if (li.className.includes('active') || li.getAttribute('class').includes('active')) {
-                        level = index + 1;
-                    }
+                    if (li.className.includes('active')) level = index + 1;
                 });
-
-                if (level === 5) return 'green'; // Good
+                if (level === 5) return 'green';
                 if (level >= 3) return 'yellow';
-                return 'red'; // Low rep
+                return 'red';
             };
 
+            // BUILD PRODUCT DNA: Concatenate all text sources for keyword matching
+            const fullTextRaw = [title, specsText, description].filter(Boolean).join(' ');
+            const fullText = normalizeText(fullTextRaw);
+
             return {
+                // ProductDNA
+                productDNA: {
+                    title: title,
+                    specsText: specsText,
+                    descriptionText: description,
+                    fullText: fullText,
+                    fullTextRaw: fullTextRaw
+                },
+                // Legacy fields
                 attrs,
                 description,
                 gtin: jsonLd.gtin,
@@ -495,6 +556,9 @@ async function getProductDetails(page, url) {
         });
 
         return {
+            // NEW: ProductDNA for THE SKEPTICAL JUDGE
+            productDNA: data.productDNA,
+            // Legacy fields (maintained for backward compatibility)
             attributes: data.attrs,
             description: data.description,
             shippingCost,
@@ -507,7 +571,12 @@ async function getProductDetails(page, url) {
         };
     } catch (e) {
         if (e.message === 'BLOCKED_BY_PORTAL') throw e;
-        return { attributes: {}, description: "", shippingCost: 0 };
+        return { 
+            productDNA: { title: '', specsText: '', descriptionText: '', fullText: '', fullTextRaw: '' },
+            attributes: {}, 
+            description: "", 
+            shippingCost: 0 
+        };
     }
 }
 

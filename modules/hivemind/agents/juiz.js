@@ -1,14 +1,15 @@
 /**
- * JUIZ Agent (The Cross-Referencer)
+ * JUIZ Agent - THE SKEPTICAL JUDGE v8.0
  * 
- * Mission: Resolve poor seller descriptions using entity matching.
- * If an ML listing matches the Gold Entity but has incomplete description,
- * the JUIZ can approve it based on the AUDITOR's validation.
+ * Mission: Calculate Adherence Score using ProductDNA and weighted specs.
+ * Uses KILL-WORDS elimination, anchor verification, and decimal risk scoring.
+ * 
+ * Protocol: "Se não está escrito, não existe"
  * 
  * Output:
- * - validatedCandidates: Candidates with updated validation status
- * - winnerIndex: Index of the best candidate
- * - defenseReport: Technical defense report for the selection
+ * - validatedCandidates: Candidates with decimal risk scores
+ * - winnerIndex: Index of best candidate (lowest risk)
+ * - defenseReport: Technical defense report with scoring breakdown
  */
 
 const { generateText, PROVIDERS } = require('../../../src/services/ai_manager');
@@ -18,16 +19,149 @@ const { getSetting } = require('../../../src/database');
 // Items below this threshold are rejected as suspected accessories/scrap
 const PRICE_FLOOR_PERCENTAGE = 0.15; // 15%
 
+// SKEPTICAL JUDGE: Maximum acceptable risk for viable candidates
+const MAX_ACCEPTABLE_RISK = 7.0;
+
 /**
- * Execute JUIZ agent
- * @param {object[]} candidates - Candidates from SNIPER
+ * Calculate Adherence Score for a candidate using ProductDNA (THE SKEPTICAL JUDGE)
+ * 
+ * @param {object} productDNA - ProductDNA from deep scraping
+ * @param {object} specs - Specs from PERITO (searchAnchor, negativeConstraints, criticalSpecs)
+ * @param {string} detectedModel - Model name from DETETIVE (optional)
+ * @returns {object} { score, risk, reason, breakdown }
+ */
+function calculateAdherenceScore(productDNA, specs, detectedModel = null) {
+    const breakdown = [];
+    let score = 0;
+    
+    // Normalize text for matching
+    const fullText = (productDNA?.fullText || '').toLowerCase();
+    const title = (productDNA?.title || '').toLowerCase();
+    
+    if (!fullText) {
+        return {
+            score: 0,
+            risk: '10.0',
+            reason: 'ProductDNA vazio - sem dados para análise',
+            breakdown: ['Sem ProductDNA']
+        };
+    }
+    
+    // ============================================
+    // PHASE 1: KILL-WORDS CHECK (Morte Súbita)
+    // ============================================
+    const negativeConstraints = specs.negativeConstraints || [];
+    for (const killWord of negativeConstraints) {
+        const normalized = killWord.toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        
+        if (fullText.includes(normalized)) {
+            return {
+                score: 0,
+                risk: '10.0',
+                reason: `⛔ KILL-WORD: "${killWord}" detectada. Incompatibilidade tecnológica.`,
+                breakdown: [`KILL-WORD "${killWord}" encontrada`]
+            };
+        }
+    }
+    breakdown.push('✓ Nenhuma kill-word detectada');
+    
+    // ============================================
+    // PHASE 2: ANCHOR VERIFICATION (Prova Real)
+    // ============================================
+    const anchor = (specs.searchAnchor || '')
+        .replace(/"/g, '')
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    
+    if (anchor && anchor.length > 0) {
+        if (fullText.includes(anchor)) {
+            score += 60;
+            breakdown.push(`✓ Âncora "${anchor}" encontrada (+60pts)`);
+        } else {
+            score += 10;
+            breakdown.push(`⚠ Âncora "${anchor}" NÃO encontrada (+10pts - penalidade severa)`);
+        }
+    } else {
+        // No anchor defined - treat as medium base
+        score += 30;
+        breakdown.push('~ Sem âncora definida (+30pts base)');
+    }
+    
+    // ============================================
+    // PHASE 3: CRITICAL SPECS (Somatória de Evidências)
+    // ============================================
+    const criticalSpecs = specs.criticalSpecs || [];
+    let specsFound = 0;
+    let specsTotal = criticalSpecs.length;
+    
+    for (const specObj of criticalSpecs) {
+        const specText = (typeof specObj === 'string' ? specObj : specObj.spec || '')
+            .toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const weight = typeof specObj === 'object' ? (specObj.weight || 10) : 10;
+        
+        if (specText && fullText.includes(specText)) {
+            score += weight;
+            specsFound++;
+            breakdown.push(`✓ Spec "${specObj.spec || specObj}" (+${weight}pts)`);
+        }
+    }
+    
+    if (specsTotal > 0) {
+        breakdown.push(`→ Specs encontradas: ${specsFound}/${specsTotal}`);
+    }
+    
+    // ============================================
+    // PHASE 4: GOLDEN MODEL BONUS
+    // ============================================
+    if (detectedModel && title.toLowerCase().includes(detectedModel.toLowerCase())) {
+        score += 30;
+        breakdown.push(`✓ Modelo detectado "${detectedModel}" no título (+30pts bônus)`);
+    }
+    
+    // ============================================
+    // CALCULATE DECIMAL RISK
+    // ============================================
+    // Score 100 = Risk 0.0
+    // Score 60 = Risk 4.0
+    // Score 10 = Risk 9.0
+    // Score 0 = Risk 10.0
+    const risk = Math.max(0, Math.min(10, 10.0 - (score / 10.0)));
+    
+    // Generate reason summary
+    let reason;
+    if (risk <= 2.0) {
+        reason = `✅ APROVADO (Risco ${risk.toFixed(1)}). Aderência Alta. ${breakdown.slice(-2).join(' ')}`;
+    } else if (risk <= 5.0) {
+        reason = `⚠ INCERTO (Risco ${risk.toFixed(1)}). Aderência Média. Verificar specs ausentes.`;
+    } else if (risk <= 7.0) {
+        reason = `🔶 DUVIDOSO (Risco ${risk.toFixed(1)}). Aderência Baixa. Muitas specs faltando.`;
+    } else {
+        reason = `❌ REJEITADO (Risco ${risk.toFixed(1)}). Aderência Insuficiente. Não recomendado.`;
+    }
+    
+    return {
+        score,
+        risk: risk.toFixed(1),
+        reason,
+        breakdown
+    };
+}
+
+/**
+ * Execute JUIZ agent - THE SKEPTICAL JUDGE v8.0
+ * 
+ * @param {object[]} candidates - Candidates from SNIPER (with ProductDNA)
  * @param {object} goldEntity - Gold Entity from AUDITOR
- * @param {string[]} killSpecs - Original Kill-Specs
+ * @param {string[]} killSpecs - Original Kill-Specs (legacy)
  * @param {object} item - Original tender item
  * @param {object} config - AI configuration
+ * @param {object} specs - PERITO output (searchAnchor, negativeConstraints, criticalSpecs)
+ * @param {string} detectedModel - Model name from DETETIVE (optional)
  */
-async function executeJuiz(candidates, goldEntity, killSpecs, item, config) {
-    console.log(`[JUIZ] Cross-referencing ${candidates.length} candidates`);
+async function executeJuiz(candidates, goldEntity, killSpecs, item, config, specs = {}, detectedModel = null) {
+    console.log(`[JUIZ] THE SKEPTICAL JUDGE v8.0 - Analyzing ${candidates.length} candidates`);
     
     if (!candidates || candidates.length === 0) {
         return {
@@ -38,100 +172,151 @@ async function executeJuiz(candidates, goldEntity, killSpecs, item, config) {
     }
     
     // ============================================
-    // PRICE FLOOR - Primeira Linha de Defesa
-    // (ANCHOR & LOCK doctrine)
+    // PHASE 1: PRICE FLOOR - Primeira Linha de Defesa
     // ============================================
     const maxPrice = item.maxPrice || 0;
     if (maxPrice > 0) {
         candidates = applyPriceFloor(candidates, maxPrice);
         const rejected = candidates.filter(c => c.priceFloorRejection).length;
         if (rejected > 0) {
-            console.log(`[JUIZ] 🚫 Price Floor rejeitou ${rejected} candidatos (preço < R$ ${(maxPrice * PRICE_FLOOR_PERCENTAGE).toFixed(2)})`);
+            console.log(`[JUIZ] 🚫 Price Floor: ${rejected} candidatos rejeitados (preço < R$ ${(maxPrice * PRICE_FLOOR_PERCENTAGE).toFixed(2)})`);
         }
     }
     
-    // Filter out price floor rejections before AI analysis (saves tokens)
+    // Separate viable from rejected
+    const priceFloorRejected = candidates.filter(c => c.priceFloorRejection);
     const viableCandidates = candidates.filter(c => !c.priceFloorRejection);
     
-    // 1. Validate each VIABLE candidate against Gold Entity
-    // (price floor rejections are kept but not analyzed by AI)
-    const validatedCandidates = [...candidates.filter(c => c.priceFloorRejection)];
+    console.log(`[JUIZ] 📊 ${viableCandidates.length} candidatos viáveis para análise`);
     
-    for (let i = 0; i < viableCandidates.length; i++) {
-        const candidate = viableCandidates[i];
-        
-        // If candidate is from Gold Entity search and has price anomaly, mark as uncertain
+    // ============================================
+    // PHASE 2: ADHERENCE SCORING (THE SKEPTICAL JUDGE)
+    // ============================================
+    const validatedCandidates = [...priceFloorRejected]; // Keep rejected ones
+    
+    // Build specs object from available data
+    const specsForScoring = {
+        searchAnchor: specs.searchAnchor || null,
+        negativeConstraints: specs.negativeConstraints || [],
+        criticalSpecs: specs.criticalSpecs || killSpecs.map(s => ({ spec: s, weight: 10 }))
+    };
+    
+    for (const candidate of viableCandidates) {
+        // Price anomaly check (quick rejection)
         if (candidate.priceAnomaly) {
             candidate.aiMatch = 'UNCERTAIN';
             candidate.aiReasoning = candidate.anomalyReason;
             candidate.risk_score = 8;
-            candidate.technical_score = 2;
+            candidate.adherenceScore = 20;
+            candidate.scoreBreakdown = ['Anomalia de preço detectada'];
             validatedCandidates.push(candidate);
             continue;
         }
         
-        // Check if this is clearly the Gold Entity
-        if (goldEntity && !goldEntity.isGeneric) {
+        // ============================================
+        // SKEPTICAL JUDGE: Use ProductDNA if available
+        // ============================================
+        if (candidate.productDNA && (specsForScoring.searchAnchor || specsForScoring.criticalSpecs.length > 0)) {
+            const adherence = calculateAdherenceScore(
+                candidate.productDNA, 
+                specsForScoring, 
+                detectedModel
+            );
+            
+            candidate.adherenceScore = adherence.score;
+            candidate.risk_score = parseFloat(adherence.risk);
+            candidate.aiReasoning = adherence.reason;
+            candidate.scoreBreakdown = adherence.breakdown;
+            
+            // Determine status based on risk
+            if (parseFloat(adherence.risk) <= 2.0) {
+                candidate.aiMatch = 'APPROVED';
+            } else if (parseFloat(adherence.risk) <= 5.0) {
+                candidate.aiMatch = 'UNCERTAIN';
+            } else if (parseFloat(adherence.risk) <= MAX_ACCEPTABLE_RISK) {
+                candidate.aiMatch = 'DOUBTFUL';
+            } else {
+                candidate.aiMatch = 'REJECTED';
+            }
+            
+            console.log(`[JUIZ] ${candidate.title.substring(0, 40)}... → Score: ${adherence.score}, Risco: ${adherence.risk}`);
+        }
+        // ============================================
+        // FALLBACK: Old Gold Entity matching (backward compat)
+        // ============================================
+        else if (goldEntity && !goldEntity.isGeneric) {
             const entityMatch = await matchToGoldEntity(candidate, goldEntity, killSpecs, config);
             
-            if (entityMatch.matches) {
-                // Cross-reference approval
-                candidate.aiMatch = 'APPROVED';
-                candidate.aiReasoning = entityMatch.reasoning;
-                candidate.risk_score = entityMatch.risk_score || 1;
-                candidate.technical_score = 10 - (entityMatch.risk_score || 1);
-                candidate.crossReferenced = true;
-                candidate.goldEntityMatch = goldEntity.name;
-            } else {
-                // Doesn't clearly match Gold Entity
-                candidate.aiMatch = entityMatch.status || 'UNCERTAIN';
-                candidate.aiReasoning = entityMatch.reasoning;
-                candidate.risk_score = entityMatch.risk_score || 5;
-                candidate.technical_score = 10 - (entityMatch.risk_score || 5);
-            }
-        } else {
-            // Generic search - use standard validation
-            candidate.aiMatch = 'UNCERTAIN';
-            candidate.aiReasoning = 'Busca genérica - validação manual recomendada';
-            candidate.risk_score = 5;
-            candidate.technical_score = 5;
+            candidate.aiMatch = entityMatch.matches ? 'APPROVED' : (entityMatch.status || 'UNCERTAIN');
+            candidate.aiReasoning = entityMatch.reasoning;
+            candidate.risk_score = entityMatch.risk_score || 5;
+            candidate.adherenceScore = (10 - (entityMatch.risk_score || 5)) * 10;
+            candidate.crossReferenced = entityMatch.matches;
+            candidate.goldEntityMatch = entityMatch.matches ? goldEntity.name : null;
         }
+        // ============================================
+        // NO DATA: Generic fallback
+        // ============================================
+        else {
+            candidate.aiMatch = 'UNCERTAIN';
+            candidate.aiReasoning = 'Sem ProductDNA ou Gold Entity - validação manual recomendada';
+            candidate.risk_score = 5.0;
+            candidate.adherenceScore = 50;
+        }
+        
+        // Calculate technical score (inverse of risk)
+        candidate.technical_score = Math.max(0, 10 - candidate.risk_score);
         
         validatedCandidates.push(candidate);
     }
     
-    // 2. Select winner (lowest risk, then lowest price)
-    const approved = validatedCandidates.filter(c => 
-        c.aiMatch === 'APPROVED' || (c.risk_score && c.risk_score <= 3)
+    // ============================================
+    // PHASE 3: HIERARCHICAL ORDERING (THE CRUCIAL CHANGE)
+    // ORDER BY risk ASC, price ASC
+    // ============================================
+    
+    // Filter candidates within acceptable risk
+    const acceptableCandidates = validatedCandidates.filter(c => 
+        !c.priceFloorRejection && 
+        c.risk_score !== undefined &&
+        parseFloat(c.risk_score) <= MAX_ACCEPTABLE_RISK
     );
     
-    let winnerIndex = -1;
-    
-    if (approved.length > 0) {
-        // Sort by risk (ascending) then by total price (ascending)
-        approved.sort((a, b) => {
-            if (a.risk_score !== b.risk_score) {
-                return a.risk_score - b.risk_score;
-            }
-            return (a.totalPrice || a.price) - (b.totalPrice || b.price);
-        });
+    // Sort: Risk first, then price
+    acceptableCandidates.sort((a, b) => {
+        const riskA = parseFloat(a.risk_score) || 10;
+        const riskB = parseFloat(b.risk_score) || 10;
         
-        const winner = approved[0];
+        // Primary: Risk (lower is better)
+        if (Math.abs(riskA - riskB) > 0.5) {
+            return riskA - riskB;
+        }
+        
+        // Secondary: Total price (lower is better)
+        return (a.totalPrice || a.price) - (b.totalPrice || b.price);
+    });
+    
+    // Determine winner
+    let winnerIndex = -1;
+    if (acceptableCandidates.length > 0) {
+        const winner = acceptableCandidates[0];
         winnerIndex = validatedCandidates.indexOf(winner);
-    } else if (validatedCandidates.length > 0) {
-        // No approved candidates - pick lowest risk
-        validatedCandidates.sort((a, b) => a.risk_score - b.risk_score);
-        winnerIndex = 0;
+        console.log(`[JUIZ] 🏆 Vencedor: "${winner.title.substring(0, 50)}..." (Risco: ${winner.risk_score}, Preço: R$ ${winner.price})`);
+    } else {
+        console.log(`[JUIZ] ⚠ Nenhum candidato com risco aceitável (<= ${MAX_ACCEPTABLE_RISK})`);
     }
     
-    // 3. Generate defense report
+    // ============================================
+    // PHASE 4: GENERATE DEFENSE REPORT
+    // ============================================
     const defenseReport = await generateDefenseReport(
         validatedCandidates,
         winnerIndex,
         goldEntity,
         killSpecs,
         item,
-        config
+        config,
+        specs
     );
     
     return {
@@ -275,9 +460,9 @@ function fallbackEntityMatch(candidate, goldEntity) {
 }
 
 /**
- * Generate a technical defense report for the selection
+ * Generate a technical defense report for the selection (SKEPTICAL JUDGE v8.0)
  */
-async function generateDefenseReport(candidates, winnerIndex, goldEntity, killSpecs, item, config) {
+async function generateDefenseReport(candidates, winnerIndex, goldEntity, killSpecs, item, config, specs = {}) {
     if (winnerIndex < 0 || !candidates[winnerIndex]) {
         return null;
     }
@@ -298,6 +483,12 @@ async function generateDefenseReport(candidates, winnerIndex, goldEntity, killSp
             isGeneric: goldEntity.isGeneric
         } : null,
         killSpecs,
+        // SKEPTICAL JUDGE v8.0 data
+        skepticalJudge: {
+            searchAnchor: specs.searchAnchor || null,
+            negativeConstraints: specs.negativeConstraints || [],
+            criticalSpecsCount: (specs.criticalSpecs || []).length
+        },
         selection: {
             title: winner.title,
             price: winner.price,
@@ -307,11 +498,13 @@ async function generateDefenseReport(candidates, winnerIndex, goldEntity, killSp
             aiMatch: winner.aiMatch,
             aiReasoning: winner.aiReasoning,
             risk_score: winner.risk_score,
+            adherenceScore: winner.adherenceScore || null,
+            scoreBreakdown: winner.scoreBreakdown || [],
             crossReferenced: winner.crossReferenced || false
         },
         kitComponents: winner.kitComponents || null,
         totalWithKit: winner.totalPriceWithKit || null,
-        methodology: buildMethodologyText(goldEntity, killSpecs),
+        methodology: buildMethodologyText(goldEntity, killSpecs, specs),
         candidates: candidates.length
     };
     
@@ -319,22 +512,27 @@ async function generateDefenseReport(candidates, winnerIndex, goldEntity, killSp
 }
 
 /**
- * Build methodology explanation text
+ * Build methodology explanation text (SKEPTICAL JUDGE v8.0)
  */
-function buildMethodologyText(goldEntity, killSpecs) {
+function buildMethodologyText(goldEntity, killSpecs, specs = {}) {
+    const hasSkepticalJudge = specs.negativeConstraints?.length > 0 || specs.criticalSpecs?.length > 0;
+    
     if (!goldEntity || goldEntity.isGeneric) {
+        if (hasSkepticalJudge) {
+            return `SKEPTICAL JUDGE v8.0: Validação por ProductDNA com ${specs.negativeConstraints?.length || 0} Kill-Words e ${specs.criticalSpecs?.length || 0} Critical Specs ponderadas.`;
+        }
         return 'Busca direta no marketplace com validação por IA.';
     }
     
-    return `Metodologia HIVE-MIND:
+    return `Metodologia HIVE-MIND + SKEPTICAL JUDGE v8.0:
 1. PERITO extraiu Kill-Specs: ${killSpecs.slice(0, 3).join(', ')}
+   ${specs.negativeConstraints?.length > 0 ? `   → Kill-Words: ${specs.negativeConstraints.join(', ')}` : ''}
 2. DETETIVE descobriu o fabricante/modelo na web aberta
 3. AUDITOR validou "${goldEntity.name}" no site do fabricante (${goldEntity.sourceUrl || 'fonte confirmada'})
-4. SNIPER buscou especificamente pelo modelo validado
-5. JUIZ confirmou que o anúncio corresponde ao modelo homologado
+4. SNIPER buscou especificamente pelo modelo validado + extraiu ProductDNA
+5. JUIZ calculou Adherence Score via ProductDNA (Risco Decimal 0.0-10.0)
 
-Esta metodologia garante que mesmo anúncios com descrição incompleta sejam aceitos,
-desde que claramente identifiquem o modelo que foi previamente validado.`;
+Ordenação: ORDER BY risk ASC, price ASC (técnica sobre preço)`;
 }
 
 module.exports = { executeJuiz };

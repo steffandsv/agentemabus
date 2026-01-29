@@ -159,16 +159,23 @@ async function runPerito(state, config, logger, itemId) {
         
         state.complexity = result.complexity || 'HIGH';
         state.marketplaceSearchTerm = result.marketplaceSearchTerm || state.item.description.substring(0, 50);
-        state.searchAnchor = result.searchAnchor || null;  // NEW: Anchor for fallback searches
-        state.maxPriceEstimate = result.maxPriceEstimate || state.item.maxPrice; // NEW: Price estimate
+        state.searchAnchor = result.searchAnchor || null;  // Anchor for fallback searches
+        state.maxPriceEstimate = result.maxPriceEstimate || state.item.maxPrice;
         state.killSpecs = result.killSpecs;
         state.googleQueries = result.queries;
         state.negativeTerms = result.negativeTerms || [];
+        
+        // NEW: SKEPTICAL JUDGE fields from PERITO
+        state.negativeConstraints = result.negativeConstraints || []; // Kill-words
+        state.criticalSpecs = result.criticalSpecs || [];             // Specs with weights
         
         logger.log(`📊 [Item ${itemId}] Complexidade: ${state.complexity}`);
         logger.log(`🏷️ [Item ${itemId}] Termo de Busca: "${state.marketplaceSearchTerm}"`);
         if (state.searchAnchor) {
             logger.log(`⚓ [Item ${itemId}] Âncora de Busca: ${state.searchAnchor}`);
+        }
+        if (state.negativeConstraints.length > 0) {
+            logger.log(`⛔ [Item ${itemId}] Kill-Words: ${state.negativeConstraints.join(', ')}`);
         }
         logger.log(`📋 [Item ${itemId}] Kill-Specs: ${state.killSpecs.join(', ')}`);
         
@@ -382,15 +389,24 @@ async function runSniper(state, page, cep, config, logger, itemId) {
 }
 
 async function runJuiz(state, config, logger, itemId) {
-    logger.log(`⚖️ [Item ${itemId}] JUIZ: Validação cruzada e seleção final...`);
+    logger.log(`⚖️ [Item ${itemId}] JUIZ (THE SKEPTICAL JUDGE v8.0): Validação com Risco Decimal...`);
     
     try {
+        // Build specs object for SKEPTICAL JUDGE
+        const specs = {
+            searchAnchor: state.searchAnchor || null,
+            negativeConstraints: state.negativeConstraints || [],
+            criticalSpecs: state.criticalSpecs || []
+        };
+        
         const result = await executeJuiz(
             state.candidates,
             state.goldEntity,
             state.killSpecs,
             state.item,
-            config
+            config,
+            specs,                         // NEW: PERITO specs for scoring
+            state.detectedModel || null    // NEW: DETETIVE model for bonus
         );
         
         // Update candidates with JUIZ validation
@@ -400,13 +416,14 @@ async function runJuiz(state, config, logger, itemId) {
         
         if (state.winner !== null && state.winner >= 0) {
             const winner = state.candidates[state.winner];
-            logger.log(`🏆 [Item ${itemId}] JUIZ: Vencedor selecionado: ${winner.title}`);
+            logger.log(`🏆 [Item ${itemId}] JUIZ: Vencedor: ${winner.title.substring(0, 60)}...`);
+            logger.log(`📊 [Item ${itemId}] Risco: ${winner.risk_score} | Score: ${winner.adherenceScore || 'N/A'}`);
             logger.log(`💰 [Item ${itemId}] Preço Final: R$ ${winner.totalPrice || winner.price}`);
         } else {
-            logger.log(`⚠️ [Item ${itemId}] JUIZ: Nenhum vencedor claro. Melhor candidato no topo.`);
+            logger.log(`⚠️ [Item ${itemId}] JUIZ: Nenhum candidato com risco aceitável encontrado.`);
         }
         
-        logState(state, `JUIZ concluiu validação cruzada`, logger, itemId);
+        logState(state, `JUIZ concluiu validação com Risco Decimal`, logger, itemId);
         
         state.current = STATES.COMPLETE;
         

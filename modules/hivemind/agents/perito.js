@@ -85,15 +85,28 @@ function parseResponse(response, originalDescription) {
             // Extract max price estimate
             const maxPriceEstimate = json.max_price_estimate || json.maxPriceEstimate || 0;
             
+            // NEW: Extract negative constraints (KILL-WORDS for SKEPTICAL JUDGE)
+            const negativeConstraints = json.negative_constraints || json.negativeConstraints || [];
+            
+            // NEW: Extract critical specs with weights
+            let criticalSpecs = json.critical_specs || json.criticalSpecs || [];
+            // Normalize if it's just an array of strings (backward compat)
+            if (criticalSpecs.length > 0 && typeof criticalSpecs[0] === 'string') {
+                criticalSpecs = criticalSpecs.map(spec => ({ spec, weight: 10 }));
+            }
+            
             return {
                 complexity: json.complexity || 'HIGH', // Default to HIGH for safety
                 marketplaceSearchTerm,
-                searchAnchor,         // NEW: Anchor for fallback searches
-                maxPriceEstimate,     // NEW: Price estimate for floor calculation
+                searchAnchor,         // Anchor for fallback searches
+                maxPriceEstimate,     // Price estimate for floor calculation
                 killSpecs: json.kill_specs || json.killSpecs || [],
                 queries: json.google_queries || json.queries || [],
                 negativeTerms: json.negative_terms || json.negativeTerms || [],
                 genericSpecs: json.generic_specs || json.genericSpecs || [],
+                // NEW: SKEPTICAL JUDGE fields
+                negativeConstraints,  // Kill-words that disqualify candidates
+                criticalSpecs,        // Specs with weights for scoring
                 reasoning: json.reasoning || ''
             };
         }
@@ -245,6 +258,9 @@ function fallbackExtraction(description) {
         queries,
         negativeTerms: genericTerms,
         genericSpecs: [],
+        // NEW: SKEPTICAL JUDGE fields (fallback defaults)
+        negativeConstraints: [], // No kill-words in fallback
+        criticalSpecs: finalSpecs.map(spec => ({ spec, weight: 10 })), // Equal weight in fallback
         reasoning: `Fallback extraction (AI unavailable). Complexity: ${complexity}`
     };
 }
