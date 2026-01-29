@@ -782,12 +782,12 @@ Ordenação: ORDER BY risk ASC, price ASC (técnica sobre preço)`;
 
 /**
  * Evaluate a candidate with a simple, direct AI prompt
- * No complex scoring - just ask "what's the risk?"
+ * AI decides if more info is needed from Perplexity
  * 
  * @param {object} candidate - The candidate to evaluate
  * @param {string} originalDescription - Full tender description (NO TRUNCATION)
  * @param {object} config - AI configuration
- * @returns {object} { risk_score, reasoning }
+ * @returns {object} { risk_score, reasoning, validar_perplexity, oq_perguntar }
  */
 async function evaluateCandidateDirect(candidate, originalDescription, config) {
     // Build the full ad text - NO TRUNCATION
@@ -825,12 +825,18 @@ IMPORTANTE:
 - Use emojis para destacar pontos chaves
 - Seja específico sobre O QUE pode dar errado
 - Mencione as especificações que batem e as que NÃO batem
-- Se o anúncio não menciona algo importante, diga que isso aumenta o risco
+
+VALIDAÇÃO EXTERNA:
+Se o anúncio NÃO MENCIONA especificações importantes exigidas pelo edital, mas o produto
+PARECE SER COMPATÍVEL (marca/modelo conhecidos), você pode solicitar validação externa.
+Só peça validação se o preço for bom e valer a pena investigar mais.
 
 Responda em JSON:
 {
     "risk_score": 0-10,
-    "reasoning": "Explicação detalhada com emojis"
+    "reasoning": "Explicação detalhada com emojis",
+    "validar_perplexity": "SIM ou NAO",
+    "oq_perguntar": "Se SIM: perguntas específicas sobre o produto, incluindo marca/modelo. Ex: 'Qual a velocidade do processador do Dell Latitude 3410 i5? A tela é Full HD IPS? Qual a capacidade da bateria?'. Se NAO: deixar vazio."
 }`;
 
     console.log(`[JUIZ] 🎯 Avaliação DIRETA: "${candidate.title?.substring(0, 40)}..."`);
@@ -865,7 +871,9 @@ Responda em JSON:
             const parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
             return {
                 risk_score: parseFloat(parsed.risk_score) || 5.0,
-                reasoning: parsed.reasoning || 'Avaliação sem detalhes'
+                reasoning: parsed.reasoning || 'Avaliação sem detalhes',
+                validar_perplexity: (parsed.validar_perplexity || '').toUpperCase() === 'SIM',
+                oq_perguntar: parsed.oq_perguntar || ''
             };
         }
 
@@ -874,21 +882,27 @@ Responda em JSON:
         if (numberMatch) {
             return {
                 risk_score: parseFloat(numberMatch[1]),
-                reasoning: response.replace(/```json[\s\S]*?```/g, '').trim() || 'Risco avaliado'
+                reasoning: response.replace(/```json[\s\S]*?```/g, '').trim() || 'Risco avaliado',
+                validar_perplexity: false,
+                oq_perguntar: ''
             };
         }
 
         console.warn(`[JUIZ] ⚠️ Não conseguiu parsear resposta da IA`);
         return {
             risk_score: 5.0,
-            reasoning: '🔶 Avaliação inconclusiva - resposta da IA não estruturada'
+            reasoning: '🔶 Avaliação inconclusiva - resposta da IA não estruturada',
+            validar_perplexity: false,
+            oq_perguntar: ''
         };
 
     } catch (err) {
         console.error(`[JUIZ] ❌ Erro na avaliação direta: ${err.message}`);
         return {
             risk_score: 6.0,
-            reasoning: `⚠️ Erro na avaliação automática: ${err.message}`
+            reasoning: `⚠️ Erro na avaliação automática: ${err.message}`,
+            validar_perplexity: false,
+            oq_perguntar: ''
         };
     }
 }

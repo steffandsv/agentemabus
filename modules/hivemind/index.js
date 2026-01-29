@@ -538,8 +538,10 @@ async function runJuiz(state, config, logger, itemId) {
 
         logger.log(`📋 [Item ${itemId}] JUIZ: Avaliando ${candidates.length} candidatos...`);
 
-        // SMART CANDIDATE SELECTION: Direct evaluation for each candidate
-        // Uses simple prompt: "De 0 a 10 qual o risco?"
+        // Track candidates that need Perplexity validation
+        const candidatesNeedingPerplexity = [];
+
+        // PHASE 1: Initial AI evaluation
         for (let i = 0; i < candidates.length; i++) {
             const candidate = candidates[i];
             logger.log(`   [${i + 1}/${candidates.length}] "${candidate.title?.substring(0, 40)}..."`);
@@ -551,8 +553,16 @@ async function runJuiz(state, config, logger, itemId) {
             candidate.risk_score = evaluation.risk_score;
             candidate.aiReasoning = evaluation.reasoning;
             candidate.aiMatch = evaluation.risk_score <= 5;
+            candidate.validar_perplexity = evaluation.validar_perplexity;
+            candidate.oq_perguntar = evaluation.oq_perguntar;
 
             logger.log(`      → Risco: ${evaluation.risk_score}/10`);
+
+            // Check if AI wants Perplexity validation
+            if (evaluation.validar_perplexity && evaluation.oq_perguntar) {
+                logger.log(`      → 🔍 IA quer validar via Perplexity`);
+                candidatesNeedingPerplexity.push({ index: i, candidate, questions: evaluation.oq_perguntar });
+            }
 
             // Debug logging
             if (state.debugLogger) {
@@ -560,7 +570,64 @@ async function runJuiz(state, config, logger, itemId) {
                 state.debugLogger._write(`Title: ${candidate.title?.substring(0, 60)}...`);
                 state.debugLogger._write(`Price: R$ ${candidate.price}`);
                 state.debugLogger._write(`Risk Score: ${evaluation.risk_score}/10`);
-                state.debugLogger._write(`Reasoning: ${evaluation.reasoning?.substring(0, 200)}...`);
+                state.debugLogger._write(`Validar Perplexity: ${evaluation.validar_perplexity ? 'SIM' : 'NAO'}`);
+                if (evaluation.oq_perguntar) {
+                    state.debugLogger._write(`Perguntas: ${evaluation.oq_perguntar.substring(0, 100)}...`);
+                }
+            }
+        }
+
+        // PHASE 2: Perplexity validation for candidates that need it
+        if (candidatesNeedingPerplexity.length > 0) {
+            logger.log(`🔬 [Item ${itemId}] JUIZ: ${candidatesNeedingPerplexity.length} candidatos precisam de validação Perplexity`);
+
+            const MAX_PERPLEXITY_VALIDATIONS = 3; // Limit API calls
+            const toValidate = candidatesNeedingPerplexity.slice(0, MAX_PERPLEXITY_VALIDATIONS);
+
+            for (const { index, candidate, questions } of toValidate) {
+                logger.log(`   📡 Validando: "${candidate.title?.substring(0, 40)}..."`);
+                logger.log(`   ❓ Perguntas: ${questions.substring(0, 80)}...`);
+
+                try {
+                    // Query Perplexity with AI-generated questions
+                    const perplexityResponse = await askPerplexity(questions);
+
+                    if (perplexityResponse) {
+                        logger.log(`   ✅ Perplexity respondeu`);
+
+                        // Enrich candidate with Perplexity data
+                        candidate.perplexityEnrichment = perplexityResponse;
+                        candidate.enrichmentSource = 'perplexity';
+
+                        // Update ProductDNA with enriched info
+                        if (candidate.productDNA) {
+                            candidate.productDNA.fullText += `\n\n[PERPLEXITY ENRICHMENT]\n${perplexityResponse}`;
+                            candidate.productDNA.fullTextRaw = (candidate.productDNA.fullTextRaw || '') + `\n\n[INFO EXTERNA]\n${perplexityResponse}`;
+                        }
+
+                        // RE-EVALUATE with enriched data
+                        logger.log(`   🔄 Re-avaliando com dados enriquecidos...`);
+                        const reEvaluation = await evaluateCandidateDirect(candidate, originalDescription, config);
+
+                        // Update candidate with new evaluation
+                        candidate.risk_score = reEvaluation.risk_score;
+                        candidate.aiReasoning = reEvaluation.reasoning;
+                        candidate.aiMatch = reEvaluation.risk_score <= 5;
+                        candidate.wasEnriched = true;
+
+                        logger.log(`   → Novo risco: ${reEvaluation.risk_score}/10`);
+
+                        if (state.debugLogger) {
+                            state.debugLogger.section(`CANDIDATE ${index + 1} - RE-EVALUATION AFTER PERPLEXITY`);
+                            state.debugLogger._write(`New Risk Score: ${reEvaluation.risk_score}/10`);
+                            state.debugLogger._write(`Perplexity Response: ${perplexityResponse.substring(0, 200)}...`);
+                        }
+                    } else {
+                        logger.log(`   ⚠️ Perplexity não respondeu`);
+                    }
+                } catch (perplexityErr) {
+                    logger.log(`   ❌ Erro Perplexity: ${perplexityErr.message}`);
+                }
             }
         }
 
@@ -581,7 +648,7 @@ async function runJuiz(state, config, logger, itemId) {
         if (winnerIndex >= 0) {
             const winner = candidates[winnerIndex];
             logger.log(`🏆 [Item ${itemId}] JUIZ: Vencedor: "${winner.title?.substring(0, 50)}..."`);
-            logger.log(`📊 [Item ${itemId}] Risco: ${winner.risk_score}/10`);
+            logger.log(`📊 [Item ${itemId}] Risco: ${winner.risk_score}/10 ${winner.wasEnriched ? '(enriquecido)' : ''}`);
             logger.log(`💰 [Item ${itemId}] Preço: R$ ${winner.totalPrice || winner.price}`);
         } else {
             logger.log(`⚠️ [Item ${itemId}] JUIZ: Nenhum candidato com risco ≤ ${MAX_ACCEPTABLE_RISK}`);
@@ -591,16 +658,18 @@ async function runJuiz(state, config, logger, itemId) {
         if (state.debugLogger) {
             state.debugLogger.section('JUIZ EVALUATION SUMMARY');
             state.debugLogger._write(`Candidates evaluated: ${candidates.length}`);
+            state.debugLogger._write(`Perplexity validations: ${candidatesNeedingPerplexity.length}`);
             state.debugLogger._write(`Winner index: ${winnerIndex}`);
             candidates.slice(0, 5).forEach((c, i) => {
-                state.debugLogger._write(`  [${i + 1}] Risk ${c.risk_score}/10 - R$ ${c.totalPrice || c.price} - "${c.title?.substring(0, 40)}..."`);
+                const enrichedIcon = c.wasEnriched ? '📡' : '';
+                state.debugLogger._write(`  [${i + 1}] Risk ${c.risk_score}/10 ${enrichedIcon} - R$ ${c.totalPrice || c.price} - "${c.title?.substring(0, 40)}..."`);
             });
 
             const logFilePath = state.debugLogger.finalize();
             logger.log(`📝 [Item ${itemId}] Debug log salvo: ${logFilePath}`);
         }
 
-        logState(state, `JUIZ avaliou ${candidates.length} candidatos, vencedor idx ${winnerIndex}`, logger, itemId);
+        logState(state, `JUIZ avaliou ${candidates.length} candidatos, ${candidatesNeedingPerplexity.length} enriquecidos, vencedor idx ${winnerIndex}`, logger, itemId);
 
         state.current = STATES.COMPLETE;
 
@@ -792,31 +861,151 @@ function preCheckCandidate(candidate, killSpecs, criticalSpecs) {
 }
 
 /**
- * Enrich candidate via Perplexity search.
+ * Build a smart, targeted Perplexity query asking ONLY about missing specs.
+ * 
+ * Instead of generic "verify these specs", we ask specific natural language questions
+ * like "Qual a velocidade do processador?" or "A tela é Full HD IPS?"
+ * 
+ * @param {string} productName - The product name/model
+ * @param {string[]} missingSpecs - Array of missing specification strings
+ * @returns {string} Natural language query for Perplexity
+ */
+function buildSmartPerplexityQuery(productName, missingSpecs) {
+    // Map common spec types to natural language questions
+    const specQuestionMap = {
+        // Processing/Performance
+        'processador': 'Qual é o modelo e velocidade do processador?',
+        'cpu': 'Qual é o modelo e velocidade do processador (CPU)?',
+        'ghz': 'Qual é a velocidade do processador em GHz?',
+        'núcleos': 'Quantos núcleos tem o processador?',
+        'cores': 'Quantos núcleos (cores) tem o processador?',
+
+        // Memory
+        'memória': 'Qual a capacidade de memória RAM?',
+        'ram': 'Qual a capacidade de memória RAM em GB?',
+        'gb ram': 'Quantos GB de RAM possui?',
+        'ddr': 'Qual o tipo de memória (DDR3/DDR4/DDR5)?',
+
+        // Storage
+        'hd': 'Qual o tamanho do HD/armazenamento?',
+        'ssd': 'Possui SSD? Qual a capacidade?',
+        'armazenamento': 'Qual a capacidade de armazenamento?',
+        'nvme': 'O SSD é NVMe?',
+
+        // Display
+        'tela': 'Qual o tamanho da tela em polegadas?',
+        'full hd': 'A tela é Full HD (1920x1080)?',
+        'ips': 'A tela é do tipo IPS?',
+        'resolução': 'Qual a resolução da tela?',
+        'lcd': 'A tela é LCD ou LED?',
+        'amoled': 'A tela é AMOLED?',
+        'polegadas': 'Quantas polegadas tem a tela?',
+
+        // Power/Electrical
+        'voltagem': 'Qual a voltagem de operação (110V/220V/bivolt)?',
+        'bivolt': 'O produto é bivolt?',
+        '110v': 'Funciona em 110V?',
+        '220v': 'Funciona em 220V?',
+        'watts': 'Qual a potência em Watts?',
+        'bateria': 'Possui bateria? Qual a capacidade em mAh?',
+
+        // Connectivity
+        'wifi': 'Possui conectividade WiFi?',
+        'bluetooth': 'Possui Bluetooth? Qual versão?',
+        'usb': 'Quantas portas USB possui?',
+        'hdmi': 'Possui saída HDMI?',
+        'ethernet': 'Possui porta Ethernet (RJ-45)?',
+
+        // Physical
+        'peso': 'Qual o peso do produto?',
+        'dimensões': 'Quais as dimensões (AxLxP)?',
+        'cor': 'Qual a cor do produto?',
+        'material': 'Qual o material de fabricação?',
+
+        // Audio
+        'cornetas': 'Quantas cornetas/alto-falantes possui?',
+        'músicas': 'Quantas músicas pré-gravadas possui?',
+        'alto-falante': 'Qual a potência dos alto-falantes?',
+        'decibéis': 'Qual o volume em decibéis (dB)?',
+
+        // Capacity/Quantity
+        'capacidade': 'Qual a capacidade?',
+        'litros': 'Qual a capacidade em litros?',
+        'ml': 'Qual a capacidade em ml?',
+
+        // Certification/Warranty
+        'garantia': 'Qual o período de garantia?',
+        'inmetro': 'Possui certificação INMETRO?',
+        'anvisa': 'Possui registro na ANVISA?'
+    };
+
+    const questions = [];
+    const usedQuestions = new Set();
+
+    // Generate questions for each missing spec
+    for (const spec of missingSpecs) {
+        const specLower = spec.toLowerCase();
+        let questionFound = false;
+
+        // Try to match with known spec patterns
+        for (const [keyword, question] of Object.entries(specQuestionMap)) {
+            if (specLower.includes(keyword) && !usedQuestions.has(question)) {
+                questions.push(question);
+                usedQuestions.add(question);
+                questionFound = true;
+                break;
+            }
+        }
+
+        // If no specific question found, create a generic one
+        if (!questionFound) {
+            const genericQuestion = `O produto possui ${spec}? Especifique os detalhes.`;
+            if (!usedQuestions.has(genericQuestion)) {
+                questions.push(genericQuestion);
+                usedQuestions.add(genericQuestion);
+            }
+        }
+    }
+
+    // Build the final query
+    const query = `Sobre o produto "${productName}":
+
+${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
+
+IMPORTANTE:
+- Busque nas especificações OFICIAIS do fabricante
+- Se não encontrar a informação, diga "não encontrado"
+- Seja objetivo e direto nas respostas
+
+Responda em JSON:
+{
+    "answers": {
+        "pergunta_resumida": "resposta"
+    },
+    "specs_confirmed": {
+        "nome_spec": true/false/"unknown"
+    },
+    "source": "site_consultado",
+    "confidence": 0.0-1.0
+}`;
+
+    return query;
+}
+
+/**
+ * Enrich candidate via Perplexity search with SMART targeted queries.
+ * 
+ * Instead of generic "verify specs", we ask:
+ * "Qual é a velocidade do processador do Dell Latitude 3410 i5?"
+ * "A tela é Full HD IPS?"
  */
 async function enrichCandidateViaPerplexity(candidate, missingSpecs, config, logger, itemId) {
     try {
-        // Build search query
-        const productName = candidate.title.substring(0, 60);
-        const specsToVerify = missingSpecs.slice(0, 3).join(', ');
+        // Build SMART query - natural language questions about missing specs
+        const productName = candidate.title.substring(0, 80);
+        const query = buildSmartPerplexityQuery(productName, missingSpecs);
 
-        const query = `Produto: "${productName}"
-        
-Verifique se este produto possui as seguintes especificações:
-${missingSpecs.map(s => `- ${s}`).join('\n')}
-
-Responda APENAS em JSON válido no formato:
-{
-    "specs": {
-        "nome_da_spec": true ou false ou "unknown"
-    },
-    "source": "nome do site consultado ou N/A",
-    "confidence": 0.0 a 1.0
-}
-
-Se não encontrar informações oficiais, use "unknown".`;
-
-        logger.log(`   📡 [Item ${itemId}] Consultando Perplexity...`);
+        logger.log(`   📡 [Item ${itemId}] Consultando Perplexity com ${missingSpecs.length} perguntas...`);
 
         const response = await askPerplexity(query);
 
@@ -836,9 +1025,30 @@ Se não encontrar informações oficiais, use "unknown".`;
                 json = JSON.parse(response);
             }
 
+            // Convert answers to specs_confirmed format if needed
+            const specsConfirmed = json.specs_confirmed || {};
+
+            // If answers exist but specs_confirmed doesn't, try to derive it
+            if (json.answers && Object.keys(specsConfirmed).length === 0) {
+                for (const [question, answer] of Object.entries(json.answers)) {
+                    const answerLower = String(answer).toLowerCase();
+                    // Determine if the answer confirms or denies the spec
+                    if (answerLower.includes('sim') || answerLower.includes('possui') ||
+                        answerLower.includes('yes') || /\d/.test(answer)) {
+                        specsConfirmed[question] = true;
+                    } else if (answerLower.includes('não') || answerLower.includes('no') ||
+                        answerLower.includes('não encontrado')) {
+                        specsConfirmed[question] = 'unknown';
+                    } else {
+                        specsConfirmed[question] = answer; // Keep raw answer
+                    }
+                }
+            }
+
             return {
                 success: true,
-                specs: json.specs || {},
+                specs: specsConfirmed,
+                answers: json.answers || {},
                 source: json.source || 'perplexity',
                 confidence: parseFloat(json.confidence) || 0.7,
                 raw: response
@@ -852,8 +1062,11 @@ Se não encontrar informações oficiais, use "unknown".`;
             };
         }
     } catch (err) {
-        logger.log(`   ❌ [Item ${itemId}] Erro Perplexity: ${err.message}`);
-        return { success: false, reason: err.message };
+        logger.log(`   ❌ [Item ${itemId}] Erro na consulta Perplexity: ${err.message}`);
+        return {
+            success: false,
+            reason: err.message
+        };
     }
 }
 
