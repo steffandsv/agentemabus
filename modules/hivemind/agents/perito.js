@@ -12,7 +12,8 @@
 
 const path = require('path');
 const fs = require('fs');
-const { generateText, PROVIDERS } = require('../../../src/services/ai_manager');
+// LEI 1: Use generateTextWithFallback for DeepSeek safety net
+const { generateTextWithFallback, PROVIDERS } = require('../../../src/services/ai_manager');
 const { getSetting } = require('../../../src/database');
 
 // Load prompt template
@@ -51,7 +52,8 @@ async function executePerito(description, config, debugLogger = null) {
     console.log(`[PERITO] Sending prompt to ${provider}/${model || 'default'}...`);
     
     try {
-        const response = await generateText({ provider, model, apiKey, messages });
+        // LEI 1: Use safety net function that falls back to DeepSeek on 401
+        const response = await generateTextWithFallback({ provider, model, apiKey, messages });
         
         // DEBUG: Log raw AI response
         if (debugLogger) {
@@ -68,11 +70,12 @@ async function executePerito(description, config, debugLogger = null) {
         
         return parsed;
     } catch (err) {
-        console.error('[PERITO] AI Error:', err.message);
+        // LEI 1: FAIL-FAST - No regex fallback, explode error to orchestrator
+        console.error('[PERITO] ⛔ AI FATAL ERROR:', err.message);
         if (debugLogger) {
-            debugLogger.error('PERITO', err.message, err.stack);
+            debugLogger.error('PERITO', 'FATAL - No fallback, aborting task', err.message);
         }
-        return fallbackExtraction(description);
+        throw err; // Let orchestrator handle this (task goes to 'failed')
     }
 }
 

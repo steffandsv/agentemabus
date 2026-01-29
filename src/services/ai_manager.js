@@ -369,4 +369,120 @@ async function streamGemini(apiKey, model, messages, onThought, onChunk, onDone,
     }
 }
 
-module.exports = { PROVIDERS, fetchModels, generateStream, generateText };
+// ============================================
+// LEI 1: FAIL-FAST WITH DEEPSEEK SAFETY NET
+// ============================================
+
+/**
+ * Get API key directly from environment variables (the ULTIMATE truth)
+ * @param {string} provider 
+ * @returns {string|null}
+ */
+function getApiKeyFromEnv(provider) {
+    const ENV_KEYS = {
+        [PROVIDERS.DEEPSEEK]: 'DEEPSEEK_API_KEY',
+        [PROVIDERS.QWEN]: 'QWEN_KEY',
+        [PROVIDERS.GEMINI]: 'GEMINI_API_KEY',
+        [PROVIDERS.PERPLEXITY]: 'PERPLEXITY_API_KEY'
+    };
+    const envKey = ENV_KEYS[provider.toLowerCase()] || ENV_KEYS[provider];
+    return process.env[envKey] || null;
+}
+
+/**
+ * Generate text with automatic DeepSeek fallback on 401 errors.
+ * This is the SAFETY NET that prevents credential cross-wiring disasters.
+ * 
+ * LEI 1: If the configured provider fails with 401, we try DeepSeek as last resort.
+ * If DeepSeek also fails, we ABORT (no regex fallback, no partial data).
+ * 
+ * @param {object} config { provider, model, apiKey, messages }
+ * @returns {Promise<string>}
+ */
+async function generateTextWithFallback(config) {
+    const originalProvider = config.provider;
+    
+    try {
+        return await generateText(config);
+    } catch (err) {
+        const is401 = err.message?.includes('401') || err.message?.includes('Unauthorized');
+        const isNotDeepSeek = originalProvider !== PROVIDERS.DEEPSEEK;
+        
+        // SAFETY NET: If failed with 401 and wasn't already DeepSeek, try DeepSeek
+        if (is401 && isNotDeepSeek) {
+            console.warn(`[AI Manager] ⚠️ ${originalProvider} failed with 401, activating DeepSeek safety net...`);
+            
+            const deepseekKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
+            if (!deepseekKey) {
+                throw new Error('CRITICAL: DEEPSEEK_API_KEY not found in .env - No safety net available');
+            }
+            
+            console.log(`[AI Manager] 🔄 Retrying with DeepSeek (key: ...${deepseekKey.slice(-4)})`);
+            
+            return await generateText({
+                ...config,
+                provider: PROVIDERS.DEEPSEEK,
+                model: 'deepseek-chat',
+                apiKey: deepseekKey
+            });
+        }
+        
+        // Re-throw if already DeepSeek or different error type
+        throw err;
+    }
+}
+
+/**
+ * Generate stream with automatic DeepSeek fallback on 401 errors.
+ * Same safety net as generateTextWithFallback but for streaming.
+ * 
+ * @param {object} config { provider, model, apiKey, messages }
+ * @param {object} callbacks { onThought, onChunk, onDone, onError }
+ */
+async function generateStreamWithFallback(config, callbacks) {
+    const originalProvider = config.provider;
+    const { onError } = callbacks;
+    
+    // Wrap original onError to catch 401 and retry
+    const wrappedCallbacks = {
+        ...callbacks,
+        onError: async (err) => {
+            const is401 = err.message?.includes('401') || err.message?.includes('Unauthorized');
+            const isNotDeepSeek = originalProvider !== PROVIDERS.DEEPSEEK;
+            
+            if (is401 && isNotDeepSeek) {
+                console.warn(`[AI Manager] ⚠️ ${originalProvider} stream failed with 401, activating DeepSeek safety net...`);
+                
+                const deepseekKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
+                if (!deepseekKey) {
+                    if (onError) onError(new Error('CRITICAL: DEEPSEEK_API_KEY not found in .env'));
+                    return;
+                }
+                
+                console.log(`[AI Manager] 🔄 Retrying stream with DeepSeek`);
+                
+                await generateStream({
+                    ...config,
+                    provider: PROVIDERS.DEEPSEEK,
+                    model: 'deepseek-chat',
+                    apiKey: deepseekKey
+                }, callbacks); // Use original callbacks for retry
+            } else {
+                if (onError) onError(err);
+            }
+        }
+    };
+    
+    await generateStream(config, wrappedCallbacks);
+}
+
+module.exports = { 
+    PROVIDERS, 
+    fetchModels, 
+    generateStream, 
+    generateText,
+    // LEI 1: New safety net functions
+    generateTextWithFallback,
+    generateStreamWithFallback,
+    getApiKeyFromEnv
+};

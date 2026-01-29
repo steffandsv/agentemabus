@@ -27,6 +27,7 @@ const STATES = {
     DETETIVE: 'DETETIVE',       // Web Investigation
     AUDITOR: 'AUDITOR',         // Manufacturer Validation
     SNIPER: 'SNIPER',           // Marketplace Search
+    AVALIACAO: 'AVALIACAO',     // LEI 2: Strategic Sufficiency Assessment
     JUIZ: 'JUIZ',               // Cross-Reference
     COMPLETE: 'COMPLETE',
     FAILED: 'FAILED'
@@ -35,6 +36,7 @@ const STATES = {
 // Maximum retry loops
 const MAX_RELAXATION_RETRIES = 3;
 const MAX_VALIDATION_RETRIES = 2;
+const MAX_ELASTIC_RETRIES = 3;  // LEI 2: Maximum search re-attempts
 
 /**
  * Main execution function for HIVE-MIND module
@@ -60,6 +62,8 @@ async function execute(job, config) {
         winner: null,
         relaxationLevel: 0,
         validationRetries: 0,
+        elasticRetryCount: 0,          // LEI 2: Elastic loop counter
+        previousQueries: [],           // LEI 2: Track used queries to avoid repetition
         logs: []
     };
     
@@ -112,6 +116,11 @@ async function execute(job, config) {
                     
                 case STATES.SNIPER:
                     state = await runSniper(state, page, cep, config, logger, id);
+                    break;
+                
+                // LEI 2: Strategic Sufficiency Assessment
+                case STATES.AVALIACAO:
+                    state = await runAvaliacao(state, page, cep, config, logger, id);
                     break;
                     
                 case STATES.JUIZ:
@@ -404,7 +413,8 @@ async function runSniper(state, page, cep, config, logger, itemId) {
         
         logState(state, `SNIPER encontrou ${result.candidates.length} candidatos no marketplace`, logger, itemId);
         
-        state.current = STATES.JUIZ;
+        // LEI 2: Go to AVALIACAO for strategic sufficiency check
+        state.current = STATES.AVALIACAO;
         
     } catch (err) {
         logger.log(`❌ [Item ${itemId}] SNIPER Error: ${err.message}`);
@@ -474,6 +484,125 @@ async function runJuiz(state, config, logger, itemId) {
     }
     
     return state;
+}
+
+// ============================================
+// LEI 2: STRATEGIC SUFFICIENCY ASSESSMENT
+// ============================================
+
+/**
+ * Evaluate if the candidates are sufficient or if we need another search pass.
+ * This implements ELASTIC COGNITION: the system doesn't give up easily.
+ */
+async function runAvaliacao(state, page, cep, config, logger, itemId) {
+    logger.log(`🔄 [Item ${itemId}] AVALIACAO: Verificando suficiência dos resultados...`);
+    
+    // Quick pre-assessment: calculate how many candidates look promising
+    // A candidate is promising if it has ProductDNA and a reasonable price
+    const budget = state.item.maxPrice || state.maxPriceEstimate || Infinity;
+    const minViablePrice = budget * 0.10; // 10% floor
+    const maxViablePrice = budget * 1.50; // 150% ceiling
+    
+    const promisingCandidates = state.candidates.filter(c => {
+        const hasProductDNA = c.productDNA && c.productDNA.fullText && c.productDNA.fullText.length > 50;
+        const hasReasonablePrice = c.price >= minViablePrice && c.price <= maxViablePrice;
+        const notAnomaly = !c.priceAnomaly;
+        return hasProductDNA && hasReasonablePrice && notAnomaly;
+    });
+    
+    const promisingCount = promisingCandidates.length;
+    const totalCount = state.candidates.length;
+    
+    logger.log(`📊 [Item ${itemId}] AVALIACAO: ${promisingCount}/${totalCount} candidatos promissores`);
+    
+    // Decision logic
+    const MINIMUM_PROMISING = 2;
+    const needsRetry = promisingCount < MINIMUM_PROMISING && state.elasticRetryCount < MAX_ELASTIC_RETRIES;
+    
+    if (needsRetry) {
+        state.elasticRetryCount++;
+        
+        // Track what we already tried
+        const currentQuery = state.goldEntity?.searchQueries?.[0] || state.marketplaceSearchTerm;
+        if (currentQuery && !state.previousQueries.includes(currentQuery)) {
+            state.previousQueries.push(currentQuery);
+        }
+        
+        logger.log(`🔁 [Item ${itemId}] AVALIACAO: Retry ${state.elasticRetryCount}/${MAX_ELASTIC_RETRIES} - Gerando novas queries...`);
+        
+        // Generate alternative queries using different strategies
+        const alternativeQueries = generateAlternativeQueries(state, logger, itemId);
+        
+        if (alternativeQueries.length > 0) {
+            // Update entity with new queries
+            state.goldEntity = {
+                ...state.goldEntity,
+                searchQueries: alternativeQueries,
+                isElasticRetry: true
+            };
+            
+            logger.log(`🔍 [Item ${itemId}] AVALIACAO: Novas queries: ${alternativeQueries.join(', ')}`);
+            
+            // Go back to SNIPER with new queries
+            state.current = STATES.SNIPER;
+        } else {
+            // No more alternatives, proceed to JUIZ
+            logger.log(`⚠️ [Item ${itemId}] AVALIACAO: Sem alternativas de busca. Procedendo com ${totalCount} candidatos.`);
+            state.current = STATES.JUIZ;
+        }
+    } else {
+        // We have enough candidates or exhausted retries
+        if (state.elasticRetryCount >= MAX_ELASTIC_RETRIES) {
+            logger.log(`⏹️ [Item ${itemId}] AVALIACAO: Limite de ${MAX_ELASTIC_RETRIES} retries atingido.`);
+        } else {
+            logger.log(`✅ [Item ${itemId}] AVALIACAO: ${promisingCount} candidatos suficientes. Enviando ao JUIZ.`);
+        }
+        
+        state.current = STATES.JUIZ;
+    }
+    
+    logState(state, `AVALIACAO: ${promisingCount} promissores, elasticRetry=${state.elasticRetryCount}`, logger, itemId);
+    
+    return state;
+}
+
+/**
+ * Generate alternative search queries based on previous attempts.
+ */
+function generateAlternativeQueries(state, logger, itemId) {
+    const alternatives = [];
+    const tried = state.previousQueries || [];
+    
+    // Strategy 1: Use anchor if available and not tried
+    if (state.searchAnchor && !tried.some(q => q.includes(state.searchAnchor))) {
+        const anchorQuery = state.searchAnchor.replace(/"/g, '');
+        if (anchorQuery.length > 3) {
+            alternatives.push(anchorQuery);
+        }
+    }
+    
+    // Strategy 2: Use kill specs as queries (most specific first)
+    if (state.killSpecs && state.killSpecs.length > 0) {
+        for (const spec of state.killSpecs.slice(0, 2)) {
+            const specQuery = spec.trim();
+            if (specQuery.length > 5 && !tried.some(q => q.toLowerCase() === specQuery.toLowerCase())) {
+                alternatives.push(specQuery);
+            }
+        }
+    }
+    
+    // Strategy 3: Simplify marketplace term (remove modifiers)
+    const simpleTerm = state.marketplaceSearchTerm?.split(' ').slice(0, 2).join(' ');
+    if (simpleTerm && simpleTerm.length > 3 && !tried.includes(simpleTerm)) {
+        alternatives.push(simpleTerm);
+    }
+    
+    // Filter out already tried queries
+    const newQueries = alternatives.filter(q => !tried.includes(q));
+    
+    logger.log(`💡 [Item ${itemId}] AVALIACAO: ${newQueries.length} queries alternativas geradas`);
+    
+    return newQueries.slice(0, 2); // Max 2 new queries per retry
 }
 
 // --- HELPERS ---
