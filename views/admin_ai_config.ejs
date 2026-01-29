@@ -125,6 +125,35 @@
             color: rgba(255,255,255,0.6);
             margin: 0;
         }
+        .btn-fetch-models {
+            background: linear-gradient(135deg, #475569, #334155);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #fff;
+            border-radius: 10px;
+            padding: 12px 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .btn-fetch-models:hover {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            border-color: #6366f1;
+            transform: translateY(-2px);
+        }
+        .btn-fetch-models:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+        .btn-fetch-models i {
+            margin-right: 4px;
+        }
+        .btn-fetch-models.loading i {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -150,18 +179,25 @@
                 </div>
                 <div class="agent-body">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-5 mb-3">
                             <label class="form-label">Provedor de I.A.</label>
-                            <select class="form-select" name="perito_provider" id="perito_provider">
+                            <select class="form-select provider-select" name="perito_provider" id="perito_provider" data-agent="perito">
                                 <option value="deepseek" <%= settings.perito_provider === 'deepseek' || !settings.perito_provider ? 'selected' : '' %>>DeepSeek <span class="recommended-badge">Recomendado</span></option>
                                 <option value="gemini" <%= settings.perito_provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
                                 <option value="qwen" <%= settings.perito_provider === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
                                 <option value="perplexity" <%= settings.perito_provider === 'perplexity' ? 'selected' : '' %>>Perplexity</option>
                             </select>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-5 mb-3">
                             <label class="form-label">Modelo</label>
-                            <input type="text" class="form-control" name="perito_model" value="<%= settings.perito_model || 'deepseek-chat' %>" placeholder="deepseek-chat">
+                            <select class="form-select model-select" name="perito_model" id="perito_model" data-agent="perito">
+                                <option value="<%= settings.perito_model || 'deepseek-chat' %>" selected><%= settings.perito_model || 'deepseek-chat' %></option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 mb-3 d-flex align-items-end">
+                            <button type="button" class="btn btn-fetch-models w-100" data-agent="perito">
+                                <i class="fas fa-sync-alt"></i> Obter
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -179,18 +215,25 @@
                 </div>
                 <div class="agent-body">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-5 mb-3">
                             <label class="form-label">Provedor de I.A.</label>
-                            <select class="form-select" name="detetive_provider" id="detetive_provider">
+                            <select class="form-select provider-select" name="detetive_provider" id="detetive_provider" data-agent="detetive">
                                 <option value="deepseek" <%= settings.detetive_provider === 'deepseek' || !settings.detetive_provider ? 'selected' : '' %>>DeepSeek <span class="recommended-badge">Recomendado</span></option>
                                 <option value="gemini" <%= settings.detetive_provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
                                 <option value="qwen" <%= settings.detetive_provider === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
                                 <option value="perplexity" <%= settings.detetive_provider === 'perplexity' ? 'selected' : '' %>>Perplexity</option>
                             </select>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-5 mb-3">
                             <label class="form-label">Modelo</label>
-                            <input type="text" class="form-control" name="detetive_model" value="<%= settings.detetive_model || 'deepseek-chat' %>" placeholder="deepseek-chat">
+                            <select class="form-select model-select" name="detetive_model" id="detetive_model" data-agent="detetive">
+                                <option value="<%= settings.detetive_model || 'deepseek-chat' %>" selected><%= settings.detetive_model || 'deepseek-chat' %></option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 mb-3 d-flex align-items-end">
+                            <button type="button" class="btn btn-fetch-models w-100" data-agent="detetive">
+                                <i class="fas fa-sync-alt"></i> Obter
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -208,18 +251,25 @@
                 </div>
                 <div class="agent-body">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-5 mb-3">
                             <label class="form-label">Provedor de I.A.</label>
-                            <select class="form-select" name="auditor_provider" id="auditor_provider">
+                            <select class="form-select provider-select" name="auditor_provider" id="auditor_provider" data-agent="auditor">
                                 <option value="deepseek" <%= settings.auditor_provider === 'deepseek' || !settings.auditor_provider ? 'selected' : '' %>>DeepSeek <span class="recommended-badge">Recomendado</span></option>
                                 <option value="gemini" <%= settings.auditor_provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
                                 <option value="qwen" <%= settings.auditor_provider === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
                                 <option value="perplexity" <%= settings.auditor_provider === 'perplexity' ? 'selected' : '' %>>Perplexity</option>
                             </select>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-5 mb-3">
                             <label class="form-label">Modelo</label>
-                            <input type="text" class="form-control" name="auditor_model" value="<%= settings.auditor_model || 'deepseek-chat' %>" placeholder="deepseek-chat">
+                            <select class="form-select model-select" name="auditor_model" id="auditor_model" data-agent="auditor">
+                                <option value="<%= settings.auditor_model || 'deepseek-chat' %>" selected><%= settings.auditor_model || 'deepseek-chat' %></option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 mb-3 d-flex align-items-end">
+                            <button type="button" class="btn btn-fetch-models w-100" data-agent="auditor">
+                                <i class="fas fa-sync-alt"></i> Obter
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -237,17 +287,24 @@
                 </div>
                 <div class="agent-body">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-5 mb-3">
                             <label class="form-label">Provedor de I.A.</label>
-                            <select class="form-select" name="sniper_provider" id="sniper_provider">
+                            <select class="form-select provider-select" name="sniper_provider" id="sniper_provider" data-agent="sniper">
                                 <option value="gemini" <%= settings.sniper_provider === 'gemini' || !settings.sniper_provider ? 'selected' : '' %>>Google Gemini <span class="recommended-badge">Recomendado</span></option>
                                 <option value="deepseek" <%= settings.sniper_provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
                                 <option value="qwen" <%= settings.sniper_provider === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
                             </select>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-5 mb-3">
                             <label class="form-label">Modelo</label>
-                            <input type="text" class="form-control" name="sniper_model" value="<%= settings.sniper_model || 'gemini-2.0-flash' %>" placeholder="gemini-2.0-flash">
+                            <select class="form-select model-select" name="sniper_model" id="sniper_model" data-agent="sniper">
+                                <option value="<%= settings.sniper_model || 'gemini-2.0-flash' %>" selected><%= settings.sniper_model || 'gemini-2.0-flash' %></option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 mb-3 d-flex align-items-end">
+                            <button type="button" class="btn btn-fetch-models w-100" data-agent="sniper">
+                                <i class="fas fa-sync-alt"></i> Obter
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -265,18 +322,25 @@
                 </div>
                 <div class="agent-body">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-5 mb-3">
                             <label class="form-label">Provedor de I.A.</label>
-                            <select class="form-select" name="juiz_provider" id="juiz_provider">
+                            <select class="form-select provider-select" name="juiz_provider" id="juiz_provider" data-agent="juiz">
                                 <option value="deepseek" <%= settings.juiz_provider === 'deepseek' || !settings.juiz_provider ? 'selected' : '' %>>DeepSeek <span class="recommended-badge">Recomendado</span></option>
                                 <option value="gemini" <%= settings.juiz_provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
                                 <option value="qwen" <%= settings.juiz_provider === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
                                 <option value="perplexity" <%= settings.juiz_provider === 'perplexity' ? 'selected' : '' %>>Perplexity</option>
                             </select>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-5 mb-3">
                             <label class="form-label">Modelo</label>
-                            <input type="text" class="form-control" name="juiz_model" value="<%= settings.juiz_model || 'deepseek-chat' %>" placeholder="deepseek-chat">
+                            <select class="form-select model-select" name="juiz_model" id="juiz_model" data-agent="juiz">
+                                <option value="<%= settings.juiz_model || 'deepseek-chat' %>" selected><%= settings.juiz_model || 'deepseek-chat' %></option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 mb-3 d-flex align-items-end">
+                            <button type="button" class="btn btn-fetch-models w-100" data-agent="juiz">
+                                <i class="fas fa-sync-alt"></i> Obter
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -324,33 +388,28 @@
     <%- include('partials/footer') %>
 
     <script>
-        // Agent configurations
-        const agents = ['perito', 'detetive', 'auditor', 'sniper', 'juiz'];
-        
-        // Attach event listeners to all provider dropdowns
-        agents.forEach(agent => {
-            const providerSelect = document.getElementById(`${agent}_provider`);
-            if (providerSelect) {
-                // Initial load - fetch models for current provider
-                fetchModelsForAgent(agent, providerSelect.value);
-                
-                // On change - fetch models for new provider
-                providerSelect.addEventListener('change', function() {
-                    fetchModelsForAgent(agent, this.value);
-                });
-            }
+        // Attach click listeners to all "Obter Modelos" buttons
+        document.querySelectorAll('.btn-fetch-models').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const agent = this.dataset.agent;
+                const providerSelect = document.getElementById(`${agent}_provider`);
+                if (providerSelect) {
+                    fetchModelsForAgent(agent, providerSelect.value, this);
+                }
+            });
         });
 
-        async function fetchModelsForAgent(agent, provider) {
-            const modelInput = document.querySelector(`input[name="${agent}_model"]`);
-            if (!modelInput) return;
+        async function fetchModelsForAgent(agent, provider, button) {
+            const modelSelect = document.getElementById(`${agent}_model`);
+            if (!modelSelect) return;
             
-            const currentValue = modelInput.value;
-            const container = modelInput.parentElement;
+            const currentValue = modelSelect.value;
             
-            // Show loading state
-            modelInput.placeholder = 'Carregando modelos...';
-            modelInput.disabled = true;
+            // Show loading state on button
+            button.disabled = true;
+            button.classList.add('loading');
+            const originalHTML = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-sync-alt"></i> ...';
             
             try {
                 const res = await fetch('/api/admin/fetch-models', {
@@ -366,12 +425,10 @@
                 const models = await res.json();
                 
                 if (models && models.length > 0) {
-                    // Replace input with select
-                    const select = document.createElement('select');
-                    select.className = 'form-select';
-                    select.name = `${agent}_model`;
-                    select.id = `${agent}_model`;
+                    // Clear existing options
+                    modelSelect.innerHTML = '';
                     
+                    // Add new options
                     models.forEach(model => {
                         const option = document.createElement('option');
                         option.value = model.id;
@@ -379,30 +436,41 @@
                         if (model.id === currentValue) {
                             option.selected = true;
                         }
-                        select.appendChild(option);
+                        modelSelect.appendChild(option);
                     });
                     
-                    // If current value not in list, add it
+                    // If current value not in list, add it at the top
                     if (currentValue && !models.find(m => m.id === currentValue)) {
                         const option = document.createElement('option');
                         option.value = currentValue;
                         option.textContent = currentValue + ' (atual)';
                         option.selected = true;
-                        select.insertBefore(option, select.firstChild);
+                        modelSelect.insertBefore(option, modelSelect.firstChild);
                     }
                     
-                    // Replace input with select
-                    container.replaceChild(select, modelInput);
+                    // Show success feedback
+                    button.innerHTML = '<i class="fas fa-check"></i> OK';
+                    button.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+                    setTimeout(() => {
+                        button.innerHTML = originalHTML;
+                        button.style.background = '';
+                    }, 1500);
                 } else {
-                    // Re-enable input if no models returned
-                    modelInput.placeholder = 'Digite o modelo manualmente';
-                    modelInput.disabled = false;
+                    // No models returned
+                    button.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+                    setTimeout(() => { button.innerHTML = originalHTML; }, 1500);
                 }
             } catch (e) {
                 console.error('Error fetching models:', e);
-                // Re-enable input on error
-                modelInput.placeholder = 'Erro - digite manualmente';
-                modelInput.disabled = false;
+                button.innerHTML = '<i class="fas fa-times"></i> Erro';
+                button.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+                setTimeout(() => { 
+                    button.innerHTML = originalHTML; 
+                    button.style.background = '';
+                }, 2000);
+            } finally {
+                button.disabled = false;
+                button.classList.remove('loading');
             }
         }
     </script>
