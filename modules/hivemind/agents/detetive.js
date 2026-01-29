@@ -18,7 +18,8 @@ const path = require('path');
 const fs = require('fs');
 const fetch = require('node-fetch');
 const { search: duckDuckGoSearch } = require('duckduckgo-search');
-const { generateText, PROVIDERS } = require('../../../src/services/ai_manager');
+// FIXED: Import getApiKeyFromEnv for safe API key retrieval from .env
+const { generateText, PROVIDERS, getApiKeyFromEnv } = require('../../../src/services/ai_manager');
 const { getSetting } = require('../../../src/database');
 const { googleSearch: customSearch } = require('../../../src/google_services');
 
@@ -285,8 +286,18 @@ RESPONDA EM JSON:
 }
 \`\`\``;
 
-    const provider = config.provider || PROVIDERS.DEEPSEEK;
-    const apiKey = config.apiKey || process.env.DEEPSEEK_API_KEY;
+    // FIXED: Read DETETIVE config from database, API key from .env (source of truth)
+    let provider = config.provider || await getSetting('detetive_provider') || PROVIDERS.DEEPSEEK;
+    let model = config.model || await getSetting('detetive_model') || 'deepseek-chat';
+    let apiKey = getApiKeyFromEnv(provider);
+    
+    // Fallback to DeepSeek if provider's key not found
+    if (!apiKey) {
+        console.warn(`[DETETIVE] ⚠️ No API key in .env for "${provider}". Falling back to DeepSeek.`);
+        provider = PROVIDERS.DEEPSEEK;
+        model = 'deepseek-chat';
+        apiKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
+    }
     
     try {
         const response = await generateText({

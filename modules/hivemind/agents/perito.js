@@ -13,7 +13,8 @@
 const path = require('path');
 const fs = require('fs');
 // LEI 1: Use generateTextWithFallback for DeepSeek safety net
-const { generateTextWithFallback, PROVIDERS } = require('../../../src/services/ai_manager');
+// CRITICAL FIX: Use getApiKeyFromEnv to get keys from .env (source of truth), NOT from database
+const { generateTextWithFallback, PROVIDERS, getApiKeyFromEnv } = require('../../../src/services/ai_manager');
 const { getSetting } = require('../../../src/database');
 
 // Load prompt template
@@ -32,13 +33,27 @@ async function executePerito(description, config, debugLogger = null) {
     
     const prompt = promptTemplate.replace('{{DESCRIPTION}}', description);
     
-    // Get AI configuration - FIXED: Read PERITO config, not SNIPER
-    const provider = config.provider || await getSetting('perito_provider') || PROVIDERS.DEEPSEEK;
-    const model = config.model || await getSetting('perito_model') || 'deepseek-chat';
-    // ROBUST API KEY FALLBACK: Try agent key → global provider key → env variable
-    const apiKey = config.apiKey 
-        || await getSetting(`${provider}_api_key`)        // Global provider key from admin panel
-        || getApiKeyForProvider(provider);                // Fallback to process.env
+    // Get AI configuration - Provider/Model from DB, but KEYS ONLY FROM .env
+    let provider = config.provider || await getSetting('perito_provider') || PROVIDERS.DEEPSEEK;
+    let model = config.model || await getSetting('perito_model') || 'deepseek-chat';
+    
+    // CRITICAL FIX: API keys MUST come from .env file (source of truth)
+    // The database has corrupted/mixed-up keys. NEVER trust the database for credentials.
+    let apiKey = getApiKeyFromEnv(provider);
+    
+    // FALLBACK: If the configured provider's key doesn't exist in .env, fall back to DeepSeek
+    if (!apiKey) {
+        console.warn(`[PERITO] ⚠️ No API key in .env for "${provider}". Falling back to DeepSeek.`);
+        provider = PROVIDERS.DEEPSEEK;
+        model = 'deepseek-chat';
+        apiKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
+        
+        if (!apiKey) {
+            throw new Error(`PERITO FATAL: No DEEPSEEK_API_KEY found in .env. This is required as the fallback provider.`);
+        }
+    }
+    
+    console.log(`[PERITO] Using API key from .env for ${provider} (ending: ...${apiKey.slice(-4)})`);
     
     const messages = [
         { role: 'user', content: prompt }

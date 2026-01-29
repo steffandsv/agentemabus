@@ -12,7 +12,8 @@
  * - defenseReport: Technical defense report with scoring breakdown
  */
 
-const { generateText, PROVIDERS } = require('../../../src/services/ai_manager');
+// FIXED: Import getApiKeyFromEnv for safe API key retrieval from .env
+const { generateText, PROVIDERS, getApiKeyFromEnv } = require('../../../src/services/ai_manager');
 const { getSetting } = require('../../../src/database');
 
 // PRICE FLOOR: Minimum viable price as percentage of max tender price
@@ -574,8 +575,18 @@ RESPONDA EM JSON:
 }
 \`\`\``;
 
-    const provider = config.provider || PROVIDERS.DEEPSEEK;
-    const apiKey = config.apiKey || process.env.DEEPSEEK_API_KEY;
+    // FIXED: Read JUIZ config from database, API key from .env (source of truth)
+    let provider = config.provider || await getSetting('juiz_provider') || PROVIDERS.DEEPSEEK;
+    let model = config.model || await getSetting('juiz_model') || 'deepseek-chat';
+    let apiKey = getApiKeyFromEnv(provider);
+    
+    // Fallback to DeepSeek if provider's key not found
+    if (!apiKey) {
+        console.warn(`[JUIZ] ⚠️ No API key in .env for "${provider}". Falling back to DeepSeek.`);
+        provider = PROVIDERS.DEEPSEEK;
+        model = 'deepseek-chat';
+        apiKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
+    }
     
     try {
         const response = await generateText({

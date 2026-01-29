@@ -15,7 +15,8 @@
 const path = require('path');
 const fs = require('fs');
 const fetch = require('node-fetch');
-const { generateText, PROVIDERS } = require('../../../src/services/ai_manager');
+// FIXED: Import getApiKeyFromEnv for safe API key retrieval from .env
+const { generateText, PROVIDERS, getApiKeyFromEnv } = require('../../../src/services/ai_manager');
 const { getSetting } = require('../../../src/database');
 
 // Jina Reader endpoint
@@ -156,8 +157,18 @@ RESPONDA EM JSON:
 }
 \`\`\``;
 
-    const provider = config.provider || PROVIDERS.DEEPSEEK;
-    const apiKey = config.apiKey || process.env.DEEPSEEK_API_KEY;
+    // FIXED: Read AUDITOR config from database, API key from .env (source of truth)
+    let provider = config.provider || await getSetting('auditor_provider') || PROVIDERS.DEEPSEEK;
+    let model = config.model || await getSetting('auditor_model') || 'deepseek-chat';
+    let apiKey = getApiKeyFromEnv(provider);
+    
+    // Fallback to DeepSeek if provider's key not found
+    if (!apiKey) {
+        console.warn(`[AUDITOR] ⚠️ No API key in .env for "${provider}". Falling back to DeepSeek.`);
+        provider = PROVIDERS.DEEPSEEK;
+        model = 'deepseek-chat';
+        apiKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
+    }
     
     try {
         const response = await generateText({
@@ -226,8 +237,18 @@ RESPONDA EM JSON:
 }
 \`\`\``;
 
-    const provider = config.provider || PROVIDERS.DEEPSEEK;
-    const apiKey = config.apiKey || process.env.DEEPSEEK_API_KEY;
+    // FIXED: Read AUDITOR config from database, API key from .env (source of truth)
+    let provider = config.provider || await getSetting('auditor_provider') || PROVIDERS.DEEPSEEK;
+    let model = config.model || await getSetting('auditor_model') || 'deepseek-chat';
+    let apiKey = getApiKeyFromEnv(provider);
+    
+    // Fallback to DeepSeek if provider's key not found
+    if (!apiKey) {
+        console.warn(`[AUDITOR] ⚠️ No API key in .env for "${provider}". Falling back to DeepSeek.`);
+        provider = PROVIDERS.DEEPSEEK;
+        model = 'deepseek-chat';
+        apiKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
+    }
     
     try {
         const response = await generateText({
