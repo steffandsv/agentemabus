@@ -21,45 +21,90 @@ const PROVIDERS = {
  * @returns {Promise<Array>} List of models [{id, name, description}]
  */
 async function fetchModels(provider, apiKey) {
-    if (!apiKey) return [];
+    // If no API key provided, try environment variables
+    if (!apiKey || apiKey.trim() === '') {
+        if (provider === PROVIDERS.QWEN) apiKey = process.env.QWEN_KEY || process.env.DASHSCOPE_API_KEY;
+        else if (provider === PROVIDERS.DEEPSEEK) apiKey = process.env.DEEPSEEK_API_KEY;
+        else if (provider === PROVIDERS.GEMINI) apiKey = process.env.GEMINI_API_KEY;
+        else if (provider === PROVIDERS.PERPLEXITY) apiKey = process.env.PERPLEXITY_API_KEY;
+    }
+
+    if (!apiKey || apiKey.trim() === '') {
+        console.log(`[AI Manager] No API key for ${provider}`);
+        return [];
+    }
+
+    console.log(`[AI Manager] Fetching models for ${provider}...`);
 
     try {
-        if (provider === PROVIDERS.QWEN) {
-            // DashScope doesn't have a simple public "list models" endpoint like OpenAI.
-            // We return the known supported list + any found if we can verify the key.
-            return [
-                { id: 'qwen-max', name: 'Qwen-Max (Trillion Params)', description: 'Most capable model for complex reasoning.' },
-                { id: 'qwen-plus', name: 'Qwen-Plus', description: 'Balanced performance and speed.' },
-                { id: 'qwen-turbo', name: 'Qwen-Turbo', description: 'Fastest, low latency.' },
-                { id: 'qwen-long', name: 'Qwen-Long', description: 'Specialized for massive context (documents).' },
-                { id: 'qwen-vl-max', name: 'Qwen-VL-Max', description: 'Vision + Language capability.' }
-            ];
+        if (provider === PROVIDERS.GEMINI) {
+            // Gemini: GET https://generativelanguage.googleapis.com/v1beta/models?key=API_KEY
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Gemini API Error: ${response.status} - ${errorText}`);
+            }
+            const data = await response.json();
+            // Filter to generative models only and map to our format
+            const generativeModels = (data.models || [])
+                .filter(m => m.name && m.supportedGenerationMethods && 
+                        m.supportedGenerationMethods.includes('generateContent'))
+                .map(m => ({
+                    id: m.name.replace('models/', ''),
+                    name: m.displayName || m.name.replace('models/', ''),
+                    description: m.description || ''
+                }));
+            console.log(`[AI Manager] Gemini: ${generativeModels.length} models found`);
+            return generativeModels;
         }
         else if (provider === PROVIDERS.DEEPSEEK) {
-            // DeepSeek is OpenAI compatible
+            // DeepSeek: GET https://api.deepseek.com/models (OpenAI compatible)
             const response = await fetch('https://api.deepseek.com/models', {
                 headers: { 'Authorization': `Bearer ${apiKey}` }
             });
-            if (!response.ok) throw new Error(`DeepSeek Error: ${response.status}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`DeepSeek API Error: ${response.status} - ${errorText}`);
+            }
             const data = await response.json();
-            return data.data.map(m => ({ id: m.id, name: m.id, description: 'DeepSeek Model' }));
+            const models = (data.data || []).map(m => ({ 
+                id: m.id, 
+                name: m.id, 
+                description: 'DeepSeek Model' 
+            }));
+            console.log(`[AI Manager] DeepSeek: ${models.length} models found`);
+            return models;
         }
-        else if (provider === PROVIDERS.GEMINI) {
-             return [
-                 { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash (Experimental)', description: 'Fastest multimodal.' },
-                 { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'High reasoning.' },
-                 { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Cost effective.' }
-             ];
+        else if (provider === PROVIDERS.QWEN) {
+            // Qwen/DashScope doesn't have a public list endpoint - return known models
+            console.log(`[AI Manager] Qwen: Returning static model list`);
+            return [
+                { id: 'qwen-max', name: 'Qwen-Max', description: 'Modelo mais capaz para raciocínio complexo' },
+                { id: 'qwen-max-latest', name: 'Qwen-Max Latest', description: 'Versão mais recente do Qwen-Max' },
+                { id: 'qwen-plus', name: 'Qwen-Plus', description: 'Equilíbrio entre performance e velocidade' },
+                { id: 'qwen-turbo', name: 'Qwen-Turbo', description: 'Mais rápido, baixa latência' },
+                { id: 'qwen-turbo-latest', name: 'Qwen-Turbo Latest', description: 'Versão mais recente do Qwen-Turbo' },
+                { id: 'qwen-flash', name: 'Qwen-Flash', description: 'Ultra rápido e econômico' },
+                { id: 'qwen-vl-max', name: 'Qwen-VL-Max', description: 'Visão + Linguagem' },
+                { id: 'qwen-vl-plus', name: 'Qwen-VL-Plus', description: 'Visão + Linguagem (rápido)' },
+                { id: 'qwen2.5-72b-instruct', name: 'Qwen 2.5 72B', description: 'Modelo grande instruct' },
+                { id: 'qwen2.5-14b-instruct', name: 'Qwen 2.5 14B', description: 'Modelo médio instruct' }
+            ];
         }
         else if (provider === PROVIDERS.PERPLEXITY) {
+            // Perplexity doesn't have a list endpoint - return known Sonar models
+            console.log(`[AI Manager] Perplexity: Returning static model list`);
             return [
-                { id: 'sonar-pro', name: 'Sonar Pro', description: 'Search-enabled large model.' },
-                { id: 'sonar-reasoning-pro', name: 'Sonar Reasoning Pro', description: 'Deep reasoning with search.' }
+                { id: 'sonar', name: 'Sonar', description: 'Modelo base, rápido e econômico' },
+                { id: 'sonar-pro', name: 'Sonar Pro', description: 'Mais profundo, mais buscas' },
+                { id: 'sonar-reasoning', name: 'Sonar Reasoning', description: 'Com raciocínio chain-of-thought' },
+                { id: 'sonar-reasoning-pro', name: 'Sonar Reasoning Pro', description: 'Raciocínio avançado (DeepSeek-R1)' },
+                { id: 'sonar-deep-research', name: 'Sonar Deep Research', description: 'Pesquisa profunda e abrangente' }
             ];
         }
     } catch (e) {
-        console.error(`Error fetching models for ${provider}:`, e);
-        return [{ id: 'error', name: 'Error loading models', description: e.message }];
+        console.error(`[AI Manager] Error fetching models for ${provider}:`, e.message);
+        return [{ id: 'error', name: `Erro: ${e.message}`, description: 'Falha ao carregar modelos' }];
     }
     return [];
 }
