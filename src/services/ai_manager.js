@@ -555,25 +555,50 @@ const DEFAULT_MODELS = {
 };
 
 /**
- * Generate text with cascaded fallback system (v10.4)
+ * Generate text with cascaded fallback system (v10.5 - Configurable Fallback)
  * 
  * This function implements a multi-tier fallback:
- * 1. Try the configured provider
- * 2. Try the secondary fallback (if configured)
- * 3. Try DeepSeek as the final safety net
+ * 1. Try the configured provider (PRIMARY)
+ * 2. Try the configured fallback from database (FALLBACK 1)
+ * 3. Try DeepSeek as the final safety net (FINAL FALLBACK)
+ * 
+ * The fallback provider is now dynamically loaded from the database,
+ * allowing users to configure it via the admin panel (/admin/ai-config).
  * 
  * @param {object} config - { provider, model, apiKey, messages, agentName }
- * @param {string[]} fallbackChain - Optional custom fallback chain
- * @returns {Promise<{text: string, usedProvider: string, usedModel: string}>}
+ * @param {string[]} fallbackChain - Optional custom fallback chain (overrides database config)
+ * @returns {Promise<{text: string, usedProvider: string, usedModel: string, tier: string}>}
  */
 async function generateTextWithCascadeFallback(config, fallbackChain = null) {
     const { provider: primaryProvider, model: primaryModel, messages, agentName } = config;
     
-    // Build the fallback chain
-    const chain = fallbackChain || DEFAULT_FALLBACK_CHAINS[agentName?.toLowerCase()] || [];
+    // Build the fallback chain dynamically
+    let chain = fallbackChain;
+    
+    // If no custom chain provided, try to load from database
+    if (!chain && agentName) {
+        const agentLower = agentName.toLowerCase();
+        const dbFallbackKey = `${agentLower}_fallback`;
+        const dbFallback = await getSetting(dbFallbackKey);
+        
+        if (dbFallback && dbFallback.trim()) {
+            console.log(`[AI Manager] 🔧 Using configured fallback for ${agentName}: ${dbFallback}`);
+            chain = [dbFallback];
+        } else {
+            // Fall back to hardcoded defaults
+            chain = DEFAULT_FALLBACK_CHAINS[agentLower] || [];
+            if (chain.length > 0) {
+                console.log(`[AI Manager] 📋 Using default fallback chain for ${agentName}: [${chain.join(', ')}]`);
+            }
+        }
+    }
+    
+    // If still no chain, use empty
+    chain = chain || [];
+    
     const providersToTry = [
         { provider: primaryProvider, model: primaryModel },
-        ...chain.map(p => ({ provider: p, model: DEFAULT_MODELS[p] })),
+        ...chain.map(p => ({ provider: p, model: DEFAULT_MODELS[p] || 'deepseek-chat' })),
         { provider: PROVIDERS.DEEPSEEK, model: 'deepseek-chat' } // Final safety net
     ];
     
@@ -584,6 +609,14 @@ async function generateTextWithCascadeFallback(config, fallbackChain = null) {
         seen.add(p.provider);
         return true;
     });
+    
+    // Log the fallback strategy
+    const strategyStr = uniqueProviders.map((p, i) => {
+        if (i === 0) return `${p.provider} (PRIMARY)`;
+        if (i === uniqueProviders.length - 1) return `${p.provider} (FINAL)`;
+        return `${p.provider} (FALLBACK ${i})`;
+    }).join(' → ');
+    console.log(`[AI Manager] 📊 Fallback strategy for ${agentName}: ${strategyStr}`);
     
     let lastError = null;
     

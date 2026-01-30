@@ -180,7 +180,7 @@
                 <div class="agent-body">
                     <div class="row">
                         <div class="col-md-5 mb-3">
-                            <label class="form-label">Provedor de I.A.</label>
+                            <label class="form-label">Provedor de I.A. (Principal)</label>
                             <select class="form-select provider-select" name="perito_provider" id="perito_provider" data-agent="perito">
                                 <option value="deepseek" <%= settings.perito_provider === 'deepseek' || !settings.perito_provider ? 'selected' : '' %>>DeepSeek <span class="recommended-badge">Recomendado</span></option>
                                 <option value="gemini" <%= settings.perito_provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
@@ -200,6 +200,21 @@
                             </button>
                         </div>
                     </div>
+                    <div class="row mt-2">
+                        <div class="col-md-5 mb-3">
+                            <label class="form-label"><i class="fas fa-shield-alt me-1"></i> Fallback (1º)</label>
+                            <select class="form-select fallback-select" name="perito_fallback" id="perito_fallback">
+                                <option value="">-- Nenhum (direto para DeepSeek) --</option>
+                                <option value="gemini" <%= settings.perito_fallback === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                                <option value="deepseek" <%= settings.perito_fallback === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                                <option value="qwen" <%= settings.perito_fallback === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
+                                <option value="perplexity" <%= settings.perito_fallback === 'perplexity' ? 'selected' : '' %>>Perplexity</option>
+                            </select>
+                        </div>
+                        <div class="col-md-7 mb-3 d-flex align-items-end">
+                            <small class="text-muted"><i class="fas fa-info-circle"></i> Se o principal falhar, tentará o Fallback antes do DeepSeek (final)</small>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -216,7 +231,7 @@
                 <div class="agent-body">
                     <div class="row">
                         <div class="col-md-5 mb-3">
-                            <label class="form-label">Provedor de I.A.</label>
+                            <label class="form-label">Provedor de I.A. (Principal)</label>
                             <select class="form-select provider-select" name="detetive_provider" id="detetive_provider" data-agent="detetive">
                                 <option value="deepseek" <%= settings.detetive_provider === 'deepseek' || !settings.detetive_provider ? 'selected' : '' %>>DeepSeek <span class="recommended-badge">Recomendado</span></option>
                                 <option value="gemini" <%= settings.detetive_provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
@@ -236,6 +251,21 @@
                             </button>
                         </div>
                     </div>
+                    <div class="row mt-2">
+                        <div class="col-md-5 mb-3">
+                            <label class="form-label"><i class="fas fa-shield-alt me-1"></i> Fallback (1º)</label>
+                            <select class="form-select fallback-select" name="detetive_fallback" id="detetive_fallback">
+                                <option value="">-- Nenhum (direto para DeepSeek) --</option>
+                                <option value="gemini" <%= settings.detetive_fallback === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                                <option value="deepseek" <%= settings.detetive_fallback === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                                <option value="qwen" <%= settings.detetive_fallback === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
+                                <option value="perplexity" <%= settings.detetive_fallback === 'perplexity' ? 'selected' : '' %>>Perplexity</option>
+                            </select>
+                        </div>
+                        <div class="col-md-7 mb-3 d-flex align-items-end">
+                            <small class="text-muted"><i class="fas fa-info-circle"></i> Se o principal falhar, tentará o Fallback antes do DeepSeek (final)</small>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -252,7 +282,7 @@
                 <div class="agent-body">
                     <div class="row">
                         <div class="col-md-5 mb-3">
-                            <label class="form-label">Provedor de I.A.</label>
+                            <label class="form-label">Provedor de I.A. (Principal)</label>
                             <select class="form-select provider-select" name="auditor_provider" id="auditor_provider" data-agent="auditor">
                                 <option value="deepseek" <%= settings.auditor_provider === 'deepseek' || !settings.auditor_provider ? 'selected' : '' %>>DeepSeek <span class="recommended-badge">Recomendado</span></option>
                                 <option value="gemini" <%= settings.auditor_provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
@@ -272,6 +302,21 @@
                             </button>
                         </div>
                     </div>
+                    <div class="row mt-2">
+                        <div class="col-md-5 mb-3">
+                            <label class="form-label"><i class="fas fa-shield-alt me-1"></i> Fallback (1º)</label>
+                            <select class="form-select fallback-select" name="auditor_fallback" id="auditor_fallback">
+                                <option value="">-- Nenhum (direto para DeepSeek) --</option>
+                                <option value="gemini" <%= settings.auditor_fallback === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                                <option value="deepseek" <%= settings.auditor_fallback === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                                <option value="qwen" <%= settings.auditor_fallback === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
+                                <option value="perplexity" <%= settings.auditor_fallback === 'perplexity' ? 'selected' : '' %>>Perplexity</option>
+                            </select>
+                        </div>
+                        <div class="col-md-7 mb-3 d-flex align-items-end">
+                            <small class="text-muted"><i class="fas fa-info-circle"></i> Se o principal falhar, tentará o Fallback antes do DeepSeek (final)</small>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -288,7 +333,7 @@
                 <div class="agent-body">
                     <div class="row">
                         <div class="col-md-5 mb-3">
-                            <label class="form-label">Provedor de I.A.</label>
+                            <label class="form-label">Provedor de I.A. (Principal)</label>
                             <select class="form-select provider-select" name="sniper_provider" id="sniper_provider" data-agent="sniper">
                                 <option value="gemini" <%= settings.sniper_provider === 'gemini' || !settings.sniper_provider ? 'selected' : '' %>>Google Gemini <span class="recommended-badge">Recomendado</span></option>
                                 <option value="deepseek" <%= settings.sniper_provider === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
@@ -307,6 +352,20 @@
                             </button>
                         </div>
                     </div>
+                    <div class="row mt-2">
+                        <div class="col-md-5 mb-3">
+                            <label class="form-label"><i class="fas fa-shield-alt me-1"></i> Fallback (1º)</label>
+                            <select class="form-select fallback-select" name="sniper_fallback" id="sniper_fallback">
+                                <option value="">-- Nenhum (direto para DeepSeek) --</option>
+                                <option value="gemini" <%= settings.sniper_fallback === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                                <option value="deepseek" <%= settings.sniper_fallback === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                                <option value="qwen" <%= settings.sniper_fallback === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-7 mb-3 d-flex align-items-end">
+                            <small class="text-muted"><i class="fas fa-info-circle"></i> Se o principal falhar, tentará o Fallback antes do DeepSeek (final)</small>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -323,7 +382,7 @@
                 <div class="agent-body">
                     <div class="row">
                         <div class="col-md-5 mb-3">
-                            <label class="form-label">Provedor de I.A.</label>
+                            <label class="form-label">Provedor de I.A. (Principal)</label>
                             <select class="form-select provider-select" name="juiz_provider" id="juiz_provider" data-agent="juiz">
                                 <option value="deepseek" <%= settings.juiz_provider === 'deepseek' || !settings.juiz_provider ? 'selected' : '' %>>DeepSeek <span class="recommended-badge">Recomendado</span></option>
                                 <option value="gemini" <%= settings.juiz_provider === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
@@ -341,6 +400,21 @@
                             <button type="button" class="btn btn-fetch-models w-100" data-agent="juiz">
                                 <i class="fas fa-sync-alt"></i> Obter
                             </button>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-5 mb-3">
+                            <label class="form-label"><i class="fas fa-shield-alt me-1"></i> Fallback (1º)</label>
+                            <select class="form-select fallback-select" name="juiz_fallback" id="juiz_fallback">
+                                <option value="">-- Nenhum (direto para DeepSeek) --</option>
+                                <option value="gemini" <%= settings.juiz_fallback === 'gemini' ? 'selected' : '' %>>Google Gemini</option>
+                                <option value="deepseek" <%= settings.juiz_fallback === 'deepseek' ? 'selected' : '' %>>DeepSeek</option>
+                                <option value="qwen" <%= settings.juiz_fallback === 'qwen' ? 'selected' : '' %>>Qwen (Alibaba)</option>
+                                <option value="perplexity" <%= settings.juiz_fallback === 'perplexity' ? 'selected' : '' %>>Perplexity</option>
+                            </select>
+                        </div>
+                        <div class="col-md-7 mb-3 d-flex align-items-end">
+                            <small class="text-muted"><i class="fas fa-info-circle"></i> Se o principal falhar, tentará o Fallback antes do DeepSeek (final)</small>
                         </div>
                     </div>
                 </div>

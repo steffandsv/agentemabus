@@ -336,18 +336,23 @@ app.get('/admin/ai-config', isAdmin, async (req, res) => {
             // PERITO Agent
             perito_provider: await getSetting('perito_provider') || 'deepseek',
             perito_model: await getSetting('perito_model') || 'deepseek-chat',
+            perito_fallback: await getSetting('perito_fallback') || '',
             // DETETIVE Agent
             detetive_provider: await getSetting('detetive_provider') || 'deepseek',
             detetive_model: await getSetting('detetive_model') || 'deepseek-chat',
+            detetive_fallback: await getSetting('detetive_fallback') || '',
             // AUDITOR Agent
             auditor_provider: await getSetting('auditor_provider') || 'deepseek',
             auditor_model: await getSetting('auditor_model') || 'deepseek-chat',
+            auditor_fallback: await getSetting('auditor_fallback') || '',
             // SNIPER Agent
             sniper_provider: await getSetting('sniper_provider') || 'gemini',
             sniper_model: await getSetting('sniper_model') || 'gemini-2.0-flash',
+            sniper_fallback: await getSetting('sniper_fallback') || '',
             // JUIZ Agent
             juiz_provider: await getSetting('juiz_provider') || 'deepseek',
             juiz_model: await getSetting('juiz_model') || 'deepseek-chat',
+            juiz_fallback: await getSetting('juiz_fallback') || '',
             // Global API Keys
             deepseek_api_key: await getSetting('deepseek_api_key') || '',
             gemini_api_key: await getSetting('gemini_api_key') || '',
@@ -362,12 +367,12 @@ app.get('/admin/ai-config', isAdmin, async (req, res) => {
 
 app.post('/admin/ai-config/save', isAdmin, async (req, res) => {
     const {
-        // Agent providers and models
-        perito_provider, perito_model,
-        detetive_provider, detetive_model,
-        auditor_provider, auditor_model,
-        sniper_provider, sniper_model,
-        juiz_provider, juiz_model,
+        // Agent providers, models, and fallbacks
+        perito_provider, perito_model, perito_fallback,
+        detetive_provider, detetive_model, detetive_fallback,
+        auditor_provider, auditor_model, auditor_fallback,
+        sniper_provider, sniper_model, sniper_fallback,
+        juiz_provider, juiz_model, juiz_fallback,
         // Global API Keys
         deepseek_api_key, gemini_api_key, qwen_api_key, perplexity_api_key
     } = req.body;
@@ -376,22 +381,27 @@ app.post('/admin/ai-config/save', isAdmin, async (req, res) => {
         // Save PERITO settings
         if (perito_provider) await setSetting('perito_provider', perito_provider);
         if (perito_model) await setSetting('perito_model', perito_model);
+        await setSetting('perito_fallback', perito_fallback || '');
         
         // Save DETETIVE settings
         if (detetive_provider) await setSetting('detetive_provider', detetive_provider);
         if (detetive_model) await setSetting('detetive_model', detetive_model);
+        await setSetting('detetive_fallback', detetive_fallback || '');
         
         // Save AUDITOR settings
         if (auditor_provider) await setSetting('auditor_provider', auditor_provider);
         if (auditor_model) await setSetting('auditor_model', auditor_model);
+        await setSetting('auditor_fallback', auditor_fallback || '');
         
         // Save SNIPER settings
         if (sniper_provider) await setSetting('sniper_provider', sniper_provider);
         if (sniper_model) await setSetting('sniper_model', sniper_model);
+        await setSetting('sniper_fallback', sniper_fallback || '');
         
         // Save JUIZ settings
         if (juiz_provider) await setSetting('juiz_provider', juiz_provider);
         if (juiz_model) await setSetting('juiz_model', juiz_model);
+        await setSetting('juiz_fallback', juiz_fallback || '');
         
         // Save Global API Keys (only if not empty)
         if (deepseek_api_key && deepseek_api_key.trim()) await setSetting('deepseek_api_key', deepseek_api_key);
