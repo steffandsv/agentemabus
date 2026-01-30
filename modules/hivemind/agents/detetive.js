@@ -1,8 +1,9 @@
 /**
- * DETETIVE Agent (The Scout)
+ * DETETIVE Agent (The Scout) - v10.4
  * 
  * Mission: Leave the marketplace and investigate the open web.
  * Find the actual MANUFACTURER/MODEL that matches the Kill-Specs.
+ * v10.4: Uses cascaded fallback system (Configured → Gemini → DeepSeek)
  * 
  * Tools:
  * - Google Custom Search API (primary)
@@ -18,8 +19,8 @@ const path = require('path');
 const fs = require('fs');
 const fetch = require('node-fetch');
 const { search: duckDuckGoSearch } = require('duckduckgo-search');
-// FIXED: Import getApiKeyFromEnv for safe API key retrieval from .env
-const { generateText, PROVIDERS, getApiKeyFromEnv } = require('../../../src/services/ai_manager');
+// v10.4: Use cascaded fallback system
+const { generateTextWithCascadeFallback, PROVIDERS, getApiKeyFromEnv } = require('../../../src/services/ai_manager');
 const { getSetting } = require('../../../src/database');
 const { googleSearch: customSearch } = require('../../../src/google_services');
 
@@ -286,26 +287,20 @@ RESPONDA EM JSON:
 }
 \`\`\``;
 
-    // FIXED: Read DETETIVE config from database, API key from .env (source of truth)
+    // v10.4: Read DETETIVE config from database, use cascaded fallback
     let provider = config.provider || await getSetting('detetive_provider') || PROVIDERS.DEEPSEEK;
     let model = config.model || await getSetting('detetive_model') || 'deepseek-chat';
-    let apiKey = getApiKeyFromEnv(provider);
-    
-    // Fallback to DeepSeek if provider's key not found
-    if (!apiKey) {
-        console.warn(`[DETETIVE] ⚠️ No API key in .env for "${provider}". Falling back to DeepSeek.`);
-        provider = PROVIDERS.DEEPSEEK;
-        model = 'deepseek-chat';
-        apiKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
-    }
     
     try {
-        const response = await generateText({
+        const result = await generateTextWithCascadeFallback({
             provider,
-            model: config.model,
-            apiKey,
-            messages: [{ role: 'user', content: prompt }]
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            agentName: 'detetive'
         });
+        
+        const response = result.text;
+        console.log(`[DETETIVE] ✅ Entity extraction with ${result.usedProvider} (${result.tier})`);
         
         const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/) || 
                           response.match(/\{[\s\S]*\}/);

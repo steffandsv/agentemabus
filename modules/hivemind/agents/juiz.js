@@ -1,8 +1,9 @@
 /**
- * JUIZ Agent - THE SKEPTICAL JUDGE v10.3 "FLEXÍVEL & IMPLACÁVEL"
+ * JUIZ Agent - THE SKEPTICAL JUDGE v10.4 "FLEXÍVEL & IMPLACÁVEL"
  * 
  * Mission: Calculate Adherence Score using ProductDNA and weighted specs.
  * Philosophy: Flexible search, IMPLACABLE judgment on POSITIVE specs.
+ * v10.4: Uses cascaded fallback system (Configured → Gemini → DeepSeek)
  * 
  * v10.3 CHANGES:
  * - REMOVED: Kill-words elimination (caused false positives like "manual")
@@ -16,8 +17,8 @@
  * - defenseReport: Technical defense report with scoring breakdown
  */
 
-// FIXED: Import getApiKeyFromEnv for safe API key retrieval from .env
-const { generateText, PROVIDERS, getApiKeyFromEnv } = require('../../../src/services/ai_manager');
+// v10.4: Use cascaded fallback system
+const { generateTextWithCascadeFallback, generateText, PROVIDERS, getApiKeyFromEnv } = require('../../../src/services/ai_manager');
 const { getSetting } = require('../../../src/database');
 
 // PRICE FLOOR: Minimum viable price as percentage of max tender price
@@ -625,27 +626,21 @@ RESPONDA EM JSON:
 }
 \`\`\``;
 
-    // FIXED: Read JUIZ config from database, API key from .env (source of truth)
+    // v10.4: Read JUIZ config from database, use cascaded fallback
     let provider = config.provider || await getSetting('juiz_provider') || PROVIDERS.DEEPSEEK;
     let model = config.model || await getSetting('juiz_model') || 'deepseek-chat';
-    let apiKey = getApiKeyFromEnv(provider);
-
-    // Fallback to DeepSeek if provider's key not found
-    if (!apiKey) {
-        console.warn(`[JUIZ] ⚠️ No API key in .env for "${provider}". Falling back to DeepSeek.`);
-        provider = PROVIDERS.DEEPSEEK;
-        model = 'deepseek-chat';
-        apiKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
-    }
-
+    
     try {
-        const response = await generateText({
+        const result = await generateTextWithCascadeFallback({
             provider,
-            model: config.model,
-            apiKey,
-            messages: [{ role: 'user', content: prompt }]
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            agentName: 'juiz'
         });
-
+        
+        const response = result.text;
+        console.log(`[JUIZ] ✅ Entity matching with ${result.usedProvider} (${result.tier})`);
+        
         const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/) ||
             response.match(/\{[\s\S]*\}/);
 

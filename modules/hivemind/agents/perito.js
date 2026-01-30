@@ -1,8 +1,9 @@
 /**
- * PERITO Agent (The Extractor) - HIVE-MIND v10.3 "FLEXÍVEL & IMPLACÁVEL"
+ * PERITO Agent (The Extractor) - HIVE-MIND v10.4 "FLEXÍVEL & IMPLACÁVEL"
  * 
  * Mission: Read tender descriptions and extract structured information for marketplace search.
  * Philosophy: FLEXIBLE search (find many candidates), IMPLACABLE judgment (JUIZ validates)
+ * v10.4: Uses cascaded fallback system (Configured → Gemini → DeepSeek)
  * 
  * Output:
  * - marketplaceSearchTerm: Natural search term for Mercado Livre
@@ -13,9 +14,8 @@
 
 const path = require('path');
 const fs = require('fs');
-// LEI 1: Use generateTextWithFallback for DeepSeek safety net
-// CRITICAL FIX: Use getApiKeyFromEnv to get keys from .env (source of truth), NOT from database
-const { generateTextWithFallback, PROVIDERS, getApiKeyFromEnv } = require('../../../src/services/ai_manager');
+// v10.4: Use cascaded fallback system
+const { generateTextWithCascadeFallback, PROVIDERS, getApiKeyFromEnv } = require('../../../src/services/ai_manager');
 const { getSetting } = require('../../../src/database');
 
 // Load prompt template
@@ -33,34 +33,16 @@ async function executePerito(description, config, debugLogger = null) {
         : getDefaultPrompt();
 
     const prompt = promptTemplate.replace('{{DESCRIPTION}}', description);
-
-    // Get AI configuration - Provider/Model from DB, but KEYS ONLY FROM .env
+    
+    // Get AI configuration from admin panel
     let provider = config.provider || await getSetting('perito_provider') || PROVIDERS.DEEPSEEK;
     let model = config.model || await getSetting('perito_model') || 'deepseek-chat';
-
-    // CRITICAL FIX: API keys MUST come from .env file (source of truth)
-    // The database has corrupted/mixed-up keys. NEVER trust the database for credentials.
-    let apiKey = getApiKeyFromEnv(provider);
-
-    // FALLBACK: If the configured provider's key doesn't exist in .env, fall back to DeepSeek
-    if (!apiKey) {
-        console.warn(`[PERITO] ⚠️ No API key in .env for "${provider}". Falling back to DeepSeek.`);
-        provider = PROVIDERS.DEEPSEEK;
-        model = 'deepseek-chat';
-        apiKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
-
-        if (!apiKey) {
-            throw new Error(`PERITO FATAL: No DEEPSEEK_API_KEY found in .env. This is required as the fallback provider.`);
-        }
-    }
-
-    console.log(`[PERITO] Using API key from .env for ${provider} (ending: ...${apiKey.slice(-4)})`);
-
+    
     const messages = [
         { role: 'user', content: prompt }
     ];
-
-    // DEBUG: Log prompt sent to AI with PROVIDER/MODEL/ENDPOINT info
+    
+    // DEBUG: Log AI configuration
     const providerEndpoints = {
         'deepseek': 'https://api.deepseek.com/v1/chat/completions',
         'gemini': 'https://generativelanguage.googleapis.com/v1beta',
@@ -68,35 +50,40 @@ async function executePerito(description, config, debugLogger = null) {
         'perplexity': 'https://api.perplexity.ai/chat/completions'
     };
     const endpoint = providerEndpoints[provider] || 'unknown';
-
-    console.log(`[PERITO] 🤖 AI Provider: ${provider}`);
-    console.log(`[PERITO] 📦 Model: ${model || 'default'}`);
-    console.log(`[PERITO] 🔗 Endpoint: ${endpoint}`);
-
+    
+    console.log(`[PERITO] 🤖 Configured AI Provider: ${provider}`);
+    console.log(`[PERITO] 📦 Configured Model: ${model}`);
+    console.log(`[PERITO] 🔗 Expected Endpoint: ${endpoint}`);
+    console.log(`[PERITO] 🔄 Using cascaded fallback: ${provider} → Gemini → DeepSeek`);
+    
     if (debugLogger) {
         debugLogger.agentInput('PERITO', description);
         debugLogger.aiPrompt('PERITO', prompt);
-        // GOLDEN PATH: Use aiCallDetails for full tracing with complete API URL
-        debugLogger.aiCallDetails('PERITO', {
-            provider: provider,
-            model: model || 'default',
-            endpoint: endpoint,
-            apiKeyLast4: apiKey ? apiKey.slice(-4) : 'N/A',
-            estimatedTokens: Math.ceil(prompt.length / 4)
-        });
+        debugLogger.log('PERITO', `AI Config: provider=${provider}, model=${model}, endpoint=${endpoint}`);
     }
-
+    
     try {
-        // LEI 1: Use safety net function that falls back to DeepSeek on 401
-        const response = await generateTextWithFallback({ provider, model, apiKey, messages });
-
-        // DEBUG: Log raw AI response
+        // v10.4: Use cascaded fallback system
+        const result = await generateTextWithCascadeFallback({
+            provider,
+            model,
+            messages,
+            agentName: 'perito'
+        });
+        
+        const response = result.text;
+        
+        // Log which provider was actually used
+        console.log(`[PERITO] ✅ Response from ${result.usedProvider} (${result.tier}), model: ${result.usedModel}`);
+        
         if (debugLogger) {
             debugLogger.aiResponse('PERITO', response);
+            debugLogger.log('PERITO', `Used: ${result.usedProvider} (${result.tier}), model: ${result.usedModel}`);
         }
         console.log(`[PERITO] AI Response received (${response.length} chars)`);
 
         const parsed = parseResponse(response, description, debugLogger);
+
 
         // DEBUG: Log parsed output
         if (debugLogger) {

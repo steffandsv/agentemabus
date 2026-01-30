@@ -500,6 +500,137 @@ async function generateStreamWithFallback(config, callbacks) {
     await generateStream(config, wrappedCallbacks);
 }
 
+// ============================================
+// CASCADED API KEY RESOLUTION (v10.4)
+// ============================================
+
+/**
+ * Get API key with cascaded fallback: .env first, then database
+ * This ensures that admin panel configurations are respected when .env keys are missing
+ * 
+ * @param {string} provider - The provider to get key for
+ * @returns {Promise<string|null>} The API key or null if not found
+ */
+async function getApiKeyWithFallback(provider) {
+    // Step 1: Try .env (source of truth)
+    const envKey = getApiKeyFromEnv(provider);
+    if (envKey) {
+        console.log(`[AI Manager] ✓ API key for ${provider} found in .env`);
+        return envKey;
+    }
+    
+    // Step 2: Try database (admin panel configuration)
+    const dbKeyName = `${provider}_api_key`;
+    const dbKey = await getSetting(dbKeyName);
+    if (dbKey && dbKey.trim()) {
+        console.log(`[AI Manager] ✓ API key for ${provider} found in database (admin panel)`);
+        return dbKey;
+    }
+    
+    console.log(`[AI Manager] ✗ No API key found for ${provider} in .env or database`);
+    return null;
+}
+
+/**
+ * Default fallback chains for each agent type
+ * Format: [primary fallback, secondary fallback, ...]
+ * DeepSeek is always the implicit final fallback
+ */
+const DEFAULT_FALLBACK_CHAINS = {
+    'perito': [PROVIDERS.GEMINI],
+    'detetive': [PROVIDERS.GEMINI],
+    'auditor': [PROVIDERS.GEMINI],
+    'sniper': [], // Sniper already uses Gemini as recommended, direct to DeepSeek
+    'juiz': [PROVIDERS.GEMINI]
+};
+
+/**
+ * Default models for each provider
+ */
+const DEFAULT_MODELS = {
+    [PROVIDERS.DEEPSEEK]: 'deepseek-chat',
+    [PROVIDERS.GEMINI]: 'gemini-2.0-flash',
+    [PROVIDERS.QWEN]: 'qwen-max',
+    [PROVIDERS.PERPLEXITY]: 'sonar-pro'
+};
+
+/**
+ * Generate text with cascaded fallback system (v10.4)
+ * 
+ * This function implements a multi-tier fallback:
+ * 1. Try the configured provider
+ * 2. Try the secondary fallback (if configured)
+ * 3. Try DeepSeek as the final safety net
+ * 
+ * @param {object} config - { provider, model, apiKey, messages, agentName }
+ * @param {string[]} fallbackChain - Optional custom fallback chain
+ * @returns {Promise<{text: string, usedProvider: string, usedModel: string}>}
+ */
+async function generateTextWithCascadeFallback(config, fallbackChain = null) {
+    const { provider: primaryProvider, model: primaryModel, messages, agentName } = config;
+    
+    // Build the fallback chain
+    const chain = fallbackChain || DEFAULT_FALLBACK_CHAINS[agentName?.toLowerCase()] || [];
+    const providersToTry = [
+        { provider: primaryProvider, model: primaryModel },
+        ...chain.map(p => ({ provider: p, model: DEFAULT_MODELS[p] })),
+        { provider: PROVIDERS.DEEPSEEK, model: 'deepseek-chat' } // Final safety net
+    ];
+    
+    // Remove duplicates (keep first occurrence)
+    const seen = new Set();
+    const uniqueProviders = providersToTry.filter(p => {
+        if (seen.has(p.provider)) return false;
+        seen.add(p.provider);
+        return true;
+    });
+    
+    let lastError = null;
+    
+    for (let i = 0; i < uniqueProviders.length; i++) {
+        const { provider, model } = uniqueProviders[i];
+        const isLast = i === uniqueProviders.length - 1;
+        const tier = i === 0 ? 'PRIMARY' : (isLast ? 'FINAL FALLBACK' : `FALLBACK ${i}`);
+        
+        // Get API key with cascaded resolution
+        const apiKey = await getApiKeyWithFallback(provider);
+        
+        if (!apiKey) {
+            console.log(`[AI Manager] ⏭️ Skipping ${provider} (${tier}) - No API key available`);
+            continue;
+        }
+        
+        console.log(`[AI Manager] 🎯 Trying ${provider} (${tier}) with model ${model}`);
+        
+        try {
+            const text = await generateText({ provider, model, apiKey, messages });
+            console.log(`[AI Manager] ✅ Success with ${provider} (${tier})`);
+            
+            return {
+                text,
+                usedProvider: provider,
+                usedModel: model,
+                tier
+            };
+        } catch (err) {
+            lastError = err;
+            const errorType = err.message?.includes('401') ? '401 Unauthorized' : 
+                              err.message?.includes('429') ? '429 Rate Limited' :
+                              err.message?.includes('500') ? '500 Server Error' : 'Unknown Error';
+            
+            console.warn(`[AI Manager] ⚠️ ${provider} (${tier}) failed: ${errorType}`);
+            console.warn(`[AI Manager] → ${err.message?.substring(0, 100)}`);
+            
+            if (!isLast) {
+                console.log(`[AI Manager] 🔄 Falling back to next provider...`);
+            }
+        }
+    }
+    
+    // All providers failed
+    throw new Error(`All AI providers failed. Last error: ${lastError?.message || 'Unknown'}`);
+}
+
 module.exports = {
     PROVIDERS,
     fetchModels,
@@ -508,5 +639,9 @@ module.exports = {
     // LEI 1: New safety net functions
     generateTextWithFallback,
     generateStreamWithFallback,
-    getApiKeyFromEnv
+    getApiKeyFromEnv,
+    // v10.4: Cascaded fallback system
+    getApiKeyWithFallback,
+    generateTextWithCascadeFallback,
+    DEFAULT_MODELS
 };

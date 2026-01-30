@@ -1,9 +1,10 @@
 /**
- * AUDITOR Agent (The Validator)
+ * AUDITOR Agent (The Validator) - v10.4
  * 
  * Mission: Validate discovered entities on manufacturer sites.
  * Confirm that the product meets ALL Kill-Specs.
  * Detect if kit composition is needed (missing accessories).
+ * v10.4: Uses cascaded fallback system (Configured → Gemini → DeepSeek)
  * 
  * Output:
  * - validated: boolean
@@ -15,8 +16,8 @@
 const path = require('path');
 const fs = require('fs');
 const fetch = require('node-fetch');
-// FIXED: Import getApiKeyFromEnv for safe API key retrieval from .env
-const { generateText, PROVIDERS, getApiKeyFromEnv } = require('../../../src/services/ai_manager');
+// v10.4: Use cascaded fallback system
+const { generateTextWithCascadeFallback, PROVIDERS, getApiKeyFromEnv } = require('../../../src/services/ai_manager');
 const { getSetting } = require('../../../src/database');
 
 // Jina Reader endpoint
@@ -157,26 +158,20 @@ RESPONDA EM JSON:
 }
 \`\`\``;
 
-    // FIXED: Read AUDITOR config from database, API key from .env (source of truth)
+    // v10.4: Read AUDITOR config from database, use cascaded fallback
     let provider = config.provider || await getSetting('auditor_provider') || PROVIDERS.DEEPSEEK;
     let model = config.model || await getSetting('auditor_model') || 'deepseek-chat';
-    let apiKey = getApiKeyFromEnv(provider);
-    
-    // Fallback to DeepSeek if provider's key not found
-    if (!apiKey) {
-        console.warn(`[AUDITOR] ⚠️ No API key in .env for "${provider}". Falling back to DeepSeek.`);
-        provider = PROVIDERS.DEEPSEEK;
-        model = 'deepseek-chat';
-        apiKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
-    }
     
     try {
-        const response = await generateText({
+        const result = await generateTextWithCascadeFallback({
             provider,
-            model: config.model,
-            apiKey,
-            messages: [{ role: 'user', content: prompt }]
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            agentName: 'auditor'
         });
+        
+        const response = result.text;
+        console.log(`[AUDITOR] ✅ Spec validation with ${result.usedProvider} (${result.tier})`);
         
         const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/) || 
                           response.match(/\{[\s\S]*\}/);
@@ -237,26 +232,20 @@ RESPONDA EM JSON:
 }
 \`\`\``;
 
-    // FIXED: Read AUDITOR config from database, API key from .env (source of truth)
+    // v10.4: Read AUDITOR config from database, use cascaded fallback
     let provider = config.provider || await getSetting('auditor_provider') || PROVIDERS.DEEPSEEK;
     let model = config.model || await getSetting('auditor_model') || 'deepseek-chat';
-    let apiKey = getApiKeyFromEnv(provider);
-    
-    // Fallback to DeepSeek if provider's key not found
-    if (!apiKey) {
-        console.warn(`[AUDITOR] ⚠️ No API key in .env for "${provider}". Falling back to DeepSeek.`);
-        provider = PROVIDERS.DEEPSEEK;
-        model = 'deepseek-chat';
-        apiKey = getApiKeyFromEnv(PROVIDERS.DEEPSEEK);
-    }
     
     try {
-        const response = await generateText({
+        const result = await generateTextWithCascadeFallback({
             provider,
-            model: config.model,
-            apiKey,
-            messages: [{ role: 'user', content: prompt }]
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            agentName: 'auditor'
         });
+        
+        const response = result.text;
+        console.log(`[AUDITOR] ✅ Kit analysis with ${result.usedProvider} (${result.tier})`);
         
         const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/) || 
                           response.match(/\{[\s\S]*\}/);
